@@ -1,4 +1,3 @@
-
 import SwiftUI
 import SwiftData
 
@@ -7,10 +6,28 @@ struct MainAppView: View {
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @Namespace private var animation
     
-    @State private var showPlayerView = false // 🔥 controla vista completa
+    // Removed @State private var showPlayerView = false
 
     private var currentSong: Song? {
         songs.first { $0.id == viewModel.playerViewModel.currentlyPlayingID }
+    }
+
+    init() {
+        let tabBarAppearance = UITabBarAppearance()
+        tabBarAppearance.configureWithOpaqueBackground()
+        tabBarAppearance.backgroundColor = UIColor(Color.spotifyGray)
+        
+        let textAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor(Color.spotifyLightGray)]
+        let selectedTextAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.white]
+        
+        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(Color.spotifyLightGray)
+        tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = textAttributes
+        
+        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = .white
+        tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = selectedTextAttributes
+        
+        UITabBar.appearance().standardAppearance = tabBarAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
     }
 
     var body: some View {
@@ -26,14 +43,12 @@ struct MainAppView: View {
             .accentColor(.white)
 
             // PlayerView completo
-            if let currentSong = currentSong, showPlayerView {
+            if let currentSong = currentSong, viewModel.playerViewModel.showPlayerView {
                 PlayerView(
                     songs: songs,
                     currentSong: currentSong,
-                    namespace: animation,
-                    showPlayerView: $showPlayerView
+                    namespace: animation
                 )
-                .environmentObject(viewModel)
                 .environmentObject(viewModel.playerViewModel)
                 .transition(.move(edge: .bottom))
             }
@@ -42,24 +57,20 @@ struct MainAppView: View {
             if let currentSong = currentSong,
                viewModel.playerViewModel.currentlyPlayingID != nil,
                !viewModel.isScrolling,
-               !showPlayerView {
+               !viewModel.playerViewModel.showPlayerView {
                 PlayerControlsView(song: currentSong, namespace: animation)
                     .padding(.bottom, 60)
                     .onTapGesture {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                            showPlayerView = true
+                            viewModel.playerViewModel.showPlayerView = true
                         }
                     }
                     .transition(.move(edge: .bottom))
-                    .environmentObject(viewModel)
-                    .environmentObject(viewModel.playerViewModel)
             }
         }
+        .environmentObject(viewModel)
+        .environmentObject(viewModel.playerViewModel)
     }
-}
-
-#Preview {
-    MainAppViewPreviewWrapper()
 }
 
 #Preview {
@@ -86,7 +97,8 @@ private struct MainAppViewPreviewWrapper: View {
             ].forEach { context.insert($0) }
 
             self.container = testContainer
-        } else {
+        }
+        else {
             fatalError("❌ Failed to create container")
         }
 
@@ -99,4 +111,3 @@ private struct MainAppViewPreviewWrapper: View {
             .environmentObject(mainViewModel)
     }
 }
-

@@ -10,6 +10,7 @@ class PlayerViewModel: ObservableObject {
     @Published var currentlyPlayingID: UUID?
     @Published var playbackTime: TimeInterval = 0
     @Published var songDuration: TimeInterval = 0
+    @Published var showPlayerView: Bool = false
     
     private let audioPlayerService: AudioPlayerService
     private let downloadService: DownloadService
@@ -68,6 +69,12 @@ class PlayerViewModel: ObservableObject {
         guard let idx = allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
         let prev = (idx - 1 + allSongs.count) % allSongs.count
         play(song: allSongs[prev])
+    }
+
+    func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     private func setupSubscriptions() {
