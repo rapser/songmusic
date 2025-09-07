@@ -15,7 +15,7 @@ struct sinkmusicApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainAppView()
                 .environmentObject(viewModel) // Inyectamos el ViewModel en el entorno
         }
         .modelContainer(for: Song.self) // Configuramos el contenedor de SwiftData

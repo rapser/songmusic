@@ -6,44 +6,68 @@ struct ContentView: View {
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
 
     @EnvironmentObject var viewModel: MainViewModel
-    @State private var showPlayerView = false
-    
-    private var currentSong: Song? {
-        songs.first { $0.id == viewModel.currentlyPlayingID }
-    }
 
     var body: some View {
-        NavigationView {
+        ZStack {
+            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            
             VStack {
+                Text("Sink Music")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding()
+
                 List(songs) { song in
                     SongRow(song: song)
+                        .onTapGesture {
+                            viewModel.play(song: song)
+                        }
                 }
-                
-                if let currentSong = currentSong {
-                    PlayerControlsView(song: currentSong)
-                        .padding(.bottom, 8)
-                        .onTapGesture { showPlayerView = true }
-                }
+                .listStyle(PlainListStyle())
             }
-            .navigationTitle("Sink Music")
-            .onAppear {
-                viewModel.syncLibraryWithCatalog(modelContext: modelContext)
-            }
-            .sheet(isPresented: $showPlayerView) {
-                if let currentSong = currentSong {
-                    PlayerView(songs: songs, currentSong: currentSong)
-                }
-            }
+        }
+        .onAppear {
+            viewModel.syncLibraryWithCatalog(modelContext: modelContext)
         }
     }
 }
 
 #Preview {
-    do {
-        let container = try ModelContainer(for: Song.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-        return ContentView()
-            .modelContainer(container)
-    } catch {
-        return Text("Failed to create container: \(error.localizedDescription)")
+    ContentViewPreviewWrapper()
+}
+
+private struct ContentViewPreviewWrapper: View {
+    @StateObject private var viewModel = MainViewModel()
+    
+    // Datos simulados para el preview
+    private let exampleSongs = [
+        Song(id: UUID(), title: "Song 1", artist: "Artist 1", fileID: "file1", isDownloaded: false),
+        Song(id: UUID(), title: "Song 2", artist: "Artist 2", fileID: "file2", isDownloaded: false),
+        Song(id: UUID(), title: "Song 3", artist: "Artist 3", fileID: "file3", isDownloaded: false)
+    ]
+    
+    var body: some View {
+        ZStack {
+            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            
+            VStack {
+                Text("Sink Music")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding()
+
+                List(exampleSongs) { song in
+                    SongRow(song: song)
+                        .onTapGesture {
+                            viewModel.play(song: song)
+                        }
+                }
+                .listStyle(PlainListStyle())
+            }
+        }
+        .environmentObject(viewModel)
     }
 }
+
