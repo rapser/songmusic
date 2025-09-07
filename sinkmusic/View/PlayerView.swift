@@ -7,7 +7,7 @@ struct PlayerView: View {
     var currentSong: Song
     var namespace: Namespace.ID
     @Binding var showPlayerView: Bool
-    
+
     @State private var sliderValue: Double = 0
     @State private var isEditingSlider = false
 
@@ -17,6 +17,7 @@ struct PlayerView: View {
                 .edgesIgnoringSafeArea(.all)
 
             VStack(spacing: 32) {
+                // Header con botón cerrar
                 HStack {
                     Spacer()
                     Button(action: {
@@ -28,21 +29,35 @@ struct PlayerView: View {
                             .font(.title)
                             .foregroundColor(.white)
                     }
-                }.padding()
+                }
+                .padding()
 
+                // Imagen de la canción
                 Image(systemName: "music.note")
-                    .font(.system(size: 200))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
                     .padding()
                     .background(Color.black.opacity(0.2))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .shadow(radius: 10)
                     .foregroundColor(.white)
+                    .matchedGeometryEffect(id: "player", in: namespace)
 
-                VStack {
-                    Text(currentSong.title).font(.largeTitle).fontWeight(.bold).foregroundColor(.white)
-                    Text(currentSong.artist).font(.title2).foregroundColor(.spotifyLightGray)
+                // Título y artista
+                VStack(spacing: 4) {
+                    Text(currentSong.title)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Text(currentSong.artist)
+                        .font(.title2)
+                        .foregroundColor(.spotifyLightGray)
+                        .lineLimit(1)
                 }
 
+                // Slider de progreso
                 VStack {
                     Slider(value: $sliderValue, in: 0...(viewModel.songDuration > 0 ? viewModel.songDuration : 1)) { editing in
                         isEditingSlider = editing
@@ -51,7 +66,7 @@ struct PlayerView: View {
                         }
                     }
                     .accentColor(.spotifyGreen)
-                    
+
                     HStack {
                         Text(formatTime(viewModel.playbackTime))
                         Spacer()
@@ -59,36 +74,41 @@ struct PlayerView: View {
                     }
                     .font(.caption)
                     .foregroundColor(.spotifyLightGray)
-                }.padding(.horizontal)
+                }
+                .padding(.horizontal)
 
-                HStack(spacing: 40) {
+                // Controles de reproducción
+                HStack(spacing: 50) {
                     Button(action: { viewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
-                        Image(systemName: "backward.fill").font(.largeTitle)
+                        Image(systemName: "backward.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
                     }
+
                     Button(action: { viewModel.play(song: currentSong) }) {
                         Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(.system(size: 70))
+                            .foregroundColor(.white)
                     }
+
                     Button(action: { viewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
-                        Image(systemName: "forward.fill").font(.largeTitle)
+                        Image(systemName: "forward.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
                     }
                 }
-                .foregroundColor(.white)
-                
+
                 Spacer()
             }
         }
-        .matchedGeometryEffect(id: "player", in: namespace)
-        .onAppear {
-            sliderValue = viewModel.playbackTime
-        }
+        .onAppear { sliderValue = viewModel.playbackTime }
         .onChange(of: viewModel.playbackTime) { _, newValue in
             if !isEditingSlider {
                 sliderValue = newValue
             }
         }
     }
-    
+
     private func formatTime(_ time: TimeInterval) -> String {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60

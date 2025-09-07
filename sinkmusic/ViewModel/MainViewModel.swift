@@ -11,6 +11,7 @@ class MainViewModel: ObservableObject {
     @Published var currentlyPlayingID: UUID?
     @Published var playbackTime: TimeInterval = 0
     @Published var songDuration: TimeInterval = 0
+    @Published var isScrolling: Bool = false // New property
     
     private let audioPlayerService: AudioPlayerService
     private let downloadService: DownloadService

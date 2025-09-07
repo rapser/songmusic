@@ -50,20 +50,26 @@ struct MainAppView: View {
             }
             .accentColor(.white)
 
-            if showPlayerView {
-                if let currentSong = currentSong {
-                    PlayerView(songs: songs, currentSong: currentSong, namespace: animation, showPlayerView: $showPlayerView)
-                }
+            // PlayerView completo (pantalla grande)
+            if showPlayerView, let currentSong = currentSong {
+                PlayerView(
+                    songs: songs,
+                    currentSong: currentSong,
+                    namespace: animation,
+                    showPlayerView: $showPlayerView
+                )
             }
-            
-            if let currentSong = currentSong, !showPlayerView {
+
+            // Mini Player
+            if let currentSong = currentSong, !showPlayerView, !viewModel.isScrolling {
                 PlayerControlsView(song: currentSong, namespace: animation)
                     .padding(.bottom, 60)
-                    .onTapGesture { 
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)){
-                            showPlayerView = true 
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showPlayerView = true
                         }
                     }
+                    .transition(.move(edge: .bottom))
             }
         }
         .environmentObject(viewModel)

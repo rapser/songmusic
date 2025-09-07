@@ -15,24 +15,29 @@ struct PlayerControlsView: View {
     var body: some View {
         HStack(spacing: 0) {
             ZStack {
-                Color.spotifyGreen // Green background
+                Color.spotifyGreen
                     .frame(width: 50, height: 50)
-                    .opacity(0.7) // Apply opacity
+                    .opacity(0.7)
+                    .cornerRadius(12)
 
                 Image(systemName: "music.note")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20) // Icon size
+                    .frame(width: 20, height: 20)
                     .foregroundColor(.white)
             }
 
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(song.title)
                     .font(.headline)
+                    .lineLimit(1)
+                    .foregroundColor(.white)
                 Text(song.artist)
                     .font(.caption)
+                    .lineLimit(1)
+                    .foregroundColor(.spotifyLightGray)
             }
-            .padding(.leading, 15)
+            .padding(.leading, 12)
 
             Spacer()
 
@@ -40,14 +45,15 @@ struct PlayerControlsView: View {
                 Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
                     .resizable()
                     .frame(width: 20, height: 20)
+                    .foregroundColor(.white)
             }
-            .padding(.trailing)
+            .padding(.trailing, 12)
         }
-        .frame(height: 50)
-        .background(Color(red: 50/255, green: 50/255, blue: 50/255).opacity(0.7))
-        .foregroundColor(.white)
-        .cornerRadius(12)
+        .padding(.vertical, 6)
         .padding(.horizontal)
+        .background(Color(red: 50/255, green: 50/255, blue: 50/255).opacity(0.8))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
         .matchedGeometryEffect(id: "player", in: namespace)
     }
 }
