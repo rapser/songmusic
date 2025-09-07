@@ -12,8 +12,9 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
-    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for isScrolling
-    @StateObject private var songListViewModel = SongListViewModel() // New StateObject
+    @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var songListViewModel: SongListViewModel
 
     @State private var lastOffset: CGFloat = 0
 
@@ -32,9 +33,10 @@ struct ContentView: View {
                     VStack(spacing: 10) {
                         ForEach(songs) { song in
                             SongRow(song: song)
-                                .environmentObject(songListViewModel) // Pass SongListViewModel
+                                // ❌ REMOVED: .environmentObject(songListViewModel)
+                                // Ya viene por EnvironmentObject
                                 .onTapGesture {
-                                    viewModel.playerViewModel.play(song: song)
+                                    playerViewModel.play(song: song) // ✅ Usar playerViewModel directamente
                                 }
                         }
                     }
@@ -73,7 +75,6 @@ struct ContentView: View {
         }
     }
 }
-
 #Preview {
     ContentViewPreviewWrapper()
 }

@@ -6,14 +6,14 @@ import SwiftData
 @MainActor
 class MainViewModel: ObservableObject {
     @Published var isScrolling: Bool = false
-    var playerViewModel: PlayerViewModel // Changed from let to var
+    var playerViewModel: PlayerViewModel
     private var cancellables = Set<AnyCancellable>()
 
     init(playerViewModel: PlayerViewModel? = nil) {
         if let provided = playerViewModel {
             self.playerViewModel = provided
         } else {
-            self.playerViewModel = PlayerViewModel() // ✅ se crea en MainActor
+            self.playerViewModel = PlayerViewModel()
         }
     }
     

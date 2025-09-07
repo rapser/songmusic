@@ -2,12 +2,10 @@ import SwiftUI
 import SwiftData
 
 struct PlayerView: View {
-    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for isScrolling
-    @EnvironmentObject var playerViewModel: PlayerViewModel // New EnvironmentObject
+    @EnvironmentObject var playerViewModel: PlayerViewModel
     var songs: [Song]
     var currentSong: Song
     var namespace: Namespace.ID
-    // Removed @Binding var showPlayerView: Bool
     
     @State private var sliderValue: Double = 0
     @State private var isEditingSlider = false
@@ -23,7 +21,7 @@ struct PlayerView: View {
                     Spacer()
                     Button(action: {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                            playerViewModel.showPlayerView = false // Use playerViewModel
+                            playerViewModel.showPlayerView = false
                         }
                     }) {
                         Image(systemName: "chevron.down")
@@ -69,9 +67,9 @@ struct PlayerView: View {
                     .accentColor(.spotifyGreen)
                     
                     HStack {
-                        Text(playerViewModel.formatTime(playerViewModel.playbackTime)) // Use playerViewModel
+                        Text(playerViewModel.formatTime(playerViewModel.playbackTime))
                         Spacer()
-                        Text(playerViewModel.formatTime(playerViewModel.songDuration)) // Use playerViewModel
+                        Text(playerViewModel.formatTime(playerViewModel.songDuration))
                     }
                     .font(.caption)
                     .foregroundColor(.spotifyLightGray)
@@ -87,7 +85,7 @@ struct PlayerView: View {
                     }
                     
                     Button(action: { playerViewModel.play(song: currentSong) }) {
-                        Image(playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(.system(size: 70))
                             .foregroundColor(.white)
                     }
@@ -102,7 +100,7 @@ struct PlayerView: View {
                 Spacer()
             }
         }
-        .onAppear { sliderValue = playerViewModel.playbackTime } // Use playerViewModel
+        .onAppear { sliderValue = playerViewModel.playbackTime }
         .onChange(of: playerViewModel.playbackTime) { _, newValue in
             if !isEditingSlider {
                 sliderValue = newValue

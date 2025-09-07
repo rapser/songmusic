@@ -6,8 +6,6 @@ struct MainAppView: View {
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @Namespace private var animation
     
-    // Removed @State private var showPlayerView = false
-
     private var currentSong: Song? {
         songs.first { $0.id == viewModel.playerViewModel.currentlyPlayingID }
     }
@@ -41,6 +39,7 @@ struct MainAppView: View {
                     .tabItem { Label("Biblioteca", systemImage: "books.vertical.fill") }
             }
             .accentColor(.white)
+            .environmentObject(viewModel.playerViewModel)
 
             // PlayerView completo
             if let currentSong = currentSong, viewModel.playerViewModel.showPlayerView {
@@ -49,7 +48,6 @@ struct MainAppView: View {
                     currentSong: currentSong,
                     namespace: animation
                 )
-                .environmentObject(viewModel.playerViewModel)
                 .transition(.move(edge: .bottom))
             }
 
@@ -69,7 +67,6 @@ struct MainAppView: View {
             }
         }
         .environmentObject(viewModel)
-        .environmentObject(viewModel.playerViewModel)
     }
 }
 

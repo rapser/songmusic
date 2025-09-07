@@ -34,7 +34,9 @@ class SongListViewModel: ObservableObject {
     private func setupSubscriptions() {
         downloadService.downloadProgressPublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] (songID, progress) in self?.downloadProgress[songID] = progress }
+            .sink { [weak self] (songID, progress) in
+                self?.downloadProgress[songID] = progress
+            }
             .store(in: &cancellables)
     }
 }

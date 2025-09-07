@@ -2,6 +2,9 @@
 import SwiftUI
 
 struct LibraryView: View {
+    
+    @EnvironmentObject var playerViewModel: PlayerViewModel
+
     var body: some View {
         ZStack {
             Color.spotifyBlack.edgesIgnoringSafeArea(.all)

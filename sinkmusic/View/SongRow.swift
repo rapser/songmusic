@@ -9,8 +9,8 @@ import SwiftUI
 
 struct SongRow: View {
     @Bindable var song: Song
-    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for playerViewModel
-    @EnvironmentObject var songListViewModel: SongListViewModel // New EnvironmentObject
+    @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -25,7 +25,7 @@ struct SongRow: View {
             }
             Spacer()
             
-            if let progress = songListViewModel.downloadProgress[song.id] { // Use songListViewModel
+            if let progress = songListViewModel.downloadProgress[song.id] {
                 if progress < 0 {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -41,8 +41,10 @@ struct SongRow: View {
                     .frame(width: 100)
                 }
             } else if song.isDownloaded {
-                Button(action: { viewModel.playerViewModel.play(song: song) }) { // Use viewModel.playerViewModel
-                    Image(systemName: viewModel.playerViewModel.currentlyPlayingID == song.id && viewModel.playerViewModel.isPlaying // Use viewModel.playerViewModel
+                Button(action: {
+                    playerViewModel.play(song: song)
+                }) {
+                    Image(systemName: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
                           ? "pause.circle.fill"
                           : "play.circle.fill")
                         .font(.system(size: 24))
@@ -50,7 +52,9 @@ struct SongRow: View {
                         .frame(width: 44, height: 44)
                 }
             } else {
-                Button(action: { songListViewModel.download(song: song, modelContext: modelContext) }) { // Use songListViewModel
+                Button(action: {
+                    songListViewModel.download(song: song, modelContext: modelContext)
+                }) {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 24))
                         .foregroundColor(.spotifyGreen)

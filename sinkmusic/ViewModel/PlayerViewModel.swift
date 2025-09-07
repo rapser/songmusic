@@ -39,8 +39,8 @@ class PlayerViewModel: ObservableObject {
             }
         } else {
             audioPlayerService.play(songID: song.id, url: url)
-            currentlyPlayingID = song.id   // 🔥 importante
-            isPlaying = true               // 🔥 importante
+            currentlyPlayingID = song.id
+            isPlaying = true
         }
     }
     

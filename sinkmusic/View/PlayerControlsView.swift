@@ -10,8 +10,7 @@ import SwiftUI
 struct PlayerControlsView: View {
     let song: Song
     var namespace: Namespace.ID
-    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for isScrolling
-    @EnvironmentObject var playerViewModel: PlayerViewModel // New EnvironmentObject
+    @EnvironmentObject var playerViewModel: PlayerViewModel
 
     var body: some View {
         HStack(spacing: 0) {
@@ -42,8 +41,8 @@ struct PlayerControlsView: View {
 
             Spacer()
 
-            Button(action: { playerViewModel.play(song: song) }) { // Use playerViewModel
-                Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill") // Use playerViewModel
+            Button(action: { playerViewModel.play(song: song) }) {
+                Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
                     .resizable()
                     .frame(width: 20, height: 20)
                     .foregroundColor(.white)
