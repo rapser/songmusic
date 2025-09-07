@@ -10,7 +10,8 @@ import SwiftUI
 struct PlayerControlsView: View {
     let song: Song
     var namespace: Namespace.ID
-    @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for isScrolling
+    @EnvironmentObject var playerViewModel: PlayerViewModel // New EnvironmentObject
 
     var body: some View {
         HStack(spacing: 0) {
@@ -41,8 +42,8 @@ struct PlayerControlsView: View {
 
             Spacer()
 
-            Button(action: { viewModel.play(song: song) }) {
-                Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+            Button(action: { playerViewModel.play(song: song) }) { // Use playerViewModel
+                Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill") // Use playerViewModel
                     .resizable()
                     .frame(width: 20, height: 20)
                     .foregroundColor(.white)
@@ -66,19 +67,26 @@ private struct PlayerControlsViewPreviewWrapper: View {
     @Namespace private var namespace
 
     var body: some View {
-        // Crear canción de ejemplo
-        let exampleSong = Song(id: UUID(), title: "Song 1", artist: "Artist 1", fileID: "file1", isDownloaded: false)
-        
-        // Instancia de ViewModel de prueba
-        let viewModel = MainViewModel()
-        viewModel.isPlaying = true
-        
+        let exampleSong = Song(
+            id: UUID(),
+            title: "Song 1",
+            artist: "Artist 1",
+            fileID: "file1",
+            isDownloaded: false
+        )
+
+        // Instancias de ViewModels de prueba
+        let mainViewModel = MainViewModel()
+        let playerViewModel = PlayerViewModel()
+        playerViewModel.isPlaying = true
+
         return PlayerControlsView(
             song: exampleSong,
             namespace: namespace
         )
-        .environmentObject(viewModel)
+        .environmentObject(mainViewModel)
+        .environmentObject(playerViewModel)
         .padding()
-        .background(Color.black.edgesIgnoringSafeArea(.all)) // Fondo para que se vea bien en el preview
+        .background(Color.black.ignoresSafeArea()) // Fondo oscuro
     }
 }

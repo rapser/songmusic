@@ -3,6 +3,7 @@ import SwiftData
 
 struct PlayerView: View {
     @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var playerViewModel: PlayerViewModel
     var songs: [Song]
     var currentSong: Song
     var namespace: Namespace.ID
@@ -59,18 +60,18 @@ struct PlayerView: View {
 
                 // Slider de progreso
                 VStack {
-                    Slider(value: $sliderValue, in: 0...(viewModel.songDuration > 0 ? viewModel.songDuration : 1)) { editing in
+                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1)) { editing in // Use playerViewModel
                         isEditingSlider = editing
                         if !editing {
-                            viewModel.seek(to: sliderValue)
+                            playerViewModel.seek(to: sliderValue) // Use playerViewModel
                         }
                     }
                     .accentColor(.spotifyGreen)
 
                     HStack {
-                        Text(formatTime(viewModel.playbackTime))
+                        Text(formatTime(playerViewModel.playbackTime)) // Use playerViewModel
                         Spacer()
-                        Text(formatTime(viewModel.songDuration))
+                        Text(formatTime(playerViewModel.songDuration)) // Use playerViewModel
                     }
                     .font(.caption)
                     .foregroundColor(.spotifyLightGray)
@@ -79,19 +80,19 @@ struct PlayerView: View {
 
                 // Controles de reproducción
                 HStack(spacing: 50) {
-                    Button(action: { viewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
+                    Button(action: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) { // Use playerViewModel
                         Image(systemName: "backward.fill")
                             .font(.largeTitle)
                             .foregroundColor(.white)
                     }
 
-                    Button(action: { viewModel.play(song: currentSong) }) {
-                        Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    Button(action: { playerViewModel.play(song: currentSong) }) { // Use playerViewModel
+                        Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill") // Use playerViewModel
                             .font(.system(size: 70))
                             .foregroundColor(.white)
                     }
 
-                    Button(action: { viewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
+                    Button(action: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) }) { // Use playerViewModel
                         Image(systemName: "forward.fill")
                             .font(.largeTitle)
                             .foregroundColor(.white)
@@ -101,8 +102,8 @@ struct PlayerView: View {
                 Spacer()
             }
         }
-        .onAppear { sliderValue = viewModel.playbackTime }
-        .onChange(of: viewModel.playbackTime) { _, newValue in
+        .onAppear { sliderValue = playerViewModel.playbackTime } // Use playerViewModel
+        .onChange(of: playerViewModel.playbackTime) { _, newValue in // Use playerViewModel
             if !isEditingSlider {
                 sliderValue = newValue
             }
@@ -124,17 +125,19 @@ private struct PlayerViewPreviewWrapper: View {
     @Namespace private var namespace
     
     var body: some View {
-        // Crear canciones de ejemplo
         let exampleSongs = [
             Song(id: UUID(), title: "Song 1", artist: "Artist 1", fileID: "file1", isDownloaded: false),
             Song(id: UUID(), title: "Song 2", artist: "Artist 2", fileID: "file2", isDownloaded: false)
         ]
         
-        // Instancia del ViewModel de prueba
-        let viewModel = MainViewModel()
-        viewModel.songDuration = 240  // 4 minutos
-        viewModel.playbackTime = 60   // 1 minuto de reproducción
-        viewModel.isPlaying = true
+        // Instancias de ViewModels de prueba
+        let mainViewModel = MainViewModel()
+        let playerViewModel = PlayerViewModel()
+        
+        // Estado inicial simulado
+        playerViewModel.songDuration = 240   // 4 minutos
+        playerViewModel.playbackTime = 60    // 1 minuto de reproducción
+        playerViewModel.isPlaying = true
 
         return PlayerView(
             songs: exampleSongs,
@@ -142,7 +145,7 @@ private struct PlayerViewPreviewWrapper: View {
             namespace: namespace,
             showPlayerView: .constant(true)
         )
-        .environmentObject(viewModel)
+        .environmentObject(mainViewModel)
+        .environmentObject(playerViewModel)
     }
 }
-

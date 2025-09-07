@@ -3,7 +3,6 @@ import Foundation
 import AVFoundation
 import Combine
 
-// Servicio dedicado a manejar la lógica de AVAudioPlayer
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     
     // Publishers para que el ViewModel pueda suscribirse a los cambios

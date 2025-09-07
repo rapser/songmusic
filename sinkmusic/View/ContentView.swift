@@ -12,7 +12,8 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
-    @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for isScrolling
+    @StateObject private var songListViewModel = SongListViewModel() // New StateObject
 
     @State private var lastOffset: CGFloat = 0
 
@@ -20,19 +21,22 @@ struct ContentView: View {
         ZStack {
             Color.spotifyBlack.edgesIgnoringSafeArea(.all)
 
-            ScrollView {
-                VStack(spacing: 10) {
-                    Text("Sink Music")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.top, 20)
+            VStack {
+                Text("Sink Music")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.top, 20)
 
-                    ForEach(songs) { song in
-                        SongRow(song: song)
-                            .onTapGesture {
-                                viewModel.play(song: song)
-                            }
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(songs) { song in
+                            SongRow(song: song)
+                                .environmentObject(songListViewModel) // Pass SongListViewModel
+                                .onTapGesture {
+                                    viewModel.playerViewModel.play(song: song)
+                                }
+                        }
                     }
 
                     // GeometryReader dentro del contenido que se mueve
@@ -75,34 +79,26 @@ struct ContentView: View {
 }
 
 private struct ContentViewPreviewWrapper: View {
-    @StateObject private var viewModel = MainViewModel()
-    
+    @StateObject private var mainViewModel = MainViewModel()
+    @StateObject private var songListViewModel = SongListViewModel()
+    @Environment(\.modelContext) private var modelContext // <- aquí obtienes el contexto de SwiftData
+
+    // Datos de ejemplo
     private let exampleSongs = [
-        Song(id: UUID(), title: "Song 1", artist: "Artist 1", fileID: "file1", isDownloaded: false),
+        Song(id: UUID(), title: "Song 1", artist: "Artist 1", fileID: "file1", isDownloaded: true),
         Song(id: UUID(), title: "Song 2", artist: "Artist 2", fileID: "file2", isDownloaded: false),
         Song(id: UUID(), title: "Song 3", artist: "Artist 3", fileID: "file3", isDownloaded: false)
     ]
-    
-    var body: some View {
-        ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
-            
-            VStack {
-                Text("Sink Music")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.top, 20)
 
-                List(exampleSongs) { song in
-                    SongRow(song: song)
-                        .onTapGesture {
-                            viewModel.play(song: song)
-                        }
+    var body: some View {
+        ContentView()
+            .environmentObject(mainViewModel)
+            .environmentObject(songListViewModel)
+            .modelContainer(for: Song.self, inMemory: true)
+            .onAppear {
+                for song in exampleSongs {
+                    modelContext.insert(song)
                 }
-                .listStyle(PlainListStyle())
             }
-        }
-        .environmentObject(viewModel)
     }
 }

@@ -9,7 +9,8 @@ import SwiftUI
 
 struct SongRow: View {
     @Bindable var song: Song
-    @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var viewModel: MainViewModel // Keep MainViewModel for playerViewModel
+    @EnvironmentObject var songListViewModel: SongListViewModel // New EnvironmentObject
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -24,7 +25,7 @@ struct SongRow: View {
             }
             Spacer()
             
-            if let progress = viewModel.downloadProgress[song.id] {
+            if let progress = songListViewModel.downloadProgress[song.id] { // Use songListViewModel
                 if progress < 0 {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -40,8 +41,8 @@ struct SongRow: View {
                     .frame(width: 100)
                 }
             } else if song.isDownloaded {
-                Button(action: { viewModel.play(song: song) }) {
-                    Image(systemName: viewModel.currentlyPlayingID == song.id && viewModel.isPlaying
+                Button(action: { viewModel.playerViewModel.play(song: song) }) { // Use viewModel.playerViewModel
+                    Image(systemName: viewModel.playerViewModel.currentlyPlayingID == song.id && viewModel.playerViewModel.isPlaying // Use viewModel.playerViewModel
                           ? "pause.circle.fill"
                           : "play.circle.fill")
                         .font(.system(size: 24))
@@ -49,7 +50,7 @@ struct SongRow: View {
                         .frame(width: 44, height: 44)
                 }
             } else {
-                Button(action: { viewModel.download(song: song, modelContext: modelContext) }) {
+                Button(action: { songListViewModel.download(song: song, modelContext: modelContext) }) { // Use songListViewModel
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 24))
                         .foregroundColor(.spotifyGreen)
@@ -63,15 +64,27 @@ struct SongRow: View {
 }
 
 #Preview(traits: .sizeThatFitsLayout) {
-    let sampleSong = Song(title: "Canción de Prueba",
-                          artist: "artista", fileID: "file123",
-                          isDownloaded: false)
-
-    let viewModel = MainViewModel()
-
-    SongRow(song: sampleSong)
-        .environmentObject(viewModel)
-        .modelContainer(for: Song.self, inMemory: true)
-        .padding()
+    SongRowPreviewWrapper()
 }
 
+private struct SongRowPreviewWrapper: View {
+    @State private var sampleSong = Song(
+        id: UUID(),
+        title: "Canción de Prueba",
+        artist: "Artista",
+        fileID: "file123",
+        isDownloaded: false
+    )
+
+    @StateObject private var mainViewModel = MainViewModel()
+    @StateObject private var songListViewModel = SongListViewModel()
+
+    var body: some View {
+        SongRow(song: sampleSong)
+            .environmentObject(mainViewModel)
+            .environmentObject(songListViewModel)
+            .modelContainer(for: Song.self, inMemory: true)
+            .padding()
+            .background(Color.black)
+    }
+}
