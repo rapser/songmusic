@@ -17,7 +17,7 @@ struct SongRow: View {
             VStack(alignment: .leading) {
                 Text(song.title)
                     .font(.headline)
-                Text("Artista Desconocido")
+                Text(song.artist)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -58,7 +58,7 @@ struct SongRow: View {
 #Preview(traits: .sizeThatFitsLayout) {
     // Canción de ejemplo
     let sampleSong = Song(title: "Canción de Prueba",
-                          fileID: "file123",
+                          artist: "artista", fileID: "file123",
                           isDownloaded: false)
 
     // ViewModel de prueba

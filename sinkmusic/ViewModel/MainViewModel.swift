@@ -51,21 +51,22 @@ class MainViewModel: ObservableObject {
             existingSongsMap[song.fileID] = song
         }
         
-        let catalogSongs = SongCatalog.allSongs // Ahora es un diccionario [fileID: title]
+        let catalogSongs = SongCatalog.allSongs // Ahora es un array de CatalogSong
         
         var newSongsAdded = 0
         var songsUpdated = 0
         
-        for (fileID, newTitle) in catalogSongs {
-            if let existingSong = existingSongsMap[fileID] {
-                // La canción ya existe, verificar si el título ha cambiado
-                if existingSong.title != newTitle {
-                    existingSong.title = newTitle
+        for catalogSong in catalogSongs {
+            if let existingSong = existingSongsMap[catalogSong.id] {
+                // La canción ya existe, verificar si el título o el artista han cambiado
+                if existingSong.title != catalogSong.title || existingSong.artist != catalogSong.artist {
+                    existingSong.title = catalogSong.title
+                    existingSong.artist = catalogSong.artist
                     songsUpdated += 1
                 }
             } else {
                 // La canción no existe, añadirla
-                let newSong = Song(title: newTitle, fileID: fileID)
+                let newSong = Song(title: catalogSong.title, artist: catalogSong.artist, fileID: catalogSong.id)
                 modelContext.insert(newSong)
                 newSongsAdded += 1
             }

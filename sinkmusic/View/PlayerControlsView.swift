@@ -18,7 +18,7 @@ struct PlayerControlsView: View {
             VStack(alignment: .leading) {
                 Text(song.title)
                     .font(.headline)
-                Text("Artista Desconocido")
+                Text(song.artist)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -37,7 +37,7 @@ struct PlayerControlsView: View {
 
 #Preview(traits: .sizeThatFitsLayout) {
     // Canción de ejemplo
-    let sampleSong = Song(title: "Canción de Prueba", fileID: "file123", isDownloaded: true)
+    let sampleSong = Song(title: "Canción de Prueba", artist: "artista", fileID: "file123", isDownloaded: true)
 
     // ViewModel de prueba
     let viewModel = MainViewModel()

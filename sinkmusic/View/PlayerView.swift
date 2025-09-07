@@ -26,7 +26,7 @@ struct PlayerView: View {
 
             VStack {
                 Text(currentSong.title).font(.largeTitle).fontWeight(.bold)
-                Text("Artista Desconocido").font(.title2).foregroundColor(.secondary)
+                Text(currentSong.artist).font(.title2).foregroundColor(.secondary)
             }
 
             VStack {
@@ -77,36 +77,28 @@ struct PlayerView: View {
     }
 }
 
-#Preview {
-    do {
-        // Contenedor en memoria para Song
-        let container = try ModelContainer(
-            for: Song.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+// MARK: - Datos de prueba
+extension Song {
+    static let sampleSongs: [Song] = [
+        Song(title: "Primera Canción", artist: "Artista A", fileID: "file1", isDownloaded: true),
+        Song(title: "Segunda Canción", artist: "Artista B", fileID: "file2", isDownloaded: false),
+        Song(title: "Tercera Canción", artist: "Artista C", fileID: "file3", isDownloaded: false)
+    ]
+}
 
-        // Canciones de ejemplo
-        let sampleSongs = [
-            Song(title: "Primera Canción", fileID: "file1", isDownloaded: true),
-            Song(title: "Segunda Canción", fileID: "file2", isDownloaded: false),
-            Song(title: "Tercera Canción", fileID: "file3", isDownloaded: false)
-        ]
-        for song in sampleSongs {
-            container.mainContext.insert(song)
-        }
-
-        // ViewModel simulado
-        let viewModel = MainViewModel()
-        viewModel.currentlyPlayingID = sampleSongs[0].id
-        viewModel.isPlaying = true
-        viewModel.songDuration = 240 // 4 min
-        viewModel.playbackTime = 42  // 0:42
-
-        return PlayerView(songs: sampleSongs, currentSong: sampleSongs[0])
-            .environmentObject(viewModel)
-            .modelContainer(container)
-
-    } catch {
-        return Text("⚠️ Error creando el contenedor en memoria: \(error.localizedDescription)")
+extension MainViewModel {
+    static func preview() -> MainViewModel {
+        let vm = MainViewModel()
+        vm.currentlyPlayingID = Song.sampleSongs[0].id
+        vm.isPlaying = true
+        vm.songDuration = 240
+        vm.playbackTime = 42
+        return vm
     }
 }
+
+#Preview {
+    PlayerView(songs: Song.sampleSongs, currentSong: Song.sampleSongs[0])
+        .environmentObject(MainViewModel.preview())
+}
+
