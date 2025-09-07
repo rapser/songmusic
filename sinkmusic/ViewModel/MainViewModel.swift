@@ -29,6 +29,7 @@ class MainViewModel: ObservableObject {
             do {
                 _ = try await downloadService.download(song: song)
                 song.isDownloaded = true
+                try modelContext.save()
                 // SwiftData guardará automáticamente este cambio en el hilo principal.
                 downloadProgress[song.id] = nil
             } catch {

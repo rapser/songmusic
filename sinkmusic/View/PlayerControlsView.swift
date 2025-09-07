@@ -14,11 +14,17 @@ struct PlayerControlsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Image(systemName: "music.note")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 50, height: 50)
-                .background(Color.spotifyGreen)
+            ZStack {
+                Color.spotifyGreen // Green background
+                    .frame(width: 50, height: 50)
+                    .opacity(0.7) // Apply opacity
+
+                Image(systemName: "music.note")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20) // Icon size
+                    .foregroundColor(.white)
+            }
 
             VStack(alignment: .leading) {
                 Text(song.title)
@@ -26,7 +32,7 @@ struct PlayerControlsView: View {
                 Text(song.artist)
                     .font(.caption)
             }
-            .padding(.leading)
+            .padding(.leading, 15)
 
             Spacer()
 
