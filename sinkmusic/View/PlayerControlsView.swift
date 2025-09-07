@@ -13,32 +13,33 @@ struct PlayerControlsView: View {
     @EnvironmentObject var viewModel: MainViewModel
 
     var body: some View {
-        HStack {
+        HStack(spacing: 0) {
             Image(systemName: "music.note")
                 .resizable()
-                .frame(width: 30, height: 30)
-                .padding()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 50, height: 50)
                 .background(Color.spotifyGreen)
-                .cornerRadius(8)
-                
 
             VStack(alignment: .leading) {
                 Text(song.title)
                     .font(.headline)
-                    .foregroundColor(.white)
                 Text(song.artist)
                     .font(.caption)
-                    .foregroundColor(.spotifyLightGray)
             }
+            .padding(.leading)
+
             Spacer()
+
             Button(action: { viewModel.play(song: song) }) {
                 Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.title)
-                    .foregroundColor(.white)
+                    .resizable()
+                    .frame(width: 20, height: 20)
             }
             .padding(.trailing)
         }
-        .background(Color.spotifyGray)
+        .frame(height: 50)
+        .background(Color(red: 50/255, green: 50/255, blue: 50/255).opacity(0.7))
+        .foregroundColor(.white)
         .cornerRadius(12)
         .padding(.horizontal)
         .matchedGeometryEffect(id: "player", in: namespace)

@@ -58,7 +58,7 @@ struct MainAppView: View {
             
             if let currentSong = currentSong, !showPlayerView {
                 PlayerControlsView(song: currentSong, namespace: animation)
-                    .padding(.bottom, 50)
+                    .padding(.bottom, 60)
                     .onTapGesture { 
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)){
                             showPlayerView = true 

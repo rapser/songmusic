@@ -12,7 +12,7 @@ struct ContentView: View {
             Color.spotifyBlack.edgesIgnoringSafeArea(.all)
             
             VStack {
-                Text("Sink Music")
+                Text("Taki Music")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
