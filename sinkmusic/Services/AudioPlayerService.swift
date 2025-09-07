@@ -15,6 +15,20 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
+    override init() {
+        super.init()
+        setupAudioSession()
+    }
+
+    private func setupAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Error al configurar AVAudioSession: \(error.localizedDescription)")
+        }
+    }
+
     func play(songID: UUID, url: URL) {
         if currentlyPlayingID == songID {
             // Si es la misma canción, simplemente reanuda o pausa
