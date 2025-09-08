@@ -2,111 +2,121 @@ import SwiftUI
 import SwiftData
 
 struct PlayerView: View {
-    @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var playerViewModel: PlayerViewModel
     var songs: [Song]
     var currentSong: Song
+    var namespace: Namespace.ID
     
-    @Environment(\.presentationMode) var presentationMode
     @State private var sliderValue: Double = 0
     @State private var isEditingSlider = false
-
+    
     var body: some View {
-        VStack(spacing: 32) {
-            HStack {
-                Spacer()
-                Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                    Image(systemName: "xmark.circle.fill").font(.largeTitle).foregroundColor(.gray)
-                }
-            }.padding()
-
-            Image(systemName: "music.note")
-                .font(.system(size: 200)).padding()
-                .background(Color.gray.opacity(0.2))
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-
-            VStack {
-                Text(currentSong.title).font(.largeTitle).fontWeight(.bold)
-                Text("Artista Desconocido").font(.title2).foregroundColor(.secondary)
-            }
-
-            VStack {
-                Slider(value: $sliderValue, in: 0...(viewModel.songDuration > 0 ? viewModel.songDuration : 1)) { editing in
-                    isEditingSlider = editing
-                    if !editing {
-                        viewModel.seek(to: sliderValue)
+        ZStack {
+            LinearGradient(gradient: Gradient(colors: [Color.spotifyGray, Color.spotifyBlack]), startPoint: .top, endPoint: .bottom)
+                .edgesIgnoringSafeArea(.all)
+            
+            VStack(spacing: 32) {
+                // Header con botón cerrar
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            playerViewModel.showPlayerView = false
+                        }
+                    }) {
+                        Image(systemName: "chevron.down")
+                            .font(.title)
+                            .foregroundColor(.white)
                     }
                 }
-                HStack {
-                    Text(formatTime(viewModel.playbackTime))
-                    Spacer()
-                    Text(formatTime(viewModel.songDuration))
-                }.font(.caption).foregroundColor(.secondary)
-            }.padding(.horizontal)
-
-            HStack(spacing: 40) {
-                Button(action: { viewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
-                    Image(systemName: "backward.fill").font(.largeTitle)
+                .padding()
+                
+                // Imagen de la canción
+                Image(systemName: "music.note")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+                    .padding()
+                    .background(Color.black.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .shadow(radius: 10)
+                    .foregroundColor(.white)
+                    .matchedGeometryEffect(id: "player", in: namespace)
+                
+                // Título y artista
+                VStack(spacing: 4) {
+                    Text(currentSong.title)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Text(currentSong.artist)
+                        .font(.title2)
+                        .foregroundColor(.spotifyLightGray)
+                        .lineLimit(1)
                 }
-                Button(action: { viewModel.play(song: currentSong) }) {
-                    Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 60))
+                
+                // Slider de progreso
+                VStack {
+                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1)) { editing in
+                        isEditingSlider = editing
+                        if !editing {
+                            playerViewModel.seek(to: sliderValue)
+                        }
+                    }
+                    .accentColor(.spotifyGreen)
+                    
+                    HStack {
+                        Text(playerViewModel.formatTime(playerViewModel.playbackTime))
+                        Spacer()
+                        Text(playerViewModel.formatTime(playerViewModel.songDuration))
+                    }
+                    .font(.caption)
+                    .foregroundColor(.spotifyLightGray)
                 }
-                Button(action: { viewModel.stop() }) {
-                    Image(systemName: "stop.fill").font(.largeTitle)
+                .padding(.horizontal)
+                
+                // Controles de reproducción
+                HStack(spacing: 50) {
+                    Button(action: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
+                        Image(systemName: "backward.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
+                    }
+                    
+                    Button(action: { playerViewModel.play(song: currentSong) }) {
+                        Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.system(size: 70))
+                            .foregroundColor(.white)
+                    }
+                    
+                    Button(action: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
+                        Image(systemName: "forward.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
+                    }
                 }
-                Button(action: { viewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
-                    Image(systemName: "forward.fill").font(.largeTitle)
-                }
-            }.foregroundColor(.primary)
-            
-            Spacer()
+                
+                Spacer()
+            }
         }
-        .onAppear {
-            sliderValue = viewModel.playbackTime
-        }
-        .onChange(of: viewModel.playbackTime) { _, newValue in
+        .onAppear { sliderValue = playerViewModel.playbackTime }
+        .onChange(of: playerViewModel.playbackTime) { _, newValue in
             if !isEditingSlider {
                 sliderValue = newValue
             }
         }
     }
-    
-    private func formatTime(_ time: TimeInterval) -> String {
-        let minutes = Int(time) / 60
-        let seconds = Int(time) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
 }
 
 #Preview {
-    do {
-        // Contenedor en memoria para Song
-        let container = try ModelContainer(
-            for: Song.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    PreviewWrapper(
+        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.generate().first!.id)
+    ) {
+        PlayerView(
+            songs: PreviewSongs.generate(downloaded: true),
+            currentSong: PreviewSongs.generate(downloaded: true).first!,
+            namespace: Namespace().wrappedValue
         )
-
-        // Canciones de ejemplo
-        let sampleSongs = [
-            Song(title: "Primera Canción", fileID: "file1", isDownloaded: true),
-            Song(title: "Segunda Canción", fileID: "file2", isDownloaded: false),
-            Song(title: "Tercera Canción", fileID: "file3", isDownloaded: false)
-        ]
-        for song in sampleSongs {
-            container.mainContext.insert(song)
-        }
-
-        // ViewModel simulado
-        let viewModel = MainViewModel()
-        viewModel.currentlyPlayingID = sampleSongs[0].id
-        viewModel.isPlaying = true
-        viewModel.songDuration = 240 // 4 min
-        viewModel.playbackTime = 42  // 0:42
-
-        return PlayerView(songs: sampleSongs, currentSong: sampleSongs[0])
-            .environmentObject(viewModel)
-            .modelContainer(container)
-
-    } catch {
-        return Text("⚠️ Error creando el contenedor en memoria: \(error.localizedDescription)")
     }
 }

@@ -76,7 +76,14 @@ extension DownloadService: URLSessionDownloadDelegate {
         do {
             try? FileManager.default.removeItem(at: destinationURL)
             try FileManager.default.moveItem(at: location, to: destinationURL)
-            print("✅ Descarga completa para la canción ID: \(downloadInfo.songID)")
+
+            // Evitar backup en iCloud
+            var mutableURL = destinationURL
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            try mutableURL.setResourceValues(resourceValues)
+
+            print("✅ Descarga completa para la canción ID: \(downloadInfo.songID) y excluida de iCloud")
             downloadInfo.continuation.resume(returning: destinationURL)
         } catch {
             downloadInfo.continuation.resume(throwing: error)

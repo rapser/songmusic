@@ -10,14 +10,16 @@ import SwiftData
 
 @main
 struct sinkmusicApp: App {
-    // Creamos el MainViewModel aquí, en el nivel más alto de la app
     @StateObject private var viewModel = MainViewModel()
+    @StateObject private var songListViewModel = SongListViewModel()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(viewModel) // Inyectamos el ViewModel en el entorno
+            MainAppView()
+                .environmentObject(viewModel)
+                .environmentObject(viewModel.playerViewModel)
+                .environmentObject(songListViewModel)
         }
-        .modelContainer(for: Song.self) // Configuramos el contenedor de SwiftData
+        .modelContainer(for: Song.self)
     }
 }
