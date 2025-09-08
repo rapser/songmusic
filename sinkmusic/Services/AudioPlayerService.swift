@@ -3,7 +3,6 @@ import Foundation
 import AVFoundation
 import Combine
 
-// Servicio dedicado a manejar la lógica de AVAudioPlayer
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     
     // Publishers para que el ViewModel pueda suscribirse a los cambios
@@ -14,6 +13,20 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
+
+    override init() {
+        super.init()
+        setupAudioSession()
+    }
+
+    private func setupAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Error al configurar AVAudioSession: \(error.localizedDescription)")
+        }
+    }
 
     func play(songID: UUID, url: URL) {
         if currentlyPlayingID == songID {
