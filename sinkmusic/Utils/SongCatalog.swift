@@ -4,14 +4,13 @@ import Foundation
 import Foundation
 
 struct CatalogSong: Identifiable {
-    let id: String // Corresponde al fileID
+    let id: String
     let title: String
     let artist: String
 }
 
 struct SongCatalog {
     
-    // Este es el único lugar que necesitarás modificar para añadir o quitar canciones.
     static let allSongs: [CatalogSong] = [
         CatalogSong(id: "1UywGyACXjM1DHHu9fRgYahstKslAi2dK", title: "Paloma Ajena", artist: "Agua Marina"),
         CatalogSong(id: "1EAhgmaVu6b41qMKd0v3aTFQdfX7wImaP", title: "Asi es el Amor", artist: "Agua Marina"),
@@ -24,9 +23,4 @@ struct SongCatalog {
         CatalogSong(id: "1C3G-0wu59j2LbYdonUadZnkTDzRTWYSq", title: "We Are!", artist: "Hiroshi Kitadani")
     ]
     
-    // Un utilitario para obtener el título, o un título por defecto si no se encuentra
-    // Esta función podría no ser necesaria si siempre accedemos a través del array.
-    static func song(for fileID: String) -> CatalogSong? {
-        return allSongs.first(where: { $0.id == fileID })
-    }
 }

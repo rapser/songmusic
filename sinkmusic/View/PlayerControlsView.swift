@@ -13,12 +13,12 @@ struct PlayerControlsView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 12) {
+            // Icono de la canción
             ZStack {
                 Color.spotifyGreen
                     .frame(width: 50, height: 50)
-                    .opacity(0.7)
-                    .cornerRadius(12)
+                    .cornerRadius(8)
 
                 Image(systemName: "music.note")
                     .resizable()
@@ -27,65 +27,49 @@ struct PlayerControlsView: View {
                     .foregroundColor(.white)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            // Información de la canción
+            VStack(alignment: .leading, spacing: 4) {
                 Text(song.title)
-                    .font(.headline)
-                    .lineLimit(1)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
-                Text(song.artist)
-                    .font(.caption)
                     .lineLimit(1)
+                
+                Text(song.artist)
+                    .font(.system(size: 12))
                     .foregroundColor(.spotifyLightGray)
+                    .lineLimit(1)
             }
-            .padding(.leading, 12)
+            .padding(.leading, 8)
 
             Spacer()
 
+            // Botón de play/pause
             Button(action: { playerViewModel.play(song: song) }) {
                 Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
                     .resizable()
-                    .frame(width: 20, height: 20)
+                    .frame(width: 15, height: 15)
                     .foregroundColor(.white)
+                    .padding(10)
+                    .background(Color.spotifyGreen)
+                    .cornerRadius(16)
             }
-            .padding(.trailing, 12)
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal)
-        .background(Color(red: 50/255, green: 50/255, blue: 50/255).opacity(0.8))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(red: 40/255, green: 40/255, blue: 40/255))
+                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+        )
         .matchedGeometryEffect(id: "player", in: namespace)
+        .opacity(0.7)
     }
 }
 
 #Preview {
-    PlayerControlsViewPreviewWrapper()
-}
-
-private struct PlayerControlsViewPreviewWrapper: View {
-    @Namespace private var namespace
-
-    var body: some View {
-        let exampleSong = Song(
-            id: UUID(),
-            title: "Song 1",
-            artist: "Artist 1",
-            fileID: "file1",
-            isDownloaded: false
-        )
-
-        // Instancias de ViewModels de prueba
-        let mainViewModel = MainViewModel()
-        let playerViewModel = PlayerViewModel()
-        playerViewModel.isPlaying = true
-
-        return PlayerControlsView(
-            song: exampleSong,
-            namespace: namespace
-        )
-        .environmentObject(mainViewModel)
-        .environmentObject(playerViewModel)
-        .padding()
-        .background(Color.black.ignoresSafeArea()) // Fondo oscuro
+    PreviewWrapper(
+        mainVM: PreviewViewModels.mainVM(),
+        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.single().id)
+    ) {
+        PlayerControlsView(song: PreviewSongs.single(), namespace: Namespace().wrappedValue)
     }
 }

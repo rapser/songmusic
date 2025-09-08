@@ -108,3 +108,15 @@ struct PlayerView: View {
         }
     }
 }
+
+#Preview {
+    PreviewWrapper(
+        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.generate().first!.id)
+    ) {
+        PlayerView(
+            songs: PreviewSongs.generate(downloaded: true),
+            currentSong: PreviewSongs.generate(downloaded: true).first!,
+            namespace: Namespace().wrappedValue
+        )
+    }
+}

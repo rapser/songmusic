@@ -3,12 +3,13 @@ import SwiftData
 
 struct MainAppView: View {
     @EnvironmentObject private var viewModel: MainViewModel
+    @EnvironmentObject private var playerViewModel: PlayerViewModel
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @Namespace private var animation
     
-    private var currentSong: Song? {
-        songs.first { $0.id == viewModel.playerViewModel.currentlyPlayingID }
-    }
+    @State private var currentSong: Song? = nil
+    @State private var debugMessage = ""
+    @State private var showDebugInfo = true
 
     init() {
         let tabBarAppearance = UITabBarAppearance()
@@ -39,10 +40,9 @@ struct MainAppView: View {
                     .tabItem { Label("Biblioteca", systemImage: "books.vertical.fill") }
             }
             .accentColor(.white)
-            .environmentObject(viewModel.playerViewModel)
 
             // PlayerView completo
-            if let currentSong = currentSong, viewModel.playerViewModel.showPlayerView {
+            if let currentSong = currentSong, playerViewModel.showPlayerView {
                 PlayerView(
                     songs: songs,
                     currentSong: currentSong,
@@ -53,58 +53,63 @@ struct MainAppView: View {
 
             // Mini Player
             if let currentSong = currentSong,
-               viewModel.playerViewModel.currentlyPlayingID != nil,
+               playerViewModel.currentlyPlayingID != nil,
                !viewModel.isScrolling,
-               !viewModel.playerViewModel.showPlayerView {
+               !playerViewModel.showPlayerView {
+                
                 PlayerControlsView(song: currentSong, namespace: animation)
+                    .padding(.horizontal, 16)
                     .padding(.bottom, 60)
                     .onTapGesture {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                            viewModel.playerViewModel.showPlayerView = true
+                            playerViewModel.showPlayerView = true
                         }
                     }
-                    .transition(.move(edge: .bottom))
             }
         }
-        .environmentObject(viewModel)
+        .onAppear {
+            updateCurrentSong()
+            updateDebugInfo()
+        }
+        .onChange(of: playerViewModel.currentlyPlayingID) {
+            updateCurrentSong()
+            updateDebugInfo()
+        }
+        .onChange(of: playerViewModel.showPlayerView) {
+            updateDebugInfo()
+        }
+        .onChange(of: playerViewModel.isPlaying) {
+            updateDebugInfo()
+        }
+        .onChange(of: songs) {
+            updateCurrentSong()
+            print("🔄 Songs updated: \(songs.count)")
+        }
+    }
+    
+    private func updateCurrentSong() {
+        if let playingID = playerViewModel.currentlyPlayingID {
+            currentSong = songs.first { $0.id == playingID }
+            print("🔍 Current song: \(currentSong?.title ?? "nil")")
+        } else {
+            currentSong = nil
+        }
+    }
+    
+    private func updateDebugInfo() {
+        debugMessage = """
+        Song: \(currentSong?.title.prefix(15) ?? "nil")
+        ID: \(playerViewModel.currentlyPlayingID?.uuidString.prefix(8) ?? "nil")
+        Playing: \(playerViewModel.isPlaying)
+        ShowPlayer: \(playerViewModel.showPlayerView)
+        """
     }
 }
 
 #Preview {
-    MainAppViewPreviewWrapper()
+    PreviewWrapper(
+        mainVM: PreviewViewModels.mainVM(),
+        modelContainer: PreviewData.container(with: PreviewSongs.generate())
+    ) { MainAppView() }
 }
 
-private struct MainAppViewPreviewWrapper: View {
-    private let container: ModelContainer
-    private let mainViewModel: MainViewModel
-
-    init() {
-        // Crear container en memoria
-        if let testContainer = try? ModelContainer(
-            for: Song.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        ) {
-            let context = testContainer.mainContext
-            
-            // Insertar canciones mock
-            [
-                Song(title: "Song 1", artist: "Artist 1", fileID: "file1"),
-                Song(title: "Song 2", artist: "Artist 2", fileID: "file2"),
-                Song(title: "Song 3", artist: "Artist 3", fileID: "file3")
-            ].forEach { context.insert($0) }
-
-            self.container = testContainer
-        }
-        else {
-            fatalError("❌ Failed to create container")
-        }
-
-        self.mainViewModel = MainViewModel(playerViewModel: PlayerViewModel())
-    }
-
-    var body: some View {
-        MainAppView()
-            .modelContainer(container)
-            .environmentObject(mainViewModel)
-    }
-}

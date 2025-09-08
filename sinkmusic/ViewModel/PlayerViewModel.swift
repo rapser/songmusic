@@ -15,6 +15,8 @@ class PlayerViewModel: ObservableObject {
     private let audioPlayerService: AudioPlayerService
     private let downloadService: DownloadService
     private var cancellables = Set<AnyCancellable>()
+    
+    weak var scrollResetter: ScrollStateResettable?
 
     init(
         audioPlayerService: AudioPlayerService = AudioPlayerService(),
@@ -42,6 +44,8 @@ class PlayerViewModel: ObservableObject {
             currentlyPlayingID = song.id
             isPlaying = true
         }
+        // ✅ Resetear scroll a través de protocolo
+        scrollResetter?.resetScrollState()
     }
     
     func pause() {
@@ -102,4 +106,3 @@ class PlayerViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 }
-

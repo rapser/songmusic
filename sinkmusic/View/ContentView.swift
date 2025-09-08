@@ -1,14 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// PreferenceKey para medir el scroll
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
@@ -17,31 +9,33 @@ struct ContentView: View {
     @EnvironmentObject var songListViewModel: SongListViewModel
 
     @State private var lastOffset: CGFloat = 0
+    @State private var scrollDirection: ScrollDirection = .up
+
+    enum ScrollDirection {
+        case up, down, none
+    }
 
     var body: some View {
         ZStack {
             Color.spotifyBlack.edgesIgnoringSafeArea(.all)
 
             VStack {
-                Text("Sink Music")
+                Text("Taki Music")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                     .padding(.top, 20)
 
-                ScrollView {
+                ScrollView() {
                     VStack(spacing: 10) {
                         ForEach(songs) { song in
                             SongRow(song: song)
-                                // ❌ REMOVED: .environmentObject(songListViewModel)
-                                // Ya viene por EnvironmentObject
                                 .onTapGesture {
-                                    playerViewModel.play(song: song) // ✅ Usar playerViewModel directamente
+                                    playerViewModel.play(song: song)
                                 }
                         }
                     }
 
-                    // GeometryReader dentro del contenido que se mueve
                     GeometryReader { geo in
                         Color.clear
                             .preference(
@@ -50,24 +44,30 @@ struct ContentView: View {
                             )
                     }
                     .frame(height: 0)
+                    
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 60)
-            }
-            .coordinateSpace(name: "scroll")
-            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
-                let delta = newOffset - lastOffset
-
-                if delta > 0 {
-                    // Scroll hacia abajo -> ocultar
-                    viewModel.isScrolling = true
-                } else if delta < 0 {
-                    // Scroll hacia arriba -> mostrar
-                    viewModel.isScrolling = false
+                .coordinateSpace(name: "scroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
+                    let threshold: CGFloat = 5.0
+                    
+                    if abs(newOffset - lastOffset) > threshold {
+                        if newOffset > lastOffset {
+                            // Scroll hacia ABAJO - usuario se mueve HACIA ABAJO en el contenido
+                            scrollDirection = .up
+                            viewModel.isScrolling = false    // ✅ OCULTAR miniplayer
+                            print("⬇️ Scroll DOWN - Ocultar miniplayer")
+                        } else if newOffset < lastOffset {
+                            // Scroll hacia ARRIBA - usuario se mueve HACIA ARRIBA en el contenido
+                            scrollDirection = .down
+                            viewModel.isScrolling = true   // ✅ MOSTRAR miniplayer
+                            print("⬆️ Scroll UP - Mostrar miniplayer")
+                        }
+                    }
+                    
+                    lastOffset = newOffset
                 }
-
-                lastOffset = newOffset
-                print("Scroll Offset: \(newOffset), delta: \(delta), isScrolling: \(viewModel.isScrolling)")
+                
             }
         }
         .onAppear {
@@ -75,31 +75,11 @@ struct ContentView: View {
         }
     }
 }
+
 #Preview {
-    ContentViewPreviewWrapper()
-}
-
-private struct ContentViewPreviewWrapper: View {
-    @StateObject private var mainViewModel = MainViewModel()
-    @StateObject private var songListViewModel = SongListViewModel()
-    @Environment(\.modelContext) private var modelContext // <- aquí obtienes el contexto de SwiftData
-
-    // Datos de ejemplo
-    private let exampleSongs = [
-        Song(id: UUID(), title: "Song 1", artist: "Artist 1", fileID: "file1", isDownloaded: true),
-        Song(id: UUID(), title: "Song 2", artist: "Artist 2", fileID: "file2", isDownloaded: false),
-        Song(id: UUID(), title: "Song 3", artist: "Artist 3", fileID: "file3", isDownloaded: false)
-    ]
-
-    var body: some View {
-        ContentView()
-            .environmentObject(mainViewModel)
-            .environmentObject(songListViewModel)
-            .modelContainer(for: Song.self, inMemory: true)
-            .onAppear {
-                for song in exampleSongs {
-                    modelContext.insert(song)
-                }
-            }
-    }
+    PreviewWrapper(
+        mainVM: PreviewViewModels.mainVM(),
+        songListVM: PreviewViewModels.songListVM(),
+        modelContainer: PreviewData.container(with: PreviewSongs.generate())
+    ) { ContentView() }
 }

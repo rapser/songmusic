@@ -68,26 +68,12 @@ struct SongRow: View {
 }
 
 #Preview(traits: .sizeThatFitsLayout) {
-    SongRowPreviewWrapper()
-}
-
-private struct SongRowPreviewWrapper: View {
-    @State private var sampleSong = Song(
-        id: UUID(),
-        title: "Canción de Prueba",
-        artist: "Artista",
-        fileID: "file123",
-        isDownloaded: false
-    )
-
-    @StateObject private var mainViewModel = MainViewModel()
-    @StateObject private var songListViewModel = SongListViewModel()
-
-    var body: some View {
-        SongRow(song: sampleSong)
-            .environmentObject(mainViewModel)
-            .environmentObject(songListViewModel)
-            .modelContainer(for: Song.self, inMemory: true)
+    PreviewWrapper(
+        mainVM: PreviewViewModels.mainVM(),
+        songListVM: PreviewViewModels.songListVM(),
+        modelContainer: PreviewData.container(with: [PreviewSongs.single()])
+    ) {
+        SongRow(song: PreviewSongs.single())
             .padding()
             .background(Color.black)
     }

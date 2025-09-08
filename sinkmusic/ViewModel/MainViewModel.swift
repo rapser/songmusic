@@ -4,17 +4,24 @@ import Combine
 import SwiftData
 
 @MainActor
-class MainViewModel: ObservableObject {
+protocol ScrollStateResettable: AnyObject {
+    func resetScrollState()
+}
+
+@MainActor
+class MainViewModel: ObservableObject, ScrollStateResettable {
     @Published var isScrolling: Bool = false
     var playerViewModel: PlayerViewModel
     private var cancellables = Set<AnyCancellable>()
-
-    init(playerViewModel: PlayerViewModel? = nil) {
-        if let provided = playerViewModel {
-            self.playerViewModel = provided
-        } else {
-            self.playerViewModel = PlayerViewModel()
-        }
+    
+    init() {
+        self.playerViewModel = PlayerViewModel()
+        self.playerViewModel.scrollResetter = self
+    }
+    
+    func resetScrollState() {
+        isScrolling = false
+        print("🔄 Scroll state reseteado desde protocolo")
     }
     
     func syncLibraryWithCatalog(modelContext: ModelContext) {
@@ -53,5 +60,3 @@ class MainViewModel: ObservableObject {
         }
     }
 }
-
-
