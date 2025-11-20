@@ -40,16 +40,31 @@ struct PlayerView: View {
                 .padding()
                 
                 // Imagen de la canción
-                Image(systemName: "music.note")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200, height: 200)
-                    .padding()
-                    .background(Color.black.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(radius: 10)
-                    .foregroundColor(.white)
-                    .matchedGeometryEffect(id: "player", in: namespace)
+                Group {
+                    if let artworkData = currentSong.artworkData,
+                       let uiImage = UIImage(data: artworkData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 280, height: 280)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .shadow(radius: 10)
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.spotifyGreen)
+                                .frame(width: 280, height: 280)
+
+                            Image(systemName: "music.note")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
+                                .foregroundColor(.white)
+                        }
+                        .shadow(radius: 10)
+                    }
+                }
+                .matchedGeometryEffect(id: "player", in: namespace)
                 
                 // Título y artista
                 VStack(spacing: 4) {

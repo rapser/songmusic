@@ -33,7 +33,7 @@ struct SongRow: View {
                     .font(.subheadline)
                     .foregroundColor(.spotifyLightGray)
             }
-            Spacer()
+            Spacer(minLength: 0)
 
             if let progress = songListViewModel.downloadProgress[song.id] {
                 if progress < 0 {
@@ -51,7 +51,7 @@ struct SongRow: View {
                     .frame(width: 100)
                 }
             } else if song.isDownloaded {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     Button(action: {
                         playerViewModel.play(song: song)
                     }) {
@@ -63,24 +63,25 @@ struct SongRow: View {
                             .frame(width: 44, height: 44)
                     }
 
-                    // Botón de tres puntos verticales (menú)
+                    // Botón de tres puntos horizontales (menú) - estilo Spotify
                     Button(action: {
                         showSongMenu = true
                     }) {
-                        VStack(spacing: 2) {
+                        HStack(spacing: 2) {
                             Circle()
                                 .fill(Color.spotifyLightGray)
-                                .frame(width: 3, height: 3)
+                                .frame(width: 4, height: 4)
                             Circle()
                                 .fill(Color.spotifyLightGray)
-                                .frame(width: 3, height: 3)
+                                .frame(width: 4, height: 4)
                             Circle()
                                 .fill(Color.spotifyLightGray)
-                                .frame(width: 3, height: 3)
+                                .frame(width: 4, height: 4)
                         }
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                     }
                 }
+                .padding(.trailing, -8)
             } else {
                 Button(action: {
                     songListViewModel.download(song: song, modelContext: modelContext)
@@ -113,6 +114,13 @@ struct SongRow: View {
                     playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "Pausar" : "Reproducir",
                     systemImage: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "pause.fill" : "play.fill"
                 )
+            }
+
+            // Opción para eliminar la descarga
+            Button(role: .destructive, action: {
+                songListViewModel.deleteDownload(song: song, modelContext: modelContext)
+            }) {
+                Label("Eliminar descarga", systemImage: "trash")
             }
 
             // Mensaje si no tiene duración

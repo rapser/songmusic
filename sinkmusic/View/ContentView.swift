@@ -69,11 +69,6 @@ struct ContentView: View {
                         VStack(spacing: 10) {
                             ForEach(downloadedSongs) { song in
                                 SongRow(song: song)
-                                    .onTapGesture {
-                                        if song.isDownloaded {
-                                            playerViewModel.play(song: song)
-                                        }
-                                    }
                             }
                         }
                         .padding(.bottom, 80) // Espacio para el mini player

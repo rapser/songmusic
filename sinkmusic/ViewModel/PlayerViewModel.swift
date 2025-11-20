@@ -22,6 +22,7 @@ class PlayerViewModel: ObservableObject {
 
     private let audioPlayerService: AudioPlayerService
     private let downloadService: DownloadService
+    private let metadataService: MetadataService
     private var cancellables = Set<AnyCancellable>()
     private var allSongs: [Song] = []
 
@@ -29,39 +30,57 @@ class PlayerViewModel: ObservableObject {
 
     init(
         audioPlayerService: AudioPlayerService = AudioPlayerService(),
-        downloadService: DownloadService = DownloadService()
+        downloadService: DownloadService = DownloadService(),
+        metadataService: MetadataService = MetadataService()
     ) {
         self.audioPlayerService = audioPlayerService
         self.downloadService = downloadService
+        self.metadataService = metadataService
         setupSubscriptions()
     }
 
     func play(song: Song) {
-        guard song.isDownloaded,
-              let url = downloadService.localURL(for: song.id) else { return }
+        print("🎯 PlayerViewModel.play() - '\(song.title)'")
 
-        // Capturar duración si no existe
-        if song.duration == nil {
-            if let duration = downloadService.getDuration(for: url) {
-                song.duration = duration
-                print("⏱️ Duración capturada y guardada: \(duration)s para '\(song.title)'")
+        guard song.isDownloaded else {
+            print("❌ Canción no descargada")
+            return
+        }
+
+        guard let url = downloadService.localURL(for: song.id) else {
+            print("❌ No se pudo obtener URL local")
+            return
+        }
+
+        // Capturar metadatos si no existen (para canciones ya descargadas antes del cambio)
+        if song.duration == nil || song.artworkData == nil {
+            Task {
+                if let metadata = await metadataService.extractMetadata(from: url) {
+                    song.title = metadata.title
+                    song.artist = metadata.artist
+                    song.album = metadata.album
+                    song.author = metadata.author
+                    song.duration = metadata.duration
+                    song.artworkData = metadata.artwork
+                }
             }
         }
 
         if currentlyPlayingID == song.id {
+            // Toggle play/pause para la misma canción
             if isPlaying {
                 audioPlayerService.pause()
-                isPlaying = false
             } else {
                 audioPlayerService.play(songID: song.id, url: url)
-                isPlaying = true
             }
         } else {
-            audioPlayerService.play(songID: song.id, url: url)
+            // Nueva canción - IMPORTANTE: Actualizar currentlyPlayingID ANTES de llamar al servicio
+            // Esto previene que completion handlers obsoletos cambien el ID
+            print("🆕 Cambiando a nueva canción")
             currentlyPlayingID = song.id
-            isPlaying = true
+            audioPlayerService.play(songID: song.id, url: url)
         }
-        // ✅ Resetear scroll a través de protocolo
+
         scrollResetter?.resetScrollState()
     }
     
@@ -234,7 +253,8 @@ class PlayerViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] (isPlaying, songID) in
                 self?.isPlaying = isPlaying
-                self?.currentlyPlayingID = songID
+                // NO actualizar currentlyPlayingID aquí - ya se actualiza en play()
+                // Esto previene que el servicio sobrescriba el ID cuando hay cambios rápidos
             }
             .store(in: &cancellables)
 

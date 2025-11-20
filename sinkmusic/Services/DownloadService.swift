@@ -61,6 +61,21 @@ class DownloadService: NSObject {
             return nil
         }
     }
+
+    // Eliminar el archivo descargado
+    func deleteDownload(for songID: UUID) throws {
+        guard let fileURL = localURL(for: songID) else {
+            throw NSError(domain: "DownloadService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No se pudo obtener la URL del archivo"])
+        }
+
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+            print("🗑️ Archivo eliminado: \(fileURL.lastPathComponent)")
+        } else {
+            print("⚠️ El archivo no existe en: \(fileURL.path)")
+        }
+    }
 }
 
 extension DownloadService: URLSessionDownloadDelegate {

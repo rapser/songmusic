@@ -95,7 +95,9 @@ struct MainAppView: View {
     private func updateCurrentSong() {
         if let playingID = playerViewModel.currentlyPlayingID {
             currentSong = songs.first { $0.id == playingID }
-            print("🔍 Current song: \(currentSong?.title ?? "nil")")
+            if let song = currentSong {
+                print("🎵 Canción actualizada en UI: '\(song.title)'")
+            }
         } else {
             currentSong = nil
         }

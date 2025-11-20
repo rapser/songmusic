@@ -17,16 +17,27 @@ struct PlayerControlsView: View {
             // Contenido principal del mini player
             HStack(spacing: 12) {
                 // Icono de la canción
-                ZStack {
-                    Color.spotifyGreen
-                        .frame(width: 42, height: 42)
-                        .cornerRadius(8)
+                Group {
+                    if let artworkData = song.artworkData,
+                       let uiImage = UIImage(data: artworkData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 42, height: 42)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        ZStack {
+                            Color.spotifyGreen
+                                .frame(width: 42, height: 42)
+                                .cornerRadius(4)
 
-                    Image(systemName: "music.note")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 18, height: 18)
-                        .foregroundColor(.white)
+                            Image(systemName: "music.note")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 18, height: 18)
+                                .foregroundColor(.white)
+                        }
+                    }
                 }
 
                 // Información de la canción
