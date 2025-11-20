@@ -13,9 +13,9 @@ struct PlayerControlsView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             // Contenido principal del mini player
-            HStack(spacing: 12) {
+            HStack(spacing: 4) {
                 // Icono de la canción
                 Group {
                     if let artworkData = song.artworkData,
@@ -68,9 +68,9 @@ struct PlayerControlsView: View {
                 }
             }
             .padding(12)
-            .padding(.bottom, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 
-            // Barra de progreso estilo Spotify
+            // Barra de progreso estilo Spotify - 2px desde el bottom, 10px horizontal
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     // Fondo de la barra (gris oscuro)
@@ -88,11 +88,13 @@ struct PlayerControlsView: View {
                 }
             }
             .frame(height: 2)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 1)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 2)
         }
+        .frame(height: 62)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color.spotifyGray)
                 .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
         )
