@@ -8,59 +8,78 @@ struct ContentView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
 
-    @State private var selectedSegment = 0
-
-    var filteredSongs: [Song] {
-        switch selectedSegment {
-        case 0: // Descargadas
-            return songs.filter { $0.isDownloaded }
-        case 1: // Pendientes
-            return songs.filter { !$0.isDownloaded }
-        default:
-            return songs
-        }
+    var downloadedSongs: [Song] {
+        songs.filter { $0.isDownloaded }
     }
 
     var body: some View {
         ZStack {
             Color.spotifyBlack.edgesIgnoringSafeArea(.all)
 
-            VStack {
-                Text("Taki Music")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.top, 20)
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("App Music")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
 
-                Picker("Filtro", selection: $selectedSegment) {
-                    Text("Descargadas").tag(0)
-                    Text("Pendientes").tag(1)
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .onAppear {
-                    UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(Color.spotifyGreen)
-                    UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-                    UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor(Color.spotifyLightGray)], for: .normal)
-                    UISegmentedControl.appearance().backgroundColor = UIColor(Color.spotifyGray)
-                }
+                .padding(.top, 20)
+                .padding(.bottom, 16)
 
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(filteredSongs) { song in
-                            SongRow(song: song)
-                                .onTapGesture {
-                                    if song.isDownloaded {
-                                        playerViewModel.play(song: song)
-                                    }
-                                }
+                // Subtitle con contador
+                HStack {
+                    Text("\(downloadedSongs.count) canciones descargadas")
+                        .font(.subheadline)
+                        .foregroundColor(.spotifyLightGray)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+                // Lista de canciones descargadas
+                if downloadedSongs.isEmpty {
+                    VStack(spacing: 20) {
+                        Spacer()
+
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 60))
+                            .foregroundColor(.spotifyLightGray)
+
+                        VStack(spacing: 8) {
+                            Text("No hay canciones descargadas")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+
+                            Text("Ve a Configuración para descargar música")
+                                .font(.system(size: 14))
+                                .foregroundColor(.spotifyLightGray)
+                                .multilineTextAlignment(.center)
                         }
+
+                        Spacer()
                     }
-                    .padding(.bottom, 80) // Espacio para el mini player
+                    .padding(.horizontal, 40)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(downloadedSongs) { song in
+                                SongRow(song: song)
+                                    .onTapGesture {
+                                        if song.isDownloaded {
+                                            playerViewModel.play(song: song)
+                                        }
+                                    }
+                            }
+                        }
+                        .padding(.bottom, 80) // Espacio para el mini player
+                    }
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
-                
             }
         }
         .onAppear {

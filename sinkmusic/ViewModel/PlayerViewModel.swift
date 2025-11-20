@@ -40,6 +40,14 @@ class PlayerViewModel: ObservableObject {
         guard song.isDownloaded,
               let url = downloadService.localURL(for: song.id) else { return }
 
+        // Capturar duración si no existe
+        if song.duration == nil {
+            if let duration = downloadService.getDuration(for: url) {
+                song.duration = duration
+                print("⏱️ Duración capturada y guardada: \(duration)s para '\(song.title)'")
+            }
+        }
+
         if currentlyPlayingID == song.id {
             if isPlaying {
                 audioPlayerService.pause()
@@ -183,7 +191,10 @@ class PlayerViewModel: ObservableObject {
                     print("▶️ Playing next song")
                     playNext(currentSong: currentSong, allSongs: allSongs)
                 } else {
-                    print("⏹️ Last song, not playing next")
+                    print("⏹️ Last song, stopping playback")
+                    // Detener la reproducción y resetear el estado
+                    isPlaying = false
+                    // Mantener el currentlyPlayingID para mostrar qué canción fue la última
                 }
             }
         }

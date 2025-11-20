@@ -1,12 +1,18 @@
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var songListViewModel: SongListViewModel
     @State private var notificationsEnabled = true
-    @State private var downloadQuality = 1
-    @State private var streamingQuality = 1
     @State private var offlineMode = false
     @State private var showExplicitContent = true
+
+    var pendingSongs: [Song] {
+        songs.filter { !$0.isDownloaded }
+    }
 
     var body: some View {
         ZStack {
@@ -59,55 +65,37 @@ struct SettingsView: View {
                     SettingsRowView(icon: "lock.fill", title: "Cambiar contraseña")
                     SettingsRowView(icon: "creditcard.fill", title: "Suscripción", value: "Premium")
 
-                    // Sección: Calidad de audio
-                    SectionHeaderView(title: "Calidad de audio")
+                    // Sección: Descargas
+                    SectionHeaderView(title: "Descargas")
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "music.note")
+                    NavigationLink(destination: DownloadMusicView()) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "arrow.down.circle.fill")
                                 .foregroundColor(.spotifyLightGray)
                                 .frame(width: 24)
-                            Text("Calidad de descarga")
+
+                            Text("Descargar música")
                                 .foregroundColor(.white)
+
                             Spacer()
-                        }
-                        .padding(.horizontal, 16)
 
-                        Picker("Calidad de descarga", selection: $downloadQuality) {
-                            Text("Baja").tag(0)
-                            Text("Normal").tag(1)
-                            Text("Alta").tag(2)
-                            Text("Muy alta").tag(3)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                    }
-                    .padding(.vertical, 8)
-                    .background(Color.spotifyGray)
+                            if !pendingSongs.isEmpty {
+                                Text("\(pendingSongs.count)")
+                                    .foregroundColor(.white)
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.spotifyGreen)
+                                    .cornerRadius(12)
+                            }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "antenna.radiowaves.left.and.right")
+                            Image(systemName: "chevron.right")
                                 .foregroundColor(.spotifyLightGray)
-                                .frame(width: 24)
-                            Text("Calidad de streaming")
-                                .foregroundColor(.white)
-                            Spacer()
+                                .font(.caption)
                         }
-                        .padding(.horizontal, 16)
-
-                        Picker("Calidad de streaming", selection: $streamingQuality) {
-                            Text("Baja").tag(0)
-                            Text("Normal").tag(1)
-                            Text("Alta").tag(2)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
+                        .padding(16)
+                        .background(Color.spotifyGray)
                     }
-                    .padding(.vertical, 8)
-                    .background(Color.spotifyGray)
 
                     // Sección: Reproducción
                     SectionHeaderView(title: "Reproducción")

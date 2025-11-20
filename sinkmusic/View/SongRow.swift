@@ -15,6 +15,7 @@ struct SongRow: View {
 
     @StateObject private var playlistViewModel: PlaylistViewModel
     @State private var showAddToPlaylist = false
+    @State private var showSongMenu = false
 
     init(song: Song) {
         self._song = Bindable(wrappedValue: song)
@@ -23,7 +24,7 @@ struct SongRow: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             VStack(alignment: .leading) {
                 Text(song.title)
                     .font(.headline)
@@ -50,15 +51,35 @@ struct SongRow: View {
                     .frame(width: 100)
                 }
             } else if song.isDownloaded {
-                Button(action: {
-                    playerViewModel.play(song: song)
-                }) {
-                    Image(systemName: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
-                          ? "pause.circle.fill"
-                          : "play.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.spotifyGreen)
-                        .frame(width: 44, height: 44)
+                HStack(spacing: 8) {
+                    Button(action: {
+                        playerViewModel.play(song: song)
+                    }) {
+                        Image(systemName: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
+                              ? "pause.circle.fill"
+                              : "play.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.spotifyGreen)
+                            .frame(width: 44, height: 44)
+                    }
+
+                    // Botón de tres puntos verticales (menú)
+                    Button(action: {
+                        showSongMenu = true
+                    }) {
+                        VStack(spacing: 2) {
+                            Circle()
+                                .fill(Color.spotifyLightGray)
+                                .frame(width: 3, height: 3)
+                            Circle()
+                                .fill(Color.spotifyLightGray)
+                                .frame(width: 3, height: 3)
+                            Circle()
+                                .fill(Color.spotifyLightGray)
+                                .frame(width: 3, height: 3)
+                        }
+                        .frame(width: 32, height: 32)
+                    }
                 }
             } else {
                 Button(action: {
@@ -73,12 +94,36 @@ struct SongRow: View {
         }
         .padding(.vertical, 8)
         .listRowBackground(Color.spotifyBlack)
-        .contextMenu {
-            if song.isDownloaded {
+        .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
+            // Solo mostrar "Agregar a playlist" si la canción tiene duración (ya se reprodujo)
+            if song.duration != nil {
                 Button(action: { showAddToPlaylist = true }) {
                     Label("Agregar a playlist", systemImage: "plus")
                 }
             }
+
+            Button(action: {
+                if playerViewModel.currentlyPlayingID == song.id {
+                    playerViewModel.pause()
+                } else {
+                    playerViewModel.play(song: song)
+                }
+            }) {
+                Label(
+                    playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "Pausar" : "Reproducir",
+                    systemImage: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "pause.fill" : "play.fill"
+                )
+            }
+
+            // Mensaje si no tiene duración
+            if song.duration == nil {
+                Button(action: {}) {
+                    Label("Reproduce primero para agregar a playlist", systemImage: "info.circle")
+                }
+                .disabled(true)
+            }
+
+            Button("Cancelar", role: .cancel) {}
         }
         .sheet(isPresented: $showAddToPlaylist) {
             AddToPlaylistView(viewModel: playlistViewModel, song: song)

@@ -1,6 +1,7 @@
 
 import Foundation
 import Combine
+import AVFoundation
 
 // Servicio dedicado a la descarga de archivos
 class DownloadService: NSObject {
@@ -46,6 +47,19 @@ class DownloadService: NSObject {
             return nil
         }
         return musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
+    }
+
+    // Obtener la duración de un archivo de audio
+    func getDuration(for url: URL) -> TimeInterval? {
+        do {
+            let audioFile = try AVAudioFile(forReading: url)
+            let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+            print("⏱️ Duración obtenida: \(duration) segundos para \(url.lastPathComponent)")
+            return duration
+        } catch {
+            print("❌ Error al obtener duración: \(error.localizedDescription)")
+            return nil
+        }
     }
 }
 

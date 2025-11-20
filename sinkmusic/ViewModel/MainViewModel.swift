@@ -26,6 +26,14 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
     
     func syncLibraryWithCatalog(modelContext: ModelContext) {
         print("🔄 Sincronizando la librería de canciones...")
+
+        // TEMPORAL: Mostrar la ruta donde se guardan las canciones
+        if let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let musicPath = documentsPath.appendingPathComponent("Music")
+            print("📂 RUTA DE CANCIONES: \(musicPath.path)")
+            print("📂 Puedes abrir en Finder con: open \(musicPath.path)")
+        }
+
         let descriptor = FetchDescriptor<Song>()
         
         guard let existingSongs = try? modelContext.fetch(descriptor) else {
