@@ -76,6 +76,24 @@ struct PlayerView: View {
                 }
                 .padding(.horizontal)
                 
+                // Controles de shuffle y repeat
+                HStack(spacing: 40) {
+                    Button(action: { playerViewModel.toggleShuffle() }) {
+                        Image(systemName: "shuffle")
+                            .font(.title3)
+                            .foregroundColor(playerViewModel.isShuffleEnabled ? .spotifyGreen : .spotifyLightGray)
+                    }
+
+                    Spacer()
+
+                    Button(action: { playerViewModel.toggleRepeat() }) {
+                        Image(systemName: playerViewModel.repeatMode == .repeatOne ? "repeat.1" : "repeat")
+                            .font(.title3)
+                            .foregroundColor(playerViewModel.repeatMode != .off ? .spotifyGreen : .spotifyLightGray)
+                    }
+                }
+                .padding(.horizontal, 40)
+
                 // Controles de reproducción
                 HStack(spacing: 50) {
                     Button(action: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
@@ -83,13 +101,13 @@ struct PlayerView: View {
                             .font(.largeTitle)
                             .foregroundColor(.white)
                     }
-                    
+
                     Button(action: { playerViewModel.play(song: currentSong) }) {
                         Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(.system(size: 70))
                             .foregroundColor(.white)
                     }
-                    
+
                     Button(action: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
                         Image(systemName: "forward.fill")
                             .font(.largeTitle)

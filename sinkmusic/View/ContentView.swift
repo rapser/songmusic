@@ -10,9 +10,21 @@ struct ContentView: View {
 
     @State private var lastOffset: CGFloat = 0
     @State private var scrollDirection: ScrollDirection = .up
+    @State private var selectedSegment = 0
 
     enum ScrollDirection {
         case up, down, none
+    }
+
+    var filteredSongs: [Song] {
+        switch selectedSegment {
+        case 0: // Descargadas
+            return songs.filter { $0.isDownloaded }
+        case 1: // Pendientes
+            return songs.filter { !$0.isDownloaded }
+        default:
+            return songs
+        }
     }
 
     var body: some View {
@@ -26,12 +38,28 @@ struct ContentView: View {
                     .foregroundColor(.white)
                     .padding(.top, 20)
 
+                Picker("Filtro", selection: $selectedSegment) {
+                    Text("Descargadas").tag(0)
+                    Text("Pendientes").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .onAppear {
+                    UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(Color.spotifyGreen)
+                    UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+                    UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor(Color.spotifyLightGray)], for: .normal)
+                    UISegmentedControl.appearance().backgroundColor = UIColor(Color.spotifyGray)
+                }
+
                 ScrollView() {
                     VStack(spacing: 10) {
-                        ForEach(songs) { song in
+                        ForEach(filteredSongs) { song in
                             SongRow(song: song)
                                 .onTapGesture {
-                                    playerViewModel.play(song: song)
+                                    if song.isDownloaded {
+                                        playerViewModel.play(song: song)
+                                    }
                                 }
                         }
                     }

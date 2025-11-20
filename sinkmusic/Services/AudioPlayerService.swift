@@ -8,7 +8,7 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     // Publishers para que el ViewModel pueda suscribirse a los cambios
     var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
     var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
-    var onSongFinished = PassthroughSubject<Void, Never>()
+    var onSongFinished = PassthroughSubject<UUID, Never>()
 
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
@@ -84,9 +84,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     
     // MARK: - AVAudioPlayerDelegate
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        let finishedSongID = currentlyPlayingID
+        guard let finishedSongID = currentlyPlayingID else { return }
         currentlyPlayingID = nil
         onPlaybackStateChanged.send((isPlaying: false, songID: finishedSongID))
-        onSongFinished.send(())
+        onSongFinished.send(finishedSongID)
     }
 }

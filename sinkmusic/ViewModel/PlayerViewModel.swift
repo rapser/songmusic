@@ -11,11 +11,18 @@ class PlayerViewModel: ObservableObject {
     @Published var playbackTime: TimeInterval = 0
     @Published var songDuration: TimeInterval = 0
     @Published var showPlayerView: Bool = false
-    
+    @Published var isShuffleEnabled = false
+    @Published var repeatMode: RepeatMode = .off
+
+    enum RepeatMode {
+        case off, repeatAll, repeatOne
+    }
+
     private let audioPlayerService: AudioPlayerService
     private let downloadService: DownloadService
     private var cancellables = Set<AnyCancellable>()
-    
+    private var allSongs: [Song] = []
+
     weak var scrollResetter: ScrollStateResettable?
 
     init(
@@ -63,16 +70,121 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.seek(to: time)
     }
 
-    func playNext(currentSong: Song, allSongs: [Song]) {
-        guard let idx = allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
-        let next = (idx + 1) % allSongs.count
-        play(song: allSongs[next])
+    func updateSongsList(_ songs: [Song]) {
+        self.allSongs = songs.filter { $0.isDownloaded }
     }
-    
+
+    func toggleShuffle() {
+        isShuffleEnabled.toggle()
+    }
+
+    func toggleRepeat() {
+        switch repeatMode {
+        case .off:
+            repeatMode = .repeatAll
+        case .repeatAll:
+            repeatMode = .repeatOne
+        case .repeatOne:
+            repeatMode = .off
+        }
+    }
+
+    func playNext(currentSong: Song, allSongs: [Song]) {
+        let downloadedSongs = allSongs.filter { $0.isDownloaded }
+        guard !downloadedSongs.isEmpty else { return }
+
+        if isShuffleEnabled {
+            // Modo aleatorio: selecciona una canción aleatoria DIFERENTE a la actual
+            let otherSongs = downloadedSongs.filter { $0.id != currentSong.id }
+
+            if !otherSongs.isEmpty {
+                // Hay más canciones disponibles, elige una aleatoria
+                if let randomSong = otherSongs.randomElement() {
+                    print("🎲 Shuffle: Playing random song - \(randomSong.title)")
+                    play(song: randomSong)
+                }
+            } else if downloadedSongs.count == 1 {
+                // Solo hay una canción, reproducirla de nuevo
+                print("🎲 Shuffle: Only one song, replaying - \(currentSong.title)")
+                play(song: currentSong)
+            }
+        } else {
+            // Modo secuencial
+            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
+            let nextIdx = (idx + 1) % downloadedSongs.count
+            play(song: downloadedSongs[nextIdx])
+        }
+    }
+
     func playPrevious(currentSong: Song, allSongs: [Song]) {
-        guard let idx = allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
-        let prev = (idx - 1 + allSongs.count) % allSongs.count
-        play(song: allSongs[prev])
+        let downloadedSongs = allSongs.filter { $0.isDownloaded }
+        guard !downloadedSongs.isEmpty else { return }
+
+        if isShuffleEnabled {
+            // En modo aleatorio, también va a una canción aleatoria
+            let otherSongs = downloadedSongs.filter { $0.id != currentSong.id }
+            if let randomSong = otherSongs.randomElement() {
+                play(song: randomSong)
+            } else if let firstSong = downloadedSongs.first {
+                play(song: firstSong)
+            }
+        } else {
+            // Modo secuencial
+            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
+            let prevIdx = (idx - 1 + downloadedSongs.count) % downloadedSongs.count
+            play(song: downloadedSongs[prevIdx])
+        }
+    }
+
+    private func playNextAutomatically(finishedSongID: UUID) {
+        print("🔄 playNextAutomatically called - finishedSongID: \(finishedSongID)")
+        print("🔄 allSongs count: \(allSongs.count)")
+        print("🔄 isShuffleEnabled: \(isShuffleEnabled)")
+        print("🔄 repeatMode: \(repeatMode)")
+
+        guard let currentSong = allSongs.first(where: { $0.id == finishedSongID }) else {
+            print("❌ Could not find finished song in allSongs")
+            return
+        }
+
+        print("✅ Found song: \(currentSong.title)")
+
+        switch repeatMode {
+        case .repeatOne:
+            print("🔁 Repeat One - Playing same song")
+            play(song: currentSong)
+        case .repeatAll:
+            print("🔁 Repeat All - Playing next song")
+            playNext(currentSong: currentSong, allSongs: allSongs)
+        case .off:
+            print("⏭️ Repeat Off - Checking if should play next")
+
+            if isShuffleEnabled {
+                // En modo shuffle sin repeat, SIEMPRE reproduce una canción aleatoria
+                // No se detiene hasta que el usuario pause manualmente
+                let downloadedSongs = allSongs.filter { $0.isDownloaded }
+                if !downloadedSongs.isEmpty {
+                    print("🔀 Shuffle mode - playing random song")
+                    playNext(currentSong: currentSong, allSongs: allSongs)
+                } else {
+                    print("⏹️ No songs available, stopping")
+                }
+            } else {
+                // En modo secuencial sin repeat, solo avanza si no es la última
+                let downloadedSongs = allSongs.filter { $0.isDownloaded }
+                guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else {
+                    print("❌ Could not find song index")
+                    return
+                }
+                print("📍 Current index: \(idx), Total songs: \(downloadedSongs.count)")
+                if idx < downloadedSongs.count - 1 {
+                    print("▶️ Playing next song")
+                    playNext(currentSong: currentSong, allSongs: allSongs)
+                } else {
+                    print("⏹️ Last song, not playing next")
+                }
+            }
+        }
     }
 
     func formatTime(_ time: TimeInterval) -> String {
@@ -100,8 +212,8 @@ class PlayerViewModel: ObservableObject {
 
         audioPlayerService.onSongFinished
             .receive(on: DispatchQueue.main)
-            .sink {
-                // aquí podrías disparar autoplay next
+            .sink { [weak self] finishedSongID in
+                self?.playNextAutomatically(finishedSongID: finishedSongID)
             }
             .store(in: &cancellables)
     }

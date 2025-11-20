@@ -38,6 +38,8 @@ struct MainAppView: View {
                     .tabItem { Label("Buscar", systemImage: "magnifyingglass") }
                 LibraryView()
                     .tabItem { Label("Biblioteca", systemImage: "books.vertical.fill") }
+                SettingsView()
+                    .tabItem { Label("Configuración", systemImage: "gearshape.fill") }
             }
             .accentColor(.white)
 
@@ -70,6 +72,7 @@ struct MainAppView: View {
         .onAppear {
             updateCurrentSong()
             updateDebugInfo()
+            playerViewModel.updateSongsList(songs)
         }
         .onChange(of: playerViewModel.currentlyPlayingID) {
             updateCurrentSong()
@@ -83,6 +86,7 @@ struct MainAppView: View {
         }
         .onChange(of: songs) {
             updateCurrentSong()
+            playerViewModel.updateSongsList(songs)
             print("🔄 Songs updated: \(songs.count)")
         }
     }
