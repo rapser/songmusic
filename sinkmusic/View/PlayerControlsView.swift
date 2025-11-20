@@ -57,11 +57,10 @@ struct PlayerControlsView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(red: 40/255, green: 40/255, blue: 40/255))
-                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                .fill(Color.spotifyGray)
+                .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
         )
         .matchedGeometryEffect(id: "player", in: namespace)
-        .opacity(0.7)
     }
 }
 

@@ -8,13 +8,7 @@ struct ContentView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
 
-    @State private var lastOffset: CGFloat = 0
-    @State private var scrollDirection: ScrollDirection = .up
     @State private var selectedSegment = 0
-
-    enum ScrollDirection {
-        case up, down, none
-    }
 
     var filteredSongs: [Song] {
         switch selectedSegment {
@@ -52,7 +46,7 @@ struct ContentView: View {
                     UISegmentedControl.appearance().backgroundColor = UIColor(Color.spotifyGray)
                 }
 
-                ScrollView() {
+                ScrollView {
                     VStack(spacing: 10) {
                         ForEach(filteredSongs) { song in
                             SongRow(song: song)
@@ -63,38 +57,9 @@ struct ContentView: View {
                                 }
                         }
                     }
-
-                    GeometryReader { geo in
-                        Color.clear
-                            .preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .named("scroll")).minY
-                            )
-                    }
-                    .frame(height: 0)
-                    
+                    .padding(.bottom, 80) // Espacio para el mini player
                 }
                 .padding(.horizontal, 16)
-                .coordinateSpace(name: "scroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
-                    let threshold: CGFloat = 5.0
-                    
-                    if abs(newOffset - lastOffset) > threshold {
-                        if newOffset > lastOffset {
-                            // Scroll hacia ABAJO - usuario se mueve HACIA ABAJO en el contenido
-                            scrollDirection = .up
-                            viewModel.isScrolling = false    // ✅ OCULTAR miniplayer
-                            print("⬇️ Scroll DOWN - Ocultar miniplayer")
-                        } else if newOffset < lastOffset {
-                            // Scroll hacia ARRIBA - usuario se mueve HACIA ARRIBA en el contenido
-                            scrollDirection = .down
-                            viewModel.isScrolling = true   // ✅ MOSTRAR miniplayer
-                            print("⬆️ Scroll UP - Mostrar miniplayer")
-                        }
-                    }
-                    
-                    lastOffset = newOffset
-                }
                 
             }
         }

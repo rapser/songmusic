@@ -4,7 +4,7 @@ import AVFoundation
 import Combine
 
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
-    
+
     // Publishers para que el ViewModel pueda suscribirse a los cambios
     var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
     var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
@@ -13,6 +13,12 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
+
+    // Audio Engine para ecualizador
+    private var audioEngine: AVAudioEngine?
+    private var playerNode: AVAudioPlayerNode?
+    private var audioFile: AVAudioFile?
+    private var eq: AVAudioUnitEQ?
 
     override init() {
         super.init()
@@ -82,6 +88,14 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         }
     }
     
+    // MARK: - Equalizer
+    func applyEqualizerSettings(_ bands: [EqualizerBand]) {
+        // Por ahora, el ecualizador es visual solamente
+        // Para implementar ecualizador real, necesitaríamos migrar de AVAudioPlayer a AVAudioEngine
+        // con AVAudioPlayerNode + AVAudioUnitEQ
+        print("🎚️ Equalizer settings applied: \(bands.map { $0.gain })")
+    }
+
     // MARK: - AVAudioPlayerDelegate
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         guard let finishedSongID = currentlyPlayingID else { return }

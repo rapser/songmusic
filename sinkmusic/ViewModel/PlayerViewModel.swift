@@ -13,6 +13,8 @@ class PlayerViewModel: ObservableObject {
     @Published var showPlayerView: Bool = false
     @Published var isShuffleEnabled = false
     @Published var repeatMode: RepeatMode = .off
+    @Published var equalizerBands: [EqualizerBand] = EqualizerBand.defaultBands
+    @Published var selectedPreset: EqualizerPreset = .flat
 
     enum RepeatMode {
         case off, repeatAll, repeatOne
@@ -191,6 +193,29 @@ class PlayerViewModel: ObservableObject {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    // MARK: - Equalizer Functions
+    func updateBandGain(index: Int, gain: Double) {
+        guard index < equalizerBands.count else { return }
+        equalizerBands[index].gain = gain
+        selectedPreset = .flat // Reset preset when manually adjusting
+        audioPlayerService.applyEqualizerSettings(equalizerBands)
+    }
+
+    func applyPreset(_ preset: EqualizerPreset) {
+        selectedPreset = preset
+        let gains = preset.gains
+        for (index, gain) in gains.enumerated() where index < equalizerBands.count {
+            equalizerBands[index].gain = gain
+        }
+        audioPlayerService.applyEqualizerSettings(equalizerBands)
+    }
+
+    func resetEqualizer() {
+        equalizerBands = EqualizerBand.defaultBands
+        selectedPreset = .flat
+        audioPlayerService.applyEqualizerSettings(equalizerBands)
     }
 
     private func setupSubscriptions() {

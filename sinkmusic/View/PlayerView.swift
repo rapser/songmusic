@@ -9,6 +9,7 @@ struct PlayerView: View {
     
     @State private var sliderValue: Double = 0
     @State private var isEditingSlider = false
+    @State private var showEqualizer = false
     
     var body: some View {
         ZStack {
@@ -16,9 +17,16 @@ struct PlayerView: View {
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 32) {
-                // Header con botón cerrar
+                // Header con botón cerrar y ecualizador
                 HStack {
+                    Button(action: { showEqualizer = true }) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+
                     Spacer()
+
                     Button(action: {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             playerViewModel.showPlayerView = false
@@ -123,6 +131,9 @@ struct PlayerView: View {
             if !isEditingSlider {
                 sliderValue = newValue
             }
+        }
+        .sheet(isPresented: $showEqualizer) {
+            EqualizerView()
         }
     }
 }

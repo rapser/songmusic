@@ -10,6 +10,8 @@ struct MainAppView: View {
     @State private var currentSong: Song? = nil
     @State private var debugMessage = ""
     @State private var showDebugInfo = true
+    @State private var dragOffset: CGFloat = 0
+    @State private var isClosingBanner = false
 
     init() {
         let tabBarAppearance = UITabBarAppearance()
@@ -56,17 +58,52 @@ struct MainAppView: View {
             // Mini Player
             if let currentSong = currentSong,
                playerViewModel.currentlyPlayingID != nil,
-               !viewModel.isScrolling,
-               !playerViewModel.showPlayerView {
-                
+               !playerViewModel.showPlayerView,
+               !isClosingBanner {
+
                 PlayerControlsView(song: currentSong, namespace: animation)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 60)
+                    .offset(x: dragOffset)
+                    .opacity(dragOffset < -50 ? 1 - (abs(dragOffset) - 50.0) / 100 : 1)
                     .onTapGesture {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             playerViewModel.showPlayerView = true
                         }
                     }
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                // Solo permitir arrastre hacia la izquierda
+                                if value.translation.width < 0 {
+                                    dragOffset = value.translation.width
+                                }
+                            }
+                            .onEnded { value in
+                                // Si se arrastró más de 150px, cerrar el player
+                                if value.translation.width < -150 {
+                                    // PRIMERO marcar que estamos cerrando (esto oculta el banner inmediatamente)
+                                    isClosingBanner = true
+
+                                    // Animar la salida
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        dragOffset = -UIScreen.main.bounds.width
+                                    }
+
+                                    // Luego detener el player y resetear
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                        playerViewModel.stop()
+                                        dragOffset = 0
+                                        isClosingBanner = false
+                                    }
+                                } else {
+                                    // Regresar a la posición original
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        dragOffset = 0
+                                    }
+                                }
+                            }
+                    )
             }
         }
         .onAppear {
