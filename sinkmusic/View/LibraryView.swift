@@ -1,19 +1,22 @@
 
 import SwiftUI
+import SwiftData
 
 struct LibraryView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var playerViewModel: PlayerViewModel
-    
+
     var body: some View {
-        ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
-            Text("Biblioteca")
-                .foregroundColor(.white)
-                .font(.title)
+        NavigationStack {
+            PlaylistListView(modelContext: modelContext)
         }
     }
 }
 
 #Preview {
-    LibraryView()
+    NavigationStack {
+        LibraryView()
+            .modelContainer(PreviewContainer.shared.container)
+            .environmentObject(PreviewViewModels.playerVM(songID: UUID()))
+    }
 }

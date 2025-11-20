@@ -13,6 +13,15 @@ struct SongRow: View {
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
 
+    @StateObject private var playlistViewModel: PlaylistViewModel
+    @State private var showAddToPlaylist = false
+
+    init(song: Song) {
+        self._song = Bindable(wrappedValue: song)
+        // Note: modelContext will be injected via environment
+        self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: song.modelContext!))
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
@@ -24,7 +33,7 @@ struct SongRow: View {
                     .foregroundColor(.spotifyLightGray)
             }
             Spacer()
-            
+
             if let progress = songListViewModel.downloadProgress[song.id] {
                 if progress < 0 {
                     ProgressView()
@@ -64,6 +73,16 @@ struct SongRow: View {
         }
         .padding(.vertical, 8)
         .listRowBackground(Color.spotifyBlack)
+        .contextMenu {
+            if song.isDownloaded {
+                Button(action: { showAddToPlaylist = true }) {
+                    Label("Agregar a playlist", systemImage: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddToPlaylist) {
+            AddToPlaylistView(viewModel: playlistViewModel, song: song)
+        }
     }
 }
 

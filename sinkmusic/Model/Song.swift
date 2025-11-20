@@ -9,13 +9,18 @@ final class Song: Identifiable {
     var artist: String
     var fileID: String
     var isDownloaded: Bool
+    var duration: TimeInterval?
 
-    init(id: UUID = UUID(), title: String, artist: String, fileID: String, isDownloaded: Bool = false) {
+    // Relación con playlists (muchos a muchos)
+    var playlists: [Playlist] = []
+
+    init(id: UUID = UUID(), title: String, artist: String, fileID: String, isDownloaded: Bool = false, duration: TimeInterval? = nil) {
         self.id = id
         self.title = title
         self.artist = artist
         self.fileID = fileID
         self.isDownloaded = isDownloaded
+        self.duration = duration
     }
 }
 
