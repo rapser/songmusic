@@ -25,6 +25,7 @@ class PlayerViewModel: ObservableObject {
     private let metadataService: MetadataService
     private var cancellables = Set<AnyCancellable>()
     private var allSongs: [Song] = []
+    private var currentSong: Song?
 
     weak var scrollResetter: ScrollStateResettable?
 
@@ -62,6 +63,9 @@ class PlayerViewModel: ObservableObject {
             }
         }
 
+        // Guardar la canción actual
+        currentSong = song
+
         if currentlyPlayingID == song.id {
             // Toggle play/pause para la misma canción
             if isPlaying {
@@ -75,6 +79,9 @@ class PlayerViewModel: ObservableObject {
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
+
+        // Actualizar Now Playing Info
+        updateNowPlayingInfo()
 
         scrollResetter?.resetScrollState()
     }
@@ -230,6 +237,7 @@ class PlayerViewModel: ObservableObject {
                 self?.isPlaying = isPlaying
                 // NO actualizar currentlyPlayingID aquí - ya se actualiza en play()
                 // Esto previene que el servicio sobrescriba el ID cuando hay cambios rápidos
+                self?.updateNowPlayingInfo()
             }
             .store(in: &cancellables)
 
@@ -241,11 +249,60 @@ class PlayerViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Actualizar Now Playing Info cada segundo (throttle)
+        audioPlayerService.onPlaybackTimeChanged
+            .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] _ in
+                self?.updateNowPlayingInfo()
+            }
+            .store(in: &cancellables)
+
         audioPlayerService.onSongFinished
             .receive(on: DispatchQueue.main)
             .sink { [weak self] finishedSongID in
                 self?.playNextAutomatically(finishedSongID: finishedSongID)
             }
             .store(in: &cancellables)
+
+        // Suscribirse a los comandos remotos desde la pantalla de bloqueo
+        audioPlayerService.onRemotePlayPause
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                guard let self = self, let song = self.currentSong else { return }
+                self.play(song: song)
+            }
+            .store(in: &cancellables)
+
+        audioPlayerService.onRemoteNext
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                guard let self = self, let song = self.currentSong else { return }
+                self.playNext(currentSong: song, allSongs: self.allSongs)
+            }
+            .store(in: &cancellables)
+
+        audioPlayerService.onRemotePrevious
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                guard let self = self, let song = self.currentSong else { return }
+                self.playPrevious(currentSong: song, allSongs: self.allSongs)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateNowPlayingInfo() {
+        guard let song = currentSong else { return }
+
+        // Asegurarse de que tenemos una duración válida
+        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+
+        audioPlayerService.updateNowPlayingInfo(
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            duration: duration,
+            currentTime: playbackTime,
+            artwork: song.artworkData
+        )
     }
 }

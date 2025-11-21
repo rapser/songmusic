@@ -60,27 +60,25 @@ struct PlayerView: View {
                        let uiImage = UIImage(data: artworkData) {
                         Image(uiImage: uiImage)
                             .resizable()
-                            .scaledToFit()
-                            .frame(height: 360)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .shadow(radius: 10)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 5)
                     } else {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: 16)
                                 .fill(Color.spotifyGreen)
-                                .frame(height: 360)
+                                .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
 
                             Image(systemName: "music.note")
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 190, height: 190)
+                                .frame(width: 140, height: 140)
                                 .foregroundColor(.white)
                         }
-                        .shadow(radius: 10)
+                        .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 5)
                     }
                 }
-//                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 16)
                 .matchedGeometryEffect(id: "player", in: namespace)
                 .padding(.bottom, 30)
@@ -97,7 +95,7 @@ struct PlayerView: View {
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 16)
                 
                 // Slider de progreso
@@ -109,7 +107,7 @@ struct PlayerView: View {
                         }
                     }
                     .accentColor(.spotifyGreen)
-                    
+
                     HStack {
                         Text(playerViewModel.formatTime(playerViewModel.playbackTime))
                         Spacer()
@@ -118,7 +116,7 @@ struct PlayerView: View {
                     .font(.caption)
                     .foregroundColor(.spotifyLightGray)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 
                 // Controles de reproducción con shuffle y repeat en la misma línea
                 HStack(spacing: 0) {

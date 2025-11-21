@@ -2,6 +2,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import MediaPlayer
 
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
@@ -9,6 +10,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
     var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
     var onSongFinished = PassthroughSubject<UUID, Never>()
+    var onRemotePlayPause = PassthroughSubject<Void, Never>()
+    var onRemoteNext = PassthroughSubject<Void, Never>()
+    var onRemotePrevious = PassthroughSubject<Void, Never>()
 
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
@@ -34,13 +38,20 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         super.init()
         setupAudioSession()
         setupAudioEngine()
+        setupRemoteCommandCenter()
     }
 
     private func setupAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            // Configurar la sesión de audio para reproducción en background
+            try AVAudioSession.sharedInstance().setCategory(
+                .playback,
+                mode: .default,
+                options: []
+            )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
+            // Error al configurar la sesión de audio
         }
     }
 
@@ -71,7 +82,12 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                     try? audioEngine.start()
                 }
                 startPlaybackTimer()
-                onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
+
+                // Notificar después de que el player esté reproduciendo
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    guard let self = self else { return }
+                    self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
+                }
             }
         } else {
             // Es una canción nueva
@@ -149,7 +165,11 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 // Actualizar el ID interno y notificar
                 self.currentlyPlayingID = songID
                 startPlaybackTimer()
-                onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+
+                // IMPORTANTE: Notificar DESPUÉS de que el player esté reproduciendo
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                }
             } catch {
                 onPlaybackStateChanged.send((isPlaying: false, songID: nil))
             }
@@ -234,5 +254,76 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         currentlyPlayingID = nil
         onPlaybackStateChanged.send((isPlaying: false, songID: finishedSongID))
         onSongFinished.send(finishedSongID)
+    }
+
+    // MARK: - Now Playing Info & Remote Commands
+    private func setupRemoteCommandCenter() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        // Play command
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.playCommand.addTarget { [weak self] _ in
+            self?.onRemotePlayPause.send()
+            return .success
+        }
+
+        // Pause command
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
+            self?.onRemotePlayPause.send()
+            return .success
+        }
+
+        // Next track command
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            self?.onRemoteNext.send()
+            return .success
+        }
+
+        // Previous track command
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            self?.onRemotePrevious.send()
+            return .success
+        }
+
+        // Change playback position command (para el seek desde la pantalla de bloqueo)
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            self?.seek(to: event.positionTime)
+            return .success
+        }
+    }
+
+    func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) {
+        var nowPlayingInfo = [String: Any]()
+        nowPlayingInfo[MPMediaItemPropertyTitle] = title
+        nowPlayingInfo[MPMediaItemPropertyArtist] = artist
+
+        if let album = album {
+            nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
+        }
+
+        // Solo establecer duración si es válida
+        if duration > 0 {
+            nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = playerNode.isPlaying ? 1.0 : 0.0
+
+        // Incluir artwork - iOS decidirá cómo mostrarlo
+        if let artworkData = artwork, let image = UIImage(data: artworkData) {
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
+                return image
+            }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }
