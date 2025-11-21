@@ -3,8 +3,9 @@ import Foundation
 import Combine
 import AVFoundation
 
-// Servicio dedicado a la descarga de archivos
-class DownloadService: NSObject {
+/// Servicio dedicado a la descarga de archivos
+/// Implementa DownloadServiceProtocol cumpliendo con SOLID
+final class DownloadService: NSObject, DownloadServiceProtocol {
     
     // Publisher para el progreso de la descarga
     var downloadProgressPublisher = PassthroughSubject<(songID: UUID, progress: Double), Never>()

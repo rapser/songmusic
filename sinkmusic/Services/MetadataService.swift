@@ -19,7 +19,9 @@ struct SongMetadata {
     let artwork: Data?
 }
 
-class MetadataService {
+/// Servicio para extraer metadatos de archivos de audio
+/// Implementa MetadataServiceProtocol cumpliendo con SOLID
+final class MetadataService: MetadataServiceProtocol {
     private let logger = Logger(subsystem: "com.sinkmusic.app", category: "MetadataService")
 
     /// Extrae los metadatos de un archivo de audio local

@@ -37,7 +37,9 @@ struct GoogleDriveResponse: Codable {
     let files: [GoogleDriveFile]
 }
 
-class GoogleDriveService {
+/// Servicio para interactuar con Google Drive API
+/// Implementa GoogleDriveServiceProtocol cumpliendo con SOLID
+final class GoogleDriveService: GoogleDriveServiceProtocol {
     private let apiKey = "AIzaSyB6_cJHOqvf9hNvdj8xj51K2lyQYohl1Sw"
     private let folderId = "1BZcNbgPjBN4uV0yjdO_-QY2K0a6xS4gv"
 
