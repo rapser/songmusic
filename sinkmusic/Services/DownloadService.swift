@@ -1,6 +1,7 @@
 
 import Foundation
 import Combine
+import AVFoundation
 
 // Servicio dedicado a la descarga de archivos
 class DownloadService: NSObject {
@@ -46,6 +47,34 @@ class DownloadService: NSObject {
             return nil
         }
         return musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
+    }
+
+    // Obtener la duración de un archivo de audio
+    func getDuration(for url: URL) -> TimeInterval? {
+        do {
+            let audioFile = try AVAudioFile(forReading: url)
+            let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+            print("⏱️ Duración obtenida: \(duration) segundos para \(url.lastPathComponent)")
+            return duration
+        } catch {
+            print("❌ Error al obtener duración: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // Eliminar el archivo descargado
+    func deleteDownload(for songID: UUID) throws {
+        guard let fileURL = localURL(for: songID) else {
+            throw NSError(domain: "DownloadService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No se pudo obtener la URL del archivo"])
+        }
+
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+            print("🗑️ Archivo eliminado: \(fileURL.lastPathComponent)")
+        } else {
+            print("⚠️ El archivo no existe en: \(fileURL.path)")
+        }
     }
 }
 

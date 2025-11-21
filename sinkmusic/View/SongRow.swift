@@ -13,8 +13,18 @@ struct SongRow: View {
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
 
+    @StateObject private var playlistViewModel: PlaylistViewModel
+    @State private var showAddToPlaylist = false
+    @State private var showSongMenu = false
+
+    init(song: Song) {
+        self._song = Bindable(wrappedValue: song)
+        // Note: modelContext will be injected via environment
+        self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: song.modelContext!))
+    }
+
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             VStack(alignment: .leading) {
                 Text(song.title)
                     .font(.headline)
@@ -23,8 +33,8 @@ struct SongRow: View {
                     .font(.subheadline)
                     .foregroundColor(.spotifyLightGray)
             }
-            Spacer()
-            
+            Spacer(minLength: 0)
+
             if let progress = songListViewModel.downloadProgress[song.id] {
                 if progress < 0 {
                     ProgressView()
@@ -41,16 +51,37 @@ struct SongRow: View {
                     .frame(width: 100)
                 }
             } else if song.isDownloaded {
-                Button(action: {
-                    playerViewModel.play(song: song)
-                }) {
-                    Image(systemName: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
-                          ? "pause.circle.fill"
-                          : "play.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.spotifyGreen)
+                HStack(spacing: 4) {
+                    Button(action: {
+                        playerViewModel.play(song: song)
+                    }) {
+                        Image(systemName: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
+                              ? "pause.circle.fill"
+                              : "play.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.spotifyGreen)
+                            .frame(width: 44, height: 44)
+                    }
+
+                    // Botón de tres puntos horizontales (menú) - estilo Spotify
+                    Button(action: {
+                        showSongMenu = true
+                    }) {
+                        HStack(spacing: 2) {
+                            Circle()
+                                .fill(Color.spotifyLightGray)
+                                .frame(width: 4, height: 4)
+                            Circle()
+                                .fill(Color.spotifyLightGray)
+                                .frame(width: 4, height: 4)
+                            Circle()
+                                .fill(Color.spotifyLightGray)
+                                .frame(width: 4, height: 4)
+                        }
                         .frame(width: 44, height: 44)
+                    }
                 }
+                .padding(.trailing, -8)
             } else {
                 Button(action: {
                     songListViewModel.download(song: song, modelContext: modelContext)
@@ -64,6 +95,47 @@ struct SongRow: View {
         }
         .padding(.vertical, 8)
         .listRowBackground(Color.spotifyBlack)
+        .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
+            // Solo mostrar "Agregar a playlist" si la canción tiene duración (ya se reprodujo)
+            if song.duration != nil {
+                Button(action: { showAddToPlaylist = true }) {
+                    Label("Agregar a playlist", systemImage: "plus")
+                }
+            }
+
+            Button(action: {
+                if playerViewModel.currentlyPlayingID == song.id {
+                    playerViewModel.pause()
+                } else {
+                    playerViewModel.play(song: song)
+                }
+            }) {
+                Label(
+                    playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "Pausar" : "Reproducir",
+                    systemImage: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "pause.fill" : "play.fill"
+                )
+            }
+
+            // Opción para eliminar la descarga
+            Button(role: .destructive, action: {
+                songListViewModel.deleteDownload(song: song, modelContext: modelContext)
+            }) {
+                Label("Eliminar descarga", systemImage: "trash")
+            }
+
+            // Mensaje si no tiene duración
+            if song.duration == nil {
+                Button(action: {}) {
+                    Label("Reproduce primero para agregar a playlist", systemImage: "info.circle")
+                }
+                .disabled(true)
+            }
+
+            Button("Cancelar", role: .cancel) {}
+        }
+        .sheet(isPresented: $showAddToPlaylist) {
+            AddToPlaylistView(viewModel: playlistViewModel, song: song)
+        }
     }
 }
 

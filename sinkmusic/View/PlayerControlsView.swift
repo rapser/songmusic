@@ -13,55 +13,98 @@ struct PlayerControlsView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Icono de la canción
-            ZStack {
-                Color.spotifyGreen
-                    .frame(width: 50, height: 50)
-                    .cornerRadius(8)
+        ZStack(alignment: .bottom) {
+            // Contenido principal del mini player
+            HStack(spacing: 4) {
+                // Icono de la canción
+                Group {
+                    if let artworkData = song.artworkData,
+                       let uiImage = UIImage(data: artworkData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 42, height: 42)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        ZStack {
+                            Color.spotifyGreen
+                                .frame(width: 42, height: 42)
+                                .cornerRadius(4)
 
-                Image(systemName: "music.note")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.white)
+                            Image(systemName: "music.note")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 18, height: 18)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+
+                // Información de la canción
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(song.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+
+                    Text(song.artist)
+                        .font(.system(size: 12))
+                        .foregroundColor(.spotifyLightGray)
+                        .lineLimit(1)
+                }
+                .padding(.leading, 8)
+
+                Spacer()
+
+                // Botón de play/pause
+                Button(action: { playerViewModel.play(song: song) }) {
+                    Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
+                        .resizable()
+                        .frame(width: 14, height: 14)
+                        .foregroundColor(.white)
+                        .padding(10)
+                        .background(Color.spotifyGreen)
+                        .cornerRadius(16)
+                }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 
-            // Información de la canción
-            VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                Text(song.artist)
-                    .font(.system(size: 12))
-                    .foregroundColor(.spotifyLightGray)
-                    .lineLimit(1)
+            // Barra de progreso estilo Spotify - 2px desde el bottom, 10px horizontal
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Fondo de la barra (gris oscuro)
+                    Rectangle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(height: 2)
+
+                    // Progreso (verde)
+                    Rectangle()
+                        .fill(Color.spotifyGreen)
+                        .frame(
+                            width: geometry.size.width * progress,
+                            height: 2
+                        )
+                }
             }
-            .padding(.leading, 8)
-
-            Spacer()
-
-            // Botón de play/pause
-            Button(action: { playerViewModel.play(song: song) }) {
-                Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
-                    .resizable()
-                    .frame(width: 15, height: 15)
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(Color.spotifyGreen)
-                    .cornerRadius(16)
-            }
+            .frame(height: 2)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 2)
         }
-        .padding(12)
+        .frame(height: 62)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(red: 40/255, green: 40/255, blue: 40/255))
-                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.spotifyGray)
+                .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
         )
         .matchedGeometryEffect(id: "player", in: namespace)
-        .opacity(0.7)
+    }
+
+    // Computed property para calcular el progreso
+    private var progress: Double {
+        guard playerViewModel.songDuration > 0 else { return 0 }
+        return playerViewModel.playbackTime / playerViewModel.songDuration
     }
 }
 

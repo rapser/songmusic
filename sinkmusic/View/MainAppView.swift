@@ -6,7 +6,7 @@ struct MainAppView: View {
     @EnvironmentObject private var playerViewModel: PlayerViewModel
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @Namespace private var animation
-    
+
     @State private var currentSong: Song? = nil
     @State private var debugMessage = ""
     @State private var showDebugInfo = true
@@ -14,7 +14,7 @@ struct MainAppView: View {
     init() {
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor = UIColor(Color.spotifyGray)
+        tabBarAppearance.backgroundColor =  UIColor(Color.spotifyGray)
         
         let textAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor(Color.spotifyLightGray)]
         let selectedTextAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.white]
@@ -38,6 +38,10 @@ struct MainAppView: View {
                     .tabItem { Label("Buscar", systemImage: "magnifyingglass") }
                 LibraryView()
                     .tabItem { Label("Biblioteca", systemImage: "books.vertical.fill") }
+                NavigationStack {
+                    SettingsView()
+                }
+                    .tabItem { Label("Configuración", systemImage: "gearshape.fill") }
             }
             .accentColor(.white)
 
@@ -54,12 +58,11 @@ struct MainAppView: View {
             // Mini Player
             if let currentSong = currentSong,
                playerViewModel.currentlyPlayingID != nil,
-               !viewModel.isScrolling,
                !playerViewModel.showPlayerView {
-                
+
                 PlayerControlsView(song: currentSong, namespace: animation)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 60)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 55)
                     .onTapGesture {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             playerViewModel.showPlayerView = true
@@ -70,6 +73,7 @@ struct MainAppView: View {
         .onAppear {
             updateCurrentSong()
             updateDebugInfo()
+            playerViewModel.updateSongsList(songs)
         }
         .onChange(of: playerViewModel.currentlyPlayingID) {
             updateCurrentSong()
@@ -83,6 +87,7 @@ struct MainAppView: View {
         }
         .onChange(of: songs) {
             updateCurrentSong()
+            playerViewModel.updateSongsList(songs)
             print("🔄 Songs updated: \(songs.count)")
         }
     }
@@ -90,7 +95,9 @@ struct MainAppView: View {
     private func updateCurrentSong() {
         if let playingID = playerViewModel.currentlyPlayingID {
             currentSong = songs.first { $0.id == playingID }
-            print("🔍 Current song: \(currentSong?.title ?? "nil")")
+            if let song = currentSong {
+                print("🎵 Canción actualizada en UI: '\(song.title)'")
+            }
         } else {
             currentSong = nil
         }

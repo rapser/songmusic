@@ -8,66 +8,73 @@ struct ContentView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
 
-    @State private var lastOffset: CGFloat = 0
-    @State private var scrollDirection: ScrollDirection = .up
-
-    enum ScrollDirection {
-        case up, down, none
+    var downloadedSongs: [Song] {
+        songs.filter { $0.isDownloaded }
     }
 
     var body: some View {
         ZStack {
             Color.spotifyBlack.edgesIgnoringSafeArea(.all)
 
-            VStack {
-                Text("Taki Music")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.top, 20)
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("App Music")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
 
-                ScrollView() {
-                    VStack(spacing: 10) {
-                        ForEach(songs) { song in
-                            SongRow(song: song)
-                                .onTapGesture {
-                                    playerViewModel.play(song: song)
-                                }
-                        }
-                    }
-
-                    GeometryReader { geo in
-                        Color.clear
-                            .preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .named("scroll")).minY
-                            )
-                    }
-                    .frame(height: 0)
-                    
+                    Spacer()
                 }
                 .padding(.horizontal, 16)
-                .coordinateSpace(name: "scroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
-                    let threshold: CGFloat = 5.0
-                    
-                    if abs(newOffset - lastOffset) > threshold {
-                        if newOffset > lastOffset {
-                            // Scroll hacia ABAJO - usuario se mueve HACIA ABAJO en el contenido
-                            scrollDirection = .up
-                            viewModel.isScrolling = false    // ✅ OCULTAR miniplayer
-                            print("⬇️ Scroll DOWN - Ocultar miniplayer")
-                        } else if newOffset < lastOffset {
-                            // Scroll hacia ARRIBA - usuario se mueve HACIA ARRIBA en el contenido
-                            scrollDirection = .down
-                            viewModel.isScrolling = true   // ✅ MOSTRAR miniplayer
-                            print("⬆️ Scroll UP - Mostrar miniplayer")
-                        }
-                    }
-                    
-                    lastOffset = newOffset
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+
+                // Subtitle con contador
+                HStack {
+                    Text("\(downloadedSongs.count) canciones descargadas")
+                        .font(.subheadline)
+                        .foregroundColor(.spotifyLightGray)
+
+                    Spacer()
                 }
-                
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+                // Lista de canciones descargadas
+                if downloadedSongs.isEmpty {
+                    VStack(spacing: 20) {
+                        Spacer()
+
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 60))
+                            .foregroundColor(.spotifyLightGray)
+
+                        VStack(spacing: 8) {
+                            Text("No hay canciones descargadas")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+
+                            Text("Ve a Configuración para descargar música")
+                                .font(.system(size: 14))
+                                .foregroundColor(.spotifyLightGray)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 40)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(downloadedSongs) { song in
+                                SongRow(song: song)
+                            }
+                        }
+                        .padding(.bottom, 80) // Espacio para el mini player
+                    }
+                    .padding(.horizontal, 16)
+                }
             }
         }
         .onAppear {

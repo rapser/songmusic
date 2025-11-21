@@ -9,6 +9,7 @@ struct PlayerView: View {
     
     @State private var sliderValue: Double = 0
     @State private var isEditingSlider = false
+    @State private var showEqualizer = false
     
     var body: some View {
         ZStack {
@@ -16,9 +17,16 @@ struct PlayerView: View {
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 32) {
-                // Header con botón cerrar
+                // Header con botón cerrar y ecualizador
                 HStack {
+                    Button(action: { showEqualizer = true }) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+
                     Spacer()
+
                     Button(action: {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             playerViewModel.showPlayerView = false
@@ -32,16 +40,31 @@ struct PlayerView: View {
                 .padding()
                 
                 // Imagen de la canción
-                Image(systemName: "music.note")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200, height: 200)
-                    .padding()
-                    .background(Color.black.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(radius: 10)
-                    .foregroundColor(.white)
-                    .matchedGeometryEffect(id: "player", in: namespace)
+                Group {
+                    if let artworkData = currentSong.artworkData,
+                       let uiImage = UIImage(data: artworkData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 280, height: 280)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .shadow(radius: 10)
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.spotifyGreen)
+                                .frame(width: 280, height: 280)
+
+                            Image(systemName: "music.note")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
+                                .foregroundColor(.white)
+                        }
+                        .shadow(radius: 10)
+                    }
+                }
+                .matchedGeometryEffect(id: "player", in: namespace)
                 
                 // Título y artista
                 VStack(spacing: 4) {
@@ -76,6 +99,24 @@ struct PlayerView: View {
                 }
                 .padding(.horizontal)
                 
+                // Controles de shuffle y repeat
+                HStack(spacing: 40) {
+                    Button(action: { playerViewModel.toggleShuffle() }) {
+                        Image(systemName: "shuffle")
+                            .font(.title3)
+                            .foregroundColor(playerViewModel.isShuffleEnabled ? .spotifyGreen : .spotifyLightGray)
+                    }
+
+                    Spacer()
+
+                    Button(action: { playerViewModel.toggleRepeat() }) {
+                        Image(systemName: playerViewModel.repeatMode == .repeatOne ? "repeat.1" : "repeat")
+                            .font(.title3)
+                            .foregroundColor(playerViewModel.repeatMode != .off ? .spotifyGreen : .spotifyLightGray)
+                    }
+                }
+                .padding(.horizontal, 40)
+
                 // Controles de reproducción
                 HStack(spacing: 50) {
                     Button(action: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
@@ -83,13 +124,13 @@ struct PlayerView: View {
                             .font(.largeTitle)
                             .foregroundColor(.white)
                     }
-                    
+
                     Button(action: { playerViewModel.play(song: currentSong) }) {
                         Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(.system(size: 70))
                             .foregroundColor(.white)
                     }
-                    
+
                     Button(action: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
                         Image(systemName: "forward.fill")
                             .font(.largeTitle)
@@ -105,6 +146,9 @@ struct PlayerView: View {
             if !isEditingSlider {
                 sliderValue = newValue
             }
+        }
+        .sheet(isPresented: $showEqualizer) {
+            EqualizerView()
         }
     }
 }

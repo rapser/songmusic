@@ -20,6 +20,6 @@ struct sinkmusicApp: App {
                 .environmentObject(viewModel.playerViewModel)
                 .environmentObject(songListViewModel)
         }
-        .modelContainer(for: Song.self)
+        .modelContainer(for: [Song.self, Playlist.self])
     }
 }

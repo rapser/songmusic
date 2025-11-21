@@ -1,0 +1,225 @@
+//
+//  AddToPlaylistView.swift
+//  sinkmusic
+//
+//  Created by Claude Code
+//
+
+import SwiftUI
+import SwiftData
+
+struct AddToPlaylistView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: PlaylistViewModel
+    let song: Song
+
+    @State private var searchText = ""
+
+    var filteredPlaylists: [Playlist] {
+        if searchText.isEmpty {
+            return viewModel.playlists
+        } else {
+            return viewModel.playlists.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+
+                VStack(spacing: 0) {
+                    // Search Bar
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.spotifyLightGray)
+
+                        TextField("Buscar playlist", text: $searchText)
+                            .font(.system(size: 15))
+                            .foregroundColor(.white)
+                            .autocorrectionDisabled()
+
+                        if !searchText.isEmpty {
+                            Button(action: { searchText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.spotifyLightGray)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.spotifyGray)
+                    .cornerRadius(8)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+
+                    // New Playlist Button
+                    Button(action: {
+                        viewModel.showCreatePlaylist = true
+                    }) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.spotifyGray)
+                                    .frame(width: 50, height: 50)
+
+                                Image(systemName: "plus")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)
+                            }
+
+                            Text("Nueva playlist")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.white)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(Color.clear)
+                    }
+
+                    Divider()
+                        .background(Color.white.opacity(0.1))
+                        .padding(.vertical, 8)
+
+                    // Playlists List
+                    if filteredPlaylists.isEmpty {
+                        VStack(spacing: 16) {
+                            Spacer()
+
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 50))
+                                .foregroundColor(.spotifyLightGray)
+
+                            Text(searchText.isEmpty ? "No hay playlists" : "No se encontraron playlists")
+                                .font(.system(size: 16))
+                                .foregroundColor(.spotifyLightGray)
+
+                            Spacer()
+                        }
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(filteredPlaylists, id: \.id) { playlist in
+                                    PlaylistSelectRow(
+                                        playlist: playlist,
+                                        song: song,
+                                        isAdded: playlist.songs.contains(where: { $0.id == song.id })
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        addToPlaylist(playlist)
+                                    }
+
+                                    if playlist.id != filteredPlaylists.last?.id {
+                                        Divider()
+                                            .background(Color.white.opacity(0.1))
+                                            .padding(.leading, 80)
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 20)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Agregar a playlist")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cerrar") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+            }
+        }
+        .sheet(isPresented: $viewModel.showCreatePlaylist) {
+            CreatePlaylistView(viewModel: viewModel)
+        }
+    }
+
+    private func addToPlaylist(_ playlist: Playlist) {
+        viewModel.addSong(song, to: playlist)
+
+        // Haptic feedback
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+
+        // Auto-dismiss after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            dismiss()
+        }
+    }
+}
+
+// MARK: - Playlist Select Row
+struct PlaylistSelectRow: View {
+    let playlist: Playlist
+    let song: Song
+    let isAdded: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Cover Image
+            ZStack {
+                if let coverData = playlist.coverImageData,
+                   let uiImage = UIImage(data: coverData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipped()
+                        .cornerRadius(4)
+                } else {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.6, brightness: 0.5),
+                            Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.7, brightness: 0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .frame(width: 50, height: 50)
+                    .cornerRadius(4)
+                    .overlay(
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white.opacity(0.6))
+                    )
+                }
+            }
+
+            // Playlist Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(playlist.name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+
+                Text("\(playlist.songCount) canciones")
+                    .font(.system(size: 13))
+                    .foregroundColor(.spotifyLightGray)
+            }
+
+            Spacer()
+
+            // Checkmark if already added
+            if isAdded {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.spotifyGreen)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(Color.clear)
+    }
+}
+
+#Preview {
+    AddToPlaylistView(
+        viewModel: PlaylistViewModel(modelContext: PreviewContainer.shared.mainContext),
+        song: PreviewSongs.single()
+    )
+}
