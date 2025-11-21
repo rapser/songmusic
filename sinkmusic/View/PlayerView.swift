@@ -16,7 +16,7 @@ struct PlayerView: View {
             LinearGradient(gradient: Gradient(colors: [Color.spotifyGray, Color.spotifyBlack]), startPoint: .top, endPoint: .bottom)
                 .edgesIgnoringSafeArea(.all)
             
-            VStack(spacing: 32) {
+            VStack(spacing: 12) {
                 // Header con botón cerrar y ecualizador
                 HStack {
                     Button(action: { showEqualizer = true }) {
@@ -45,39 +45,45 @@ struct PlayerView: View {
                        let uiImage = UIImage(data: artworkData) {
                         Image(uiImage: uiImage)
                             .resizable()
-                            .scaledToFill()
-                            .frame(width: 280, height: 280)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .scaledToFit()
+                            .frame(height: 360)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                             .shadow(radius: 10)
                     } else {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 20)
+                            RoundedRectangle(cornerRadius: 10)
                                 .fill(Color.spotifyGreen)
-                                .frame(width: 280, height: 280)
+                                .frame(height: 360)
 
                             Image(systemName: "music.note")
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 140, height: 140)
+                                .frame(width: 190, height: 190)
                                 .foregroundColor(.white)
                         }
                         .shadow(radius: 10)
                     }
                 }
+//                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
                 .matchedGeometryEffect(id: "player", in: namespace)
+                .padding(.bottom, 30)
                 
-                // Título y artista
-                VStack(spacing: 4) {
+                // Título y artista (alineados a la izquierda)
+                VStack(alignment: .leading, spacing: 4) {
                     Text(currentSong.title)
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                        .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
                     Text(currentSong.artist)
-                        .font(.title2)
+                        .font(.system(size: 18))
                         .foregroundColor(.spotifyLightGray)
                         .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
                 
                 // Slider de progreso
                 VStack {
@@ -97,46 +103,58 @@ struct PlayerView: View {
                     .font(.caption)
                     .foregroundColor(.spotifyLightGray)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
                 
-                // Controles de shuffle y repeat
-                HStack(spacing: 40) {
+                // Controles de reproducción con shuffle y repeat en la misma línea
+                HStack(spacing: 0) {
+                    // Shuffle
                     Button(action: { playerViewModel.toggleShuffle() }) {
                         Image(systemName: "shuffle")
                             .font(.title3)
                             .foregroundColor(playerViewModel.isShuffleEnabled ? .spotifyGreen : .spotifyLightGray)
+                            .frame(width: 50, height: 50)
                     }
-
+                    
                     Spacer()
-
-                    Button(action: { playerViewModel.toggleRepeat() }) {
-                        Image(systemName: playerViewModel.repeatMode == .repeatOne ? "repeat.1" : "repeat")
-                            .font(.title3)
-                            .foregroundColor(playerViewModel.repeatMode != .off ? .spotifyGreen : .spotifyLightGray)
-                    }
-                }
-                .padding(.horizontal, 40)
-
-                // Controles de reproducción
-                HStack(spacing: 50) {
+                    
+                    // Previous
                     Button(action: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) }) {
                         Image(systemName: "backward.fill")
-                            .font(.largeTitle)
+                            .font(.title)
                             .foregroundColor(.white)
+                            .frame(width: 50, height: 50)
                     }
-
+                    
+                    Spacer()
+                    
+                    // Play/Pause
                     Button(action: { playerViewModel.play(song: currentSong) }) {
                         Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(.system(size: 70))
                             .foregroundColor(.white)
                     }
-
+                    
+                    Spacer()
+                    
+                    // Next
                     Button(action: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) }) {
                         Image(systemName: "forward.fill")
-                            .font(.largeTitle)
+                            .font(.title)
                             .foregroundColor(.white)
+                            .frame(width: 50, height: 50)
+                    }
+                    
+                    Spacer()
+                    
+                    // Repeat
+                    Button(action: { playerViewModel.toggleRepeat() }) {
+                        Image(systemName: playerViewModel.repeatMode == .repeatOne ? "repeat.1" : "repeat")
+                            .font(.title3)
+                            .foregroundColor(playerViewModel.repeatMode != .off ? .spotifyGreen : .spotifyLightGray)
+                            .frame(width: 50, height: 50)
                     }
                 }
+                .padding(.horizontal, 20)
                 
                 Spacer()
             }
