@@ -45,7 +45,6 @@ final class RefactoredMainViewModel: ObservableObject, ScrollStateResettable {
     // MARK: - ScrollStateResettable Protocol
     func resetScrollState() {
         isScrolling = false
-        print("🔄 Scroll state reseteado")
     }
     
     // MARK: - Public Methods
@@ -55,19 +54,12 @@ final class RefactoredMainViewModel: ObservableObject, ScrollStateResettable {
         
         Task {
             do {
-                let (newSongs, updatedSongs) = try await syncLibraryUseCase.execute()
+                let _ = try await syncLibraryUseCase.execute()
                 
                 isLoadingSongs = false
-                
-                if newSongs > 0 || updatedSongs > 0 {
-                    print("✅ Sincronización completa: \(newSongs) nuevas, \(updatedSongs) actualizadas")
-                } else {
-                    print("✅ Biblioteca ya está sincronizada")
-                }
             } catch {
                 isLoadingSongs = false
                 errorMessage = "Error al sincronizar: \(error.localizedDescription)"
-                print("❌ Error en sincronización: \(error)")
             }
         }
     }

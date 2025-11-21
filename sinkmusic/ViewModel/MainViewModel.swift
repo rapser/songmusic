@@ -23,19 +23,9 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
     
     func resetScrollState() {
         isScrolling = false
-        print("🔄 Scroll state reseteado desde protocolo")
     }
     
     func syncLibraryWithCatalog(modelContext: ModelContext) {
-        print("🔄 Sincronizando la librería de canciones...")
-
-        // TEMPORAL: Mostrar la ruta donde se guardan las canciones
-        if let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let musicPath = documentsPath.appendingPathComponent("Music")
-            print("📂 RUTA DE CANCIONES: \(musicPath.path)")
-            print("📂 Puedes abrir en Finder con: open \(musicPath.path)")
-        }
-
         isLoadingSongs = true
 
         Task {
@@ -46,7 +36,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                 let descriptor = FetchDescriptor<Song>()
 
                 guard let existingSongs = try? modelContext.fetch(descriptor) else {
-                    print("❌ Error al leer la base de datos de canciones.")
                     isLoadingSongs = false
                     return
                 }
@@ -66,9 +55,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                             existingSong.title = driveFile.title
                             existingSong.artist = driveFile.artist
                             songsUpdated += 1
-                            print("📝 Actualizando canción sin metadatos: '\(driveFile.title)'")
-                        } else if hasMetadata {
-                            print("✅ Canción '\(existingSong.title)' ya tiene metadatos, no sobrescribir")
                         }
                     } else {
                         let newSong = Song(title: driveFile.title, artist: driveFile.artist, fileID: driveFile.id)
@@ -77,19 +63,11 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                     }
                 }
 
-                if newSongsAdded > 0 || songsUpdated > 0 {
-                    print("✅ Sync completa desde Google Drive. \(newSongsAdded) nuevas, \(songsUpdated) actualizadas.")
-                } else {
-                    print("✅ Sync completa desde Google Drive. Nada que actualizar.")
-                }
-
                 isLoadingSongs = false
             } catch {
-                print("❌ Error al sincronizar con Google Drive: \(error.localizedDescription)")
                 isLoadingSongs = false
 
                 // Fallback: usar SongCatalog si falla Google Drive
-                print("⚠️ Usando SongCatalog como fallback...")
                 syncWithLocalCatalog(modelContext: modelContext)
             }
         }
@@ -99,7 +77,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
         let descriptor = FetchDescriptor<Song>()
 
         guard let existingSongs = try? modelContext.fetch(descriptor) else {
-            print("❌ Error al leer la base de datos de canciones.")
             return
         }
 
@@ -124,12 +101,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                 modelContext.insert(newSong)
                 newSongsAdded += 1
             }
-        }
-
-        if newSongsAdded > 0 || songsUpdated > 0 {
-            print("✅ Sync completa con fallback. \(newSongsAdded) nuevas, \(songsUpdated) actualizadas.")
-        } else {
-            print("✅ Sync completa con fallback. Nada que actualizar.")
         }
     }
 }

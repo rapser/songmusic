@@ -52,7 +52,17 @@ struct MainAppView: View {
                     currentSong: currentSong,
                     namespace: animation
                 )
-                .transition(.move(edge: .bottom))
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.95, anchor: .bottom)
+                            .combined(with: .move(edge: .bottom))
+                            .combined(with: .opacity),
+                        removal: .scale(scale: 0.95, anchor: .bottom)
+                            .combined(with: .move(edge: .bottom))
+                            .combined(with: .opacity)
+                    )
+                )
+                .zIndex(2)
             }
 
             // Mini Player
@@ -63,8 +73,18 @@ struct MainAppView: View {
                 PlayerControlsView(song: currentSong, namespace: animation)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 55)
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.95, anchor: .bottom)
+                                .combined(with: .move(edge: .bottom))
+                                .combined(with: .opacity),
+                            removal: .scale(scale: 1.05, anchor: .bottom)
+                                .combined(with: .opacity)
+                        )
+                    )
+                    .zIndex(1)
                     .onTapGesture {
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        withAnimation(.easeInOut(duration: 0.35)) {
                             playerViewModel.showPlayerView = true
                         }
                     }
@@ -88,16 +108,12 @@ struct MainAppView: View {
         .onChange(of: songs) {
             updateCurrentSong()
             playerViewModel.updateSongsList(songs)
-            print("🔄 Songs updated: \(songs.count)")
         }
     }
     
     private func updateCurrentSong() {
         if let playingID = playerViewModel.currentlyPlayingID {
             currentSong = songs.first { $0.id == playingID }
-            if let song = currentSong {
-                print("🎵 Canción actualizada en UI: '\(song.title)'")
-            }
         } else {
             currentSong = nil
         }

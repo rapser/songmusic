@@ -55,6 +55,5 @@ final class PlaySongUseCase {
         
         // Iniciar reproducción
         audioPlayer.play(songID: song.id, url: url)
-        print("▶️ Reproduciendo: \(song.title)")
     }
 }

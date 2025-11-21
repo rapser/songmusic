@@ -25,13 +25,11 @@ final class ManagePlaylistUseCase {
         )
         
         try playlistRepository.save(playlist)
-        print("✅ Playlist '\(name)' creada")
     }
     
     /// Elimina una playlist
     func deletePlaylist(_ playlist: Playlist) throws {
         try playlistRepository.delete(playlist)
-        print("✅ Playlist '\(playlist.name)' eliminada")
     }
     
     /// Actualiza una playlist
@@ -52,18 +50,15 @@ final class ManagePlaylistUseCase {
         }
         
         try playlistRepository.update(playlist)
-        print("✅ Playlist actualizada")
     }
     
     /// Agrega una canción a una playlist
     func addSong(_ song: Song, to playlist: Playlist) throws {
         try playlistRepository.addSong(song, to: playlist)
-        print("✅ Canción '\(song.title)' agregada a '\(playlist.name)'")
     }
     
     /// Elimina una canción de una playlist
     func removeSong(_ song: Song, from playlist: Playlist) throws {
         try playlistRepository.removeSong(song, from: playlist)
-        print("✅ Canción '\(song.title)' eliminada de '\(playlist.name)'")
     }
 }

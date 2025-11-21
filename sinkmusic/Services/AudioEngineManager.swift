@@ -46,8 +46,6 @@ final class AudioEngineManager {
             eq.bands[index].gain = 0.0
             eq.bands[index].bypass = false
         }
-        
-        print("🎚️ Audio Engine configurado con ecualizador de 10 bandas")
     }
     
     // MARK: - Public Methods
@@ -66,31 +64,25 @@ final class AudioEngineManager {
             
             audioEngine.disconnectNodeInput(playerNode)
             audioEngine.disconnectNodeInput(eq)
-            print("✅ Nodos desconectados")
         } else {
-            print("✅ Primera conexión, omitiendo desconexión")
             isFirstConnection = false
         }
         
         audioEngine.connect(playerNode, to: eq, format: format)
         audioEngine.connect(eq, to: audioEngine.mainMixerNode, format: format)
-        print("✅ Nodos conectados correctamente")
         
         audioEngine.prepare()
-        print("✅ Audio Engine preparado")
     }
     
     func start() throws {
         if !audioEngine.isRunning {
             try audioEngine.start()
-            print("✅ Audio Engine iniciado")
         }
     }
     
     func stop() {
         if audioEngine.isRunning {
             audioEngine.stop()
-            print("⏹️ Audio Engine detenido")
         }
     }
     
@@ -100,7 +92,5 @@ final class AudioEngineManager {
         for (index, gain) in bands.enumerated() {
             eq.bands[index].gain = gain
         }
-        
-        print("🎚️ Ecualizador actualizado")
     }
 }

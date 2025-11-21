@@ -37,10 +37,8 @@ final class RefactoredPlaylistViewModel: ObservableObject {
     func fetchPlaylists() {
         do {
             playlists = try playlistRepository.fetchAll()
-            print("✅ Fetched \(playlists.count) playlists")
         } catch {
             errorMessage = "Error al cargar playlists: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     
@@ -54,7 +52,6 @@ final class RefactoredPlaylistViewModel: ObservableObject {
             fetchPlaylists()
         } catch {
             errorMessage = "Error al crear playlist: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     
@@ -64,7 +61,6 @@ final class RefactoredPlaylistViewModel: ObservableObject {
             fetchPlaylists()
         } catch {
             errorMessage = "Error al eliminar playlist: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     
@@ -84,7 +80,6 @@ final class RefactoredPlaylistViewModel: ObservableObject {
             fetchPlaylists()
         } catch {
             errorMessage = "Error al actualizar playlist: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     
@@ -94,7 +89,6 @@ final class RefactoredPlaylistViewModel: ObservableObject {
             fetchPlaylists()
         } catch {
             errorMessage = "Error al agregar canción: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     
@@ -104,7 +98,6 @@ final class RefactoredPlaylistViewModel: ObservableObject {
             fetchPlaylists()
         } catch {
             errorMessage = "Error al eliminar canción: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     
@@ -114,10 +107,8 @@ final class RefactoredPlaylistViewModel: ObservableObject {
         do {
             try playlistRepository.update(playlist)
             fetchPlaylists()
-            print("✅ Canciones reordenadas")
         } catch {
             errorMessage = "Error al reordenar: \(error.localizedDescription)"
-            print("❌ \(errorMessage ?? "")")
         }
     }
     

@@ -26,7 +26,6 @@ final class DeleteSongUseCase {
     func execute(song: Song) throws {
         // Paso 1: Eliminar archivo local
         try downloadService.deleteDownload(for: song.id)
-        print("🗑️ Archivo eliminado: \(song.title)")
         
         // Paso 2: Resetear datos de la canción
         song.isDownloaded = false
@@ -37,6 +36,5 @@ final class DeleteSongUseCase {
         
         // Paso 3: Actualizar en el repositorio
         try songRepository.update(song)
-        print("💾 Canción actualizada en repositorio")
     }
 }

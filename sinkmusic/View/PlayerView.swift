@@ -28,7 +28,7 @@ struct PlayerView: View {
                     Spacer()
 
                     Button(action: {
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        withAnimation(.easeInOut(duration: 0.35)) {
                             playerViewModel.showPlayerView = false
                         }
                     }) {

@@ -24,8 +24,6 @@ final class SyncLibraryUseCase {
     /// Ejecuta la sincronización de la biblioteca
     /// - Returns: Tupla con número de canciones nuevas y actualizadas
     func execute() async throws -> (newSongs: Int, updatedSongs: Int) {
-        print("🔄 Sincronizando biblioteca con Google Drive...")
-        
         // Paso 1: Obtener canciones de Google Drive
         let driveFiles = try await googleDriveService.fetchSongsFromFolder()
         
@@ -47,7 +45,6 @@ final class SyncLibraryUseCase {
                     existingSong.artist = driveFile.artist
                     try songRepository.update(existingSong)
                     songsUpdated += 1
-                    print("📝 Actualizada: '\(driveFile.title)'")
                 }
             } else {
                 // Nueva canción
@@ -58,11 +55,9 @@ final class SyncLibraryUseCase {
                 )
                 try songRepository.save(newSong)
                 newSongsAdded += 1
-                print("➕ Nueva canción: '\(driveFile.title)'")
             }
         }
         
-        print("✅ Sincronización completa: \(newSongsAdded) nuevas, \(songsUpdated) actualizadas")
         return (newSongsAdded, songsUpdated)
     }
 }

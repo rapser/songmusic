@@ -31,9 +31,7 @@ class PlaylistViewModel: ObservableObject {
 
         do {
             playlists = try modelContext.fetch(descriptor)
-            print("✅ Fetched \(playlists.count) playlists")
         } catch {
-            print("❌ Error fetching playlists: \(error.localizedDescription)")
         }
     }
 
@@ -50,9 +48,7 @@ class PlaylistViewModel: ObservableObject {
         do {
             try modelContext.save()
             fetchPlaylists()
-            print("✅ Playlist '\(name)' created successfully")
         } catch {
-            print("❌ Error creating playlist: \(error.localizedDescription)")
         }
     }
 
@@ -63,9 +59,7 @@ class PlaylistViewModel: ObservableObject {
         do {
             try modelContext.save()
             fetchPlaylists()
-            print("✅ Playlist deleted")
         } catch {
-            print("❌ Error deleting playlist: \(error.localizedDescription)")
         }
     }
 
@@ -86,9 +80,7 @@ class PlaylistViewModel: ObservableObject {
         do {
             try modelContext.save()
             fetchPlaylists()
-            print("✅ Playlist updated")
         } catch {
-            print("❌ Error updating playlist: \(error.localizedDescription)")
         }
     }
 
@@ -96,7 +88,6 @@ class PlaylistViewModel: ObservableObject {
     func addSong(_ song: Song, to playlist: Playlist) {
         // Verificar que la canción no esté ya en la playlist
         guard !playlist.songs.contains(where: { $0.id == song.id }) else {
-            print("⚠️ Song already in playlist")
             return
         }
 
@@ -106,9 +97,7 @@ class PlaylistViewModel: ObservableObject {
         do {
             try modelContext.save()
             fetchPlaylists()
-            print("✅ Song '\(song.title)' added to '\(playlist.name)'")
         } catch {
-            print("❌ Error adding song to playlist: \(error.localizedDescription)")
         }
     }
 
@@ -121,9 +110,7 @@ class PlaylistViewModel: ObservableObject {
             do {
                 try modelContext.save()
                 fetchPlaylists()
-                print("✅ Song removed from playlist")
             } catch {
-                print("❌ Error removing song: \(error.localizedDescription)")
             }
         }
     }
@@ -136,9 +123,7 @@ class PlaylistViewModel: ObservableObject {
         do {
             try modelContext.save()
             fetchPlaylists()
-            print("✅ Songs reordered")
         } catch {
-            print("❌ Error reordering songs: \(error.localizedDescription)")
         }
     }
 

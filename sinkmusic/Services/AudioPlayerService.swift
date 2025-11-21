@@ -41,7 +41,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("Error al configurar AVAudioSession: \(error.localizedDescription)")
         }
     }
 
@@ -61,18 +60,11 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         }
 
         // NO conectar ni preparar aquí - lo haremos dinámicamente en play() con el formato correcto
-
-        print("🎚️ Audio Engine configurado con ecualizador de 10 bandas")
     }
 
     func play(songID: UUID, url: URL) {
-        print("▶️ AudioPlayerService.play() - Iniciando reproducción")
-        print("   Song ID: \(songID.uuidString.prefix(8))...")
-        print("   Archivo existe: \(FileManager.default.fileExists(atPath: url.path))")
-
         if currentlyPlayingID == songID {
             // Si es la misma canción, simplemente reanuda
-            print("🔄 Misma canción - Reanudando")
             if !playerNode.isPlaying {
                 playerNode.play()
                 if !audioEngine.isRunning {
@@ -83,86 +75,60 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             }
         } else {
             // Es una canción nueva
-            print("🆕 Nueva canción - Cargando archivo")
             do {
                 // Cargar el archivo de audio PRIMERO
-                print("📂 Intentando cargar AVAudioFile desde: \(url.path)")
                 audioFile = try AVAudioFile(forReading: url)
 
                 guard let audioFile = audioFile else {
-                    print("❌ No se pudo cargar el archivo de audio (audioFile es nil)")
                     return
                 }
 
-                print("✅ AVAudioFile cargado exitosamente")
-                print("   - Sample Rate: \(audioFile.processingFormat.sampleRate)")
-                print("   - Channels: \(audioFile.processingFormat.channelCount)")
-                print("   - Length: \(audioFile.length) frames")
-                print("   - Duration: \(Double(audioFile.length) / audioFile.processingFormat.sampleRate) segundos")
-
                 // Reconectar los nodos con el formato del archivo actual
                 let fileFormat = audioFile.processingFormat
-                print("🔌 Configurando nodos con formato: \(fileFormat.sampleRate) Hz, \(fileFormat.channelCount) canales")
 
                 // Desconectar solo si NO es la primera vez (evita crash)
                 if !isFirstConnection {
                     // IMPORTANTE: reset() cancela todos los buffers pendientes y completion handlers
                     playerNode.reset()
-                    print("⏹️ Nodo reseteado (cancela completion handlers pendientes)")
 
                     // Detener el engine antes de desconectar para evitar crash
                     if audioEngine.isRunning {
                         audioEngine.stop()
-                        print("⏸️ Audio Engine detenido para reconexión")
                     }
 
                     audioEngine.disconnectNodeInput(playerNode)
                     audioEngine.disconnectNodeInput(eq)
-                    print("✅ Nodos desconectados")
                 } else {
-                    print("✅ Primera conexión, omitiendo desconexión")
                     isFirstConnection = false
                 }
 
                 // Conectar con el formato del archivo
                 audioEngine.connect(playerNode, to: eq, format: fileFormat)
                 audioEngine.connect(eq, to: audioEngine.mainMixerNode, format: fileFormat)
-                print("✅ Nodos conectados correctamente")
 
                 // Preparar el engine después de conectar
                 audioEngine.prepare()
-                print("✅ Audio Engine preparado")
 
                 // Generar un nuevo ID de schedule para este archivo
                 // Esto nos permite ignorar completion handlers de schedules anteriores
                 let scheduleID = UUID()
                 self.currentScheduleID = scheduleID
-                print("📅 Programando archivo para reproducción (Schedule ID: \(scheduleID.uuidString.prefix(8)))")
 
-                let scheduledAt = Date()
                 playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
-                    let completedAt = Date()
-                    let elapsed = completedAt.timeIntervalSince(scheduledAt)
 
                     DispatchQueue.main.async {
                         guard let self = self else {
-                            print("⚠️ Completion handler llamado pero self es nil")
                             return
                         }
 
                         // Verificar si este completion handler es del schedule actual
                         guard self.currentScheduleID == scheduleID else {
-                            print("🚫 Completion handler IGNORADO - Schedule ID obsoleto (\(scheduleID.uuidString.prefix(8))) vs actual (\(self.currentScheduleID.uuidString.prefix(8))) - Elapsed: \(elapsed)s")
                             return
                         }
 
                         guard let currentID = self.currentlyPlayingID else {
-                            print("⚠️ Completion handler válido pero currentID es nil")
                             return
                         }
-
-                        print("⏰ Completion handler VÁLIDO ejecutado después de \(elapsed) segundos - Song ID: \(currentID)")
-                        print("🎵 Canción terminada: \(currentID)")
 
                         // Detener el timer de reproducción
                         self.playbackTimer?.invalidate()
@@ -171,15 +137,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         self.onSongFinished.send(currentID)
                     }
                 }
-                print("✅ Archivo programado en playerNode")
 
                 // Iniciar el engine si no está corriendo
                 if !audioEngine.isRunning {
-                    print("🎛️ Iniciando Audio Engine")
                     try audioEngine.start()
-                    print("✅ Audio Engine iniciado")
-                } else {
-                    print("✅ Audio Engine ya estaba corriendo")
                 }
 
                 // Reproducir
@@ -189,11 +150,7 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 self.currentlyPlayingID = songID
                 startPlaybackTimer()
                 onPlaybackStateChanged.send((isPlaying: true, songID: songID))
-
-                print("✅ Reproducción iniciada exitosamente")
             } catch {
-                print("❌ Error al iniciar Audio Engine: \(error.localizedDescription)")
-                print("❌ Error completo: \(error)")
                 onPlaybackStateChanged.send((isPlaying: false, songID: nil))
             }
         }
@@ -260,29 +217,15 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             let currentTime = Double(playerTime.sampleTime) / playerTime.sampleRate
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
 
-            // Debug: verificar si el tiempo es consistente con el ID de canción
-            if self.currentlyPlayingID != nil {
-                // Solo imprimir cada 5 segundos para no saturar
-                let shouldPrint = Int(currentTime) % 5 == 0 && Int(currentTime * 10) % 10 == 0
-                if shouldPrint {
-                    print("⏱️ Tiempo actual: \(currentTime) / \(duration) - Song ID: \(self.currentlyPlayingID?.uuidString ?? "nil")")
-                }
-            }
-
             self.onPlaybackTimeChanged.send((time: currentTime, duration: duration))
         }
     }
 
     // MARK: - Equalizer
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
-        print("🎚️ Aplicando configuración del ecualizador:")
-
         for (index, band) in bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = Float(band.gain)
-            print("  Banda \(index) (\(band.label)): \(band.gain) dB")
         }
-
-        print("✅ Ecualizador actualizado en tiempo real")
     }
 
     // MARK: - AVAudioPlayerDelegate

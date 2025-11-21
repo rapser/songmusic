@@ -64,34 +64,22 @@ final class GoogleDriveService: GoogleDriveServiceProtocol {
             throw URLError(.badURL)
         }
 
-        print("🔍 Obteniendo canciones desde Google Drive...")
-        print("📂 Folder ID: \(folderId)")
-
         let (data, response) = try await URLSession.shared.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
 
-        print("📡 HTTP Status: \(httpResponse.statusCode)")
-
         if httpResponse.statusCode != 200 {
-            if let errorString = String(data: data, encoding: .utf8) {
-                print("❌ Error response: \(errorString)")
-            }
             throw URLError(.badServerResponse)
         }
 
         let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
 
-        print("✅ \(driveResponse.files.count) archivos encontrados en Google Drive")
-
         // Filtrar solo archivos .m4a
         let m4aFiles = driveResponse.files.filter { file in
             file.name.hasSuffix(".m4a")
         }
-
-        print("🎵 \(m4aFiles.count) archivos .m4a válidos encontrados")
 
         return m4aFiles
     }

@@ -24,8 +24,6 @@ final class DownloadService: NSObject, DownloadServiceProtocol {
             throw NSError(domain: "DownloadService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL de la API inválida"])
         }
         
-        print("⬇️ Iniciando descarga con API para: \(song.title) desde \(url)")
-        
         let request = URLRequest(url: url)
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -44,7 +42,6 @@ final class DownloadService: NSObject, DownloadServiceProtocol {
         do {
             try fileManager.createDirectory(at: musicDirectory, withIntermediateDirectories: true, attributes: nil)
         } catch {
-            print("Error al crear directorio: \(error)")
             return nil
         }
         return musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
@@ -55,10 +52,8 @@ final class DownloadService: NSObject, DownloadServiceProtocol {
         do {
             let audioFile = try AVAudioFile(forReading: url)
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-            print("⏱️ Duración obtenida: \(duration) segundos para \(url.lastPathComponent)")
             return duration
         } catch {
-            print("❌ Error al obtener duración: \(error.localizedDescription)")
             return nil
         }
     }
@@ -72,9 +67,6 @@ final class DownloadService: NSObject, DownloadServiceProtocol {
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: fileURL.path) {
             try fileManager.removeItem(at: fileURL)
-            print("🗑️ Archivo eliminado: \(fileURL.lastPathComponent)")
-        } else {
-            print("⚠️ El archivo no existe en: \(fileURL.path)")
         }
     }
 }
@@ -113,7 +105,6 @@ extension DownloadService: URLSessionDownloadDelegate {
             resourceValues.isExcludedFromBackup = true
             try mutableURL.setResourceValues(resourceValues)
 
-            print("✅ Descarga completa para la canción ID: \(downloadInfo.songID) y excluida de iCloud")
             downloadInfo.continuation.resume(returning: destinationURL)
         } catch {
             downloadInfo.continuation.resume(throwing: error)
@@ -124,7 +115,6 @@ extension DownloadService: URLSessionDownloadDelegate {
         guard let downloadInfo = activeDownloads.removeValue(forKey: task.taskIdentifier) else { return }
         
         if let error = error {
-            print("❌ Error en la descarga para la canción ID: \(downloadInfo.songID). Error: \(error.localizedDescription)")
             downloadInfo.continuation.resume(throwing: error)
         }
     }

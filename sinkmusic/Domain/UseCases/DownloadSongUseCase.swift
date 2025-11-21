@@ -29,14 +29,12 @@ final class DownloadSongUseCase {
     /// - Returns: URL local del archivo descargado
     func execute(song: Song) async throws -> URL {
         // Paso 1: Descargar el archivo
-        print("📥 Iniciando descarga: \(song.title)")
         let localURL = try await downloadService.download(song: song)
         
         // Paso 2: Marcar como descargada
         song.isDownloaded = true
         
         // Paso 3: Extraer metadatos
-        print("📥 Extrayendo metadatos desde: \(localURL.path)")
         if let metadata = await metadataService.extractMetadata(from: localURL) {
             song.title = metadata.title
             song.artist = metadata.artist
@@ -44,14 +42,10 @@ final class DownloadSongUseCase {
             song.author = metadata.author
             song.duration = metadata.duration
             song.artworkData = metadata.artwork
-            print("✅ Metadatos actualizados: \(song.title) - \(song.artist)")
-        } else {
-            print("⚠️ No se pudieron extraer metadatos")
         }
         
         // Paso 4: Guardar en el repositorio
         try songRepository.update(song)
-        print("💾 Canción guardada en repositorio")
         
         return localURL
     }

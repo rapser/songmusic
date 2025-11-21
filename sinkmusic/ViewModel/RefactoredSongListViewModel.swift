@@ -65,11 +65,9 @@ final class RefactoredSongListViewModel: ObservableObject {
             do {
                 _ = try await downloadSongUseCase.execute(song: song)
                 downloadProgress[song.id] = nil
-                print("✅ Descarga completa: \(song.title)")
             } catch {
                 downloadProgress[song.id] = nil
                 errorMessage = "Error al descargar \(song.title): \(error.localizedDescription)"
-                print("❌ \(errorMessage ?? "")")
             }
         }
     }
@@ -78,10 +76,8 @@ final class RefactoredSongListViewModel: ObservableObject {
         Task {
             do {
                 try deleteSongUseCase.execute(song: song)
-                print("✅ Eliminada: \(song.title)")
             } catch {
                 errorMessage = "Error al eliminar \(song.title): \(error.localizedDescription)"
-                print("❌ \(errorMessage ?? "")")
             }
         }
     }

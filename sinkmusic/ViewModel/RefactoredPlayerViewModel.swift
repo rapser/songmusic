@@ -88,8 +88,6 @@ final class RefactoredPlayerViewModel: ObservableObject {
     
     // MARK: - Public Methods
     func play(song: Song) {
-        print("🎯 RefactoredPlayerViewModel.play() - '\(song.title)'")
-        
         if currentlyPlayingID == song.id {
             // Toggle play/pause
             if isPlaying {

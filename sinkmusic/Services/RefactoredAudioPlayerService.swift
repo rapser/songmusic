@@ -54,20 +54,15 @@ final class RefactoredAudioPlayerService: NSObject, AudioPlayerProtocol {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("❌ Error al configurar AVAudioSession: \(error.localizedDescription)")
         }
     }
     
     // MARK: - AudioPlayerProtocol Implementation
     func play(songID: UUID, url: URL) {
-        print("▶️ RefactoredAudioPlayerService.play() - Iniciando reproducción")
-        print("   Song ID: \(songID.uuidString.prefix(8))...")
-        
         let playerNode = engineManager.getPlayerNode()
         
         // Si es la misma canción, simplemente reanuda
         if stateManager.getCurrentSongID() == songID {
-            print("🔄 Misma canción - Reanudando")
             if !playerNode.isPlaying {
                 playerNode.play()
                 try? engineManager.start()
@@ -81,23 +76,18 @@ final class RefactoredAudioPlayerService: NSObject, AudioPlayerProtocol {
         }
         
         // Es una canción nueva
-        print("🆕 Nueva canción - Cargando archivo")
         do {
             // Cargar archivo de audio
             audioFile = try AVAudioFile(forReading: url)
             guard let audioFile = audioFile else {
-                print("❌ No se pudo cargar el archivo de audio")
                 return
             }
-            
-            print("✅ AVAudioFile cargado - Duration: \(Double(audioFile.length) / audioFile.processingFormat.sampleRate)s")
             
             // Conectar nodos con el formato correcto
             try engineManager.connectNodes(with: audioFile.processingFormat)
             
             // Generar nuevo schedule ID y programar reproducción
             let scheduleID = stateManager.generateNewScheduleID()
-            print("📅 Programando archivo (Schedule ID: \(scheduleID.uuidString.prefix(8)))")
             
             playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
                 DispatchQueue.main.async {
@@ -106,11 +96,9 @@ final class RefactoredAudioPlayerService: NSObject, AudioPlayerProtocol {
                     // Verificar si este completion handler es válido
                     guard self.stateManager.isValidScheduleID(scheduleID),
                           let currentID = self.stateManager.getCurrentSongID() else {
-                        print("🚫 Completion handler ignorado - Schedule obsoleto o sin ID")
                         return
                     }
                     
-                    print("🎵 Canción terminada: \(currentID)")
                     self.stateManager.notifySongFinished(songID: currentID)
                 }
             }
@@ -126,10 +114,7 @@ final class RefactoredAudioPlayerService: NSObject, AudioPlayerProtocol {
             stateManager.startPlaybackTimer(playerNode: playerNode, audioFile: audioFile)
             stateManager.notifyPlaybackStateChanged(isPlaying: true, songID: songID)
             
-            print("✅ Reproducción iniciada exitosamente")
-            
         } catch {
-            print("❌ Error al iniciar reproducción: \(error.localizedDescription)")
             stateManager.notifyPlaybackStateChanged(isPlaying: false, songID: nil)
         }
     }
