@@ -11,10 +11,25 @@ struct PlayerView: View {
     @State private var isEditingSlider = false
     @State private var showEqualizer = false
     
+    private var dominantColor: Color {
+        Color.dominantColor(from: currentSong)
+    }
+    
     var body: some View {
         ZStack {
-            LinearGradient(gradient: Gradient(colors: [Color.spotifyGray, Color.spotifyBlack]), startPoint: .top, endPoint: .bottom)
-                .edgesIgnoringSafeArea(.all)
+            dominantColor
+                .ignoresSafeArea(.all)
+            
+            // Overlay oscuro para mejor contraste
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.black.opacity(0.3),
+                    Color.black.opacity(0.6)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(.all)
             
             VStack(spacing: 12) {
                 // Header con botón cerrar y ecualizador
@@ -159,7 +174,17 @@ struct PlayerView: View {
                 Spacer()
             }
         }
-        .onAppear { sliderValue = playerViewModel.playbackTime }
+        .onAppear {
+            sliderValue = playerViewModel.playbackTime
+            // Cachear color si no está cacheado
+            if currentSong.cachedDominantColorRed == nil {
+                Task.detached(priority: .userInitiated) {
+                    _ = await MainActor.run {
+                        Color.cacheAndGetDominantColor(for: currentSong)
+                    }
+                }
+            }
+        }
         .onChange(of: playerViewModel.playbackTime) { _, newValue in
             if !isEditingSlider {
                 sliderValue = newValue

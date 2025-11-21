@@ -13,6 +13,11 @@ final class Song: Identifiable {
     var isDownloaded: Bool
     var duration: TimeInterval?
     var artworkData: Data?
+    
+    // Caché del color dominante (RGB components)
+    var cachedDominantColorRed: Double?
+    var cachedDominantColorGreen: Double?
+    var cachedDominantColorBlue: Double?
 
     // Relación con playlists (muchos a muchos)
     var playlists: [Playlist] = []

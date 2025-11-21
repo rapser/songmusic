@@ -130,10 +130,24 @@ struct SettingsView: View {
                         value: "2.4 GB"
                     )
 
-                    SettingsRowView(
-                        icon: "trash.fill",
-                        title: "Eliminar caché"
-                    )
+                    Button(action: {
+                        clearColorCache()
+                    }) {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                                .foregroundColor(.spotifyGreen)
+                                .frame(width: 24, height: 24)
+                            
+                            Text("Limpiar caché de colores")
+                                .font(.body)
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.spotifyGray)
+                    }
 
                     // Sección: Acerca de
                     SectionHeaderView(title: "Acerca de")
@@ -164,6 +178,21 @@ struct SettingsView: View {
                     .padding(.bottom, 100)
                 }
             }
+        }
+    }
+    
+    private func clearColorCache() {
+        for song in songs {
+            song.cachedDominantColorRed = nil
+            song.cachedDominantColorGreen = nil
+            song.cachedDominantColorBlue = nil
+        }
+        
+        do {
+            try modelContext.save()
+            print("✅ Caché de colores limpiado exitosamente")
+        } catch {
+            print("❌ Error al limpiar caché: \(error)")
         }
     }
 }
