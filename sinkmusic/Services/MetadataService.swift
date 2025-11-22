@@ -13,7 +13,7 @@ import OSLog
 struct SongMetadata {
     let title: String
     let artist: String
-    let album: String?
+    let album: String // Siempre tendrá un valor, por defecto "Álbum Desconocido"
     let author: String?
     let duration: TimeInterval
     let artwork: Data?
@@ -111,6 +111,7 @@ final class MetadataService: MetadataServiceProtocol {
         // Si no se encontró título en metadatos, usar nombre del archivo
         let finalTitle = title ?? url.deletingPathExtension().lastPathComponent
         let finalArtist = artist ?? "Artista Desconocido"
+        let finalAlbum = album ?? "Álbum Desconocido"
 
         // Generar thumbnail si hay artwork
         var thumbnail: Data?
@@ -122,7 +123,7 @@ final class MetadataService: MetadataServiceProtocol {
         logger.info("🎵 Metadatos extraídos:")
         logger.info("   Título: \(finalTitle)")
         logger.info("   Artista: \(finalArtist)")
-        logger.info("   Álbum: \(album ?? "N/A")")
+        logger.info("   Álbum: \(finalAlbum)")
         logger.info("   Autor: \(author ?? "N/A")")
         logger.info("   Duración: \(durationSeconds)s")
         logger.info("   Artwork: \(artwork != nil ? "Sí (\(artwork!.count) bytes)" : "No")")
@@ -130,7 +131,7 @@ final class MetadataService: MetadataServiceProtocol {
         return SongMetadata(
             title: finalTitle,
             artist: finalArtist,
-            album: album,
+            album: finalAlbum,
             author: author,
             duration: durationSeconds,
             artwork: artwork,

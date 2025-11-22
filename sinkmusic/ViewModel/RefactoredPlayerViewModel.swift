@@ -51,7 +51,7 @@ final class RefactoredPlayerViewModel: ObservableObject {
         self.downloadService = downloadService
         self.playSongUseCase = PlaySongUseCase(
             audioPlayer: audioPlayer,
-            downloadService: downloadService,
+            googleDriveService: downloadService,
             metadataService: metadataService,
             songRepository: songRepository
         )

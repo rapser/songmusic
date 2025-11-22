@@ -21,15 +21,12 @@ final class DependencyContainer {
     private lazy var _audioPlayerService: AudioPlayerProtocol = {
         RefactoredAudioPlayerService()
     }()
-    
-    private lazy var _downloadService: DownloadServiceProtocol = {
-        DownloadService()
-    }()
-    
+
     private lazy var _metadataService: MetadataServiceProtocol = {
         MetadataService()
     }()
-    
+
+    // GoogleDriveService ahora incluye toda la funcionalidad de descarga
     private lazy var _googleDriveService: GoogleDriveServiceProtocol = {
         GoogleDriveService()
     }()
@@ -44,16 +41,17 @@ final class DependencyContainer {
     func audioPlayerService() -> AudioPlayerProtocol {
         _audioPlayerService
     }
-    
-    func downloadService() -> DownloadServiceProtocol {
-        _downloadService
-    }
-    
+
     func metadataService() -> MetadataServiceProtocol {
         _metadataService
     }
-    
+
     func googleDriveService() -> GoogleDriveServiceProtocol {
+        _googleDriveService
+    }
+
+    // Alias para compatibilidad: downloadService ahora apunta a googleDriveService
+    func downloadService() -> GoogleDriveServiceProtocol {
         _googleDriveService
     }
     

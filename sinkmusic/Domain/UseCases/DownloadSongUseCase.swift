@@ -10,16 +10,16 @@ import Foundation
 /// Caso de uso para descargar una canción y extraer sus metadatos
 /// Implementa Single Responsibility: solo se encarga de orquestar la descarga completa
 final class DownloadSongUseCase {
-    private let downloadService: DownloadServiceProtocol
+    private let googleDriveService: GoogleDriveServiceProtocol
     private let metadataService: MetadataServiceProtocol
     private let songRepository: SongRepositoryProtocol
-    
+
     init(
-        downloadService: DownloadServiceProtocol,
+        googleDriveService: GoogleDriveServiceProtocol,
         metadataService: MetadataServiceProtocol,
         songRepository: SongRepositoryProtocol
     ) {
-        self.downloadService = downloadService
+        self.googleDriveService = googleDriveService
         self.metadataService = metadataService
         self.songRepository = songRepository
     }
@@ -29,7 +29,7 @@ final class DownloadSongUseCase {
     /// - Returns: URL local del archivo descargado
     func execute(song: Song) async throws -> URL {
         // Paso 1: Descargar el archivo
-        let localURL = try await downloadService.download(song: song)
+        let localURL = try await googleDriveService.download(song: song)
         
         // Paso 2: Marcar como descargada
         song.isDownloaded = true

@@ -10,22 +10,22 @@ import Foundation
 /// Caso de uso para eliminar una canción descargada
 /// Implementa Single Responsibility: solo se encarga de eliminar canciones
 final class DeleteSongUseCase {
-    private let downloadService: DownloadServiceProtocol
+    private let googleDriveService: GoogleDriveServiceProtocol
     private let songRepository: SongRepositoryProtocol
-    
+
     init(
-        downloadService: DownloadServiceProtocol,
+        googleDriveService: GoogleDriveServiceProtocol,
         songRepository: SongRepositoryProtocol
     ) {
-        self.downloadService = downloadService
+        self.googleDriveService = googleDriveService
         self.songRepository = songRepository
     }
-    
+
     /// Ejecuta la eliminación completa de una canción
     /// - Parameter song: La canción a eliminar
     func execute(song: Song) throws {
         // Paso 1: Eliminar archivo local
-        try downloadService.deleteDownload(for: song.id)
+        try googleDriveService.deleteDownload(for: song.id)
         
         // Paso 2: Resetear datos de la canción
         song.isDownloaded = false

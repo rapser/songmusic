@@ -11,22 +11,22 @@ import Foundation
 /// Implementa Single Responsibility: solo se encarga de iniciar la reproducción
 final class PlaySongUseCase {
     private let audioPlayer: AudioPlayerProtocol
-    private let downloadService: DownloadServiceProtocol
+    private let googleDriveService: GoogleDriveServiceProtocol
     private let metadataService: MetadataServiceProtocol
     private let songRepository: SongRepositoryProtocol
-    
+
     init(
         audioPlayer: AudioPlayerProtocol,
-        downloadService: DownloadServiceProtocol,
+        googleDriveService: GoogleDriveServiceProtocol,
         metadataService: MetadataServiceProtocol,
         songRepository: SongRepositoryProtocol
     ) {
         self.audioPlayer = audioPlayer
-        self.downloadService = downloadService
+        self.googleDriveService = googleDriveService
         self.metadataService = metadataService
         self.songRepository = songRepository
     }
-    
+
     /// Ejecuta la reproducción de una canción
     /// - Parameter song: La canción a reproducir
     /// - Throws: AppError si la canción no está descargada o no se encuentra el archivo
@@ -34,8 +34,8 @@ final class PlaySongUseCase {
         guard song.isDownloaded else {
             throw AppError.audio(.fileNotFound)
         }
-        
-        guard let url = downloadService.localURL(for: song.id) else {
+
+        guard let url = googleDriveService.localURL(for: song.id) else {
             throw AppError.storage(.fileNotFound)
         }
         

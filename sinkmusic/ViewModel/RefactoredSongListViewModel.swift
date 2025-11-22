@@ -33,12 +33,12 @@ final class RefactoredSongListViewModel: ObservableObject {
     ) {
         self.downloadService = downloadService
         self.downloadSongUseCase = DownloadSongUseCase(
-            downloadService: downloadService,
+            googleDriveService: downloadService,
             metadataService: metadataService,
             songRepository: songRepository
         )
         self.deleteSongUseCase = DeleteSongUseCase(
-            downloadService: downloadService,
+            googleDriveService: downloadService,
             songRepository: songRepository
         )
         

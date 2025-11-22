@@ -97,6 +97,30 @@ struct SettingsView: View {
                         .background(Color.spotifyGray)
                     }
 
+                    NavigationLink(destination: GoogleDriveConfigView()) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "cloud.fill")
+                                .foregroundColor(.spotifyLightGray)
+                                .frame(width: 24)
+
+                            Text("Configurar Google Drive")
+                                .foregroundColor(.white)
+
+                            Spacer()
+
+                            if KeychainService.shared.hasGoogleDriveCredentials {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.spotifyGreen)
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.spotifyLightGray)
+                                .font(.caption)
+                        }
+                        .padding(16)
+                        .background(Color.spotifyGray)
+                    }
+
                     // Sección: Reproducción
                     SectionHeaderView(title: "Reproducción")
 
