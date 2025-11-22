@@ -26,19 +26,21 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var useAudioEngine = true // Flag para usar engine con ecualizador
     private var isFirstConnection = true // Flag para saber si es la primera vez que conectamos
     private var currentScheduleID = UUID() // ID único para cada scheduleFile, para ignorar completion handlers obsoletos
+    private var wasPlayingBeforeInterruption = false // Flag para saber si estaba reproduciendo antes de una interrupción
 
     override init() {
         // Inicializar Audio Engine y nodos
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
 
-        // Crear ecualizador de 10 bandas
-        self.eq = AVAudioUnitEQ(numberOfBands: 10)
+        // Crear ecualizador de 6 bandas (como Spotify)
+        self.eq = AVAudioUnitEQ(numberOfBands: 6)
 
         super.init()
         setupAudioSession()
         setupAudioEngine()
         setupRemoteCommandCenter()
+        setupInterruptionHandling()
     }
 
     private func setupAudioSession() {
@@ -60,8 +62,8 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         audioEngine.attach(playerNode)
         audioEngine.attach(eq)
 
-        // Configurar las bandas del ecualizador con frecuencias específicas
-        let frequencies: [Float] = [60, 150, 400, 1000, 2400, 3500, 6000, 10000, 15000, 20000]
+        // Configurar las bandas del ecualizador con frecuencias específicas (como Spotify)
+        let frequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
         for (index, frequency) in frequencies.enumerated() where index < eq.bands.count {
             eq.bands[index].filterType = .parametric
             eq.bands[index].frequency = frequency
@@ -254,6 +256,75 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         currentlyPlayingID = nil
         onPlaybackStateChanged.send((isPlaying: false, songID: finishedSongID))
         onSongFinished.send(finishedSongID)
+    }
+
+    // MARK: - Interruption Handling
+    private func setupInterruptionHandling() {
+        // Suscribirse a las notificaciones de interrupción de audio (llamadas, alarmas, etc.)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc private func handleAudioSessionInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            // Interrupción comenzó (llamada entrante, alarma, etc.)
+            if playerNode.isPlaying {
+                wasPlayingBeforeInterruption = true
+                pause()
+            }
+
+        case .ended:
+            // Interrupción terminó
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else {
+                return
+            }
+
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+
+            // Solo reanudar si estaba reproduciendo antes Y el sistema nos indica que podemos reanudar
+            if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
+                // Pequeño delay para asegurar que la sesión de audio esté lista
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self = self, let songID = self.currentlyPlayingID else { return }
+
+                    // Reactivar la sesión de audio si es necesario
+                    do {
+                        try AVAudioSession.sharedInstance().setActive(true)
+                    } catch {
+                        // Error al reactivar la sesión
+                    }
+
+                    // Reanudar reproducción
+                    self.playerNode.play()
+                    if !self.audioEngine.isRunning {
+                        try? self.audioEngine.start()
+                    }
+                    self.startPlaybackTimer()
+                    self.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                    self.wasPlayingBeforeInterruption = false
+                }
+            } else {
+                wasPlayingBeforeInterruption = false
+            }
+
+        @unknown default:
+            break
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Now Playing Info & Remote Commands

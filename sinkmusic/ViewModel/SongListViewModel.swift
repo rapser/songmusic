@@ -33,6 +33,7 @@ class SongListViewModel: ObservableObject {
                     song.author = metadata.author
                     song.duration = metadata.duration
                     song.artworkData = metadata.artwork
+                    song.artworkThumbnail = metadata.artworkThumbnail
                 }
 
                 try modelContext.save()

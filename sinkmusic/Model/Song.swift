@@ -13,7 +13,8 @@ final class Song: Identifiable {
     var isDownloaded: Bool
     var duration: TimeInterval?
     var artworkData: Data?
-    
+    var artworkThumbnail: Data? // Thumbnail pequeño para Live Activities (40x40, < 1KB)
+
     // Caché del color dominante (RGB components)
     var cachedDominantColorRed: Double?
     var cachedDominantColorGreen: Double?

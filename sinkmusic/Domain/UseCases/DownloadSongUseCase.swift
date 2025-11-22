@@ -42,6 +42,7 @@ final class DownloadSongUseCase {
             song.author = metadata.author
             song.duration = metadata.duration
             song.artworkData = metadata.artwork
+            song.artworkThumbnail = metadata.artworkThumbnail
         }
         
         // Paso 4: Guardar en el repositorio

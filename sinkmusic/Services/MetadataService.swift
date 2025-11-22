@@ -17,6 +17,7 @@ struct SongMetadata {
     let author: String?
     let duration: TimeInterval
     let artwork: Data?
+    let artworkThumbnail: Data? // Thumbnail pequeño generado automáticamente
 }
 
 /// Servicio para extraer metadatos de archivos de audio
@@ -111,6 +112,13 @@ final class MetadataService: MetadataServiceProtocol {
         let finalTitle = title ?? url.deletingPathExtension().lastPathComponent
         let finalArtist = artist ?? "Artista Desconocido"
 
+        // Generar thumbnail si hay artwork
+        var thumbnail: Data?
+        if let artworkData = artwork {
+            thumbnail = ImageCompressionService.createThumbnail(from: artworkData)
+            logger.info("   Thumbnail generado: \(thumbnail != nil ? "Sí (\(thumbnail!.count) bytes)" : "No")")
+        }
+
         logger.info("🎵 Metadatos extraídos:")
         logger.info("   Título: \(finalTitle)")
         logger.info("   Artista: \(finalArtist)")
@@ -125,7 +133,8 @@ final class MetadataService: MetadataServiceProtocol {
             album: album,
             author: author,
             duration: durationSeconds,
-            artwork: artwork
+            artwork: artwork,
+            artworkThumbnail: thumbnail
         )
     }
 }

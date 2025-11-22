@@ -23,6 +23,7 @@ class PlayerViewModel: ObservableObject {
     private let audioPlayerService: AudioPlayerService
     private let downloadService: DownloadService
     private let metadataService: MetadataService
+    private let liveActivityService = LiveActivityService()
     private var cancellables = Set<AnyCancellable>()
     private var allSongs: [Song] = []
     private var currentSong: Song?
@@ -38,6 +39,7 @@ class PlayerViewModel: ObservableObject {
         self.downloadService = downloadService
         self.metadataService = metadataService
         setupSubscriptions()
+        setupLiveActivityHandlers()
     }
 
     func play(song: Song) {
@@ -59,6 +61,7 @@ class PlayerViewModel: ObservableObject {
                     song.author = metadata.author
                     song.duration = metadata.duration
                     song.artworkData = metadata.artwork
+                    song.artworkThumbnail = metadata.artworkThumbnail
                 }
             }
         }
@@ -74,8 +77,6 @@ class PlayerViewModel: ObservableObject {
                 audioPlayerService.play(songID: song.id, url: url)
             }
         } else {
-            // Nueva canción - IMPORTANTE: Actualizar currentlyPlayingID ANTES de llamar al servicio
-            // Esto previene que completion handlers obsoletos cambien el ID
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
@@ -304,5 +305,72 @@ class PlayerViewModel: ObservableObject {
             currentTime: playbackTime,
             artwork: song.artworkData
         )
+
+        // Actualizar Live Activity
+        updateLiveActivity()
+    }
+
+    private func updateLiveActivity() {
+        guard let song = currentSong else { return }
+
+        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+
+        if isPlaying {
+            // Iniciar o actualizar Live Activity
+            // Usamos el thumbnail pequeño (< 1KB) en lugar del artwork completo
+            liveActivityService.startActivity(
+                songID: song.id,
+                songTitle: song.title,
+                artistName: song.artist,
+                isPlaying: isPlaying,
+                currentTime: playbackTime,
+                duration: duration,
+                artworkThumbnail: song.artworkThumbnail
+            )
+        } else if !isPlaying && liveActivityService.hasActiveActivity {
+            // Actualizar estado a pausado
+            liveActivityService.updateActivity(
+                songTitle: song.title,
+                artistName: song.artist,
+                isPlaying: false,
+                currentTime: playbackTime,
+                duration: duration,
+                artworkThumbnail: song.artworkThumbnail
+            )
+        }
+    }
+
+    private func setupLiveActivityHandlers() {
+        // Escuchar notificaciones de los botones de Live Activity usando Combine
+        NotificationCenter.default.publisher(for: .playPauseFromLiveActivity)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self, let song = self.currentSong else { return }
+                self.play(song: song)
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .nextTrackFromLiveActivity)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self, let song = self.currentSong else { return }
+                self.playNext(currentSong: song, allSongs: self.allSongs)
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .previousTrackFromLiveActivity)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self, let song = self.currentSong else { return }
+                self.playPrevious(currentSong: song, allSongs: self.allSongs)
+            }
+            .store(in: &cancellables)
+    }
+
+    deinit {
+        let service = liveActivityService
+        Task { @MainActor in
+            service.endActivity()
+        }
     }
 }

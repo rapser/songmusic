@@ -173,118 +173,98 @@ struct EqualizerView: View {
 
 enum EqualizerPreset: String, CaseIterable {
     case flat = "Plano"
-    case acoustic = "Acústico"
-    case bassBooster = "Bass Booster"
-    case bassReducer = "Bass Reducer"
-    case classical = "Clásico"
+    case acoustic = "Acústica"
+    case bassBooster = "Intensificador de bajos"
+    case bassReducer = "Reductor de bajos"
+    case classical = "Clásica"
     case dance = "Dance"
-    case deep = "Deep"
-    case electronic = "Electrónico"
-    case hipHop = "Hip Hop"
+    case deep = "Profunda"
+    case electronic = "Electrónica"
+    case flat2 = "Simple"
+    case hipHop = "Hip-hop"
     case jazz = "Jazz"
-    case latin = "Latino"
-    case loudness = "Loudness"
+    case latin = "Latina"
+    case loudness = "Ruidosa"
     case lounge = "Lounge"
     case piano = "Piano"
     case pop = "Pop"
     case rnb = "R&B"
     case rock = "Rock"
-    case smallSpeakers = "Small Speakers"
-    case spokenWord = "Spoken Word"
-    case trebleBooster = "Treble Booster"
-    case trebleReducer = "Treble Reducer"
-    case vocalBooster = "Vocal Booster"
+    case smallSpeakers = "Altavoces pequeños"
+    case spokenWord = "Palabra hablada"
+    case trebleBooster = "Intensificador de agudos"
+    case trebleReducer = "Reductor de agudos"
+    case vocalBooster = "Intensificador de voces"
 
     var gains: [Double] {
-        // Basado en configuraciones reales de ecualizadores profesionales
-        // Frecuencias: 60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 3.5kHz, 6kHz, 10kHz, 15kHz, 20kHz
+        // Basado en Spotify - 6 bandas
+        // Frecuencias: 60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 15kHz
         switch self {
-        case .flat:
-            return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        case .flat, .flat2:
+            return [0, 0, 0, 0, 0, 0]
 
         case .acoustic:
-            // Realza medios y agudos para instrumentos acústicos
-            return [6, 4, 2, 2, 3, 3, 4, 4, 3, 2]
+            return [6, 4, 2, 3, 4, 4]
 
         case .bassBooster:
-            // Aumenta bajos de forma gradual
-            return [9, 7, 5, 3, 0, 0, 0, 0, 0, 0]
+            return [9, 7, 5, 0, 0, 0]
 
         case .bassReducer:
-            // Reduce bajos (útil para auriculares con mucho bajo)
-            return [-9, -7, -5, -3, 0, 0, 0, 0, 0, 0]
+            return [-9, -7, -5, 0, 0, 0]
 
         case .classical:
-            // Curva en V: bajos y agudos realzados, medios suaves
-            return [5, 4, 3, 2, -1, -2, 0, 3, 4, 5]
+            return [5, 4, 2, -1, 3, 5]
 
         case .dance:
-            // Bajos potentes y agudos brillantes
-            return [8, 6, 4, 0, 0, 0, 3, 5, 6, 5]
+            return [8, 6, 0, 0, 5, 6]
 
         case .deep:
-            // Sub-bajos muy pronunciados
-            return [9, 7, 4, 2, 1, 0, -1, -2, -3, -4]
+            return [9, 7, 2, 0, -2, -3]
 
         case .electronic:
-            // Bajos y agudos altos, medios recortados
-            return [6, 5, 2, 0, -2, -1, 2, 4, 5, 6]
+            return [6, 5, 0, -2, 4, 6]
 
         case .hipHop:
-            // Sub-bajos potentes con presencia en medios-bajos
-            return [9, 7, 5, 3, -1, 0, 1, 2, 3, 4]
+            return [9, 7, 3, 0, 2, 3]
 
         case .jazz:
-            // Medios presentes, bajos controlados
-            return [4, 3, 2, 3, 2, 1, 1, 2, 3, 3]
+            return [4, 3, 2, 2, 3, 3]
 
         case .latin:
-            // Percusión clara, bajos presentes
-            return [6, 5, 3, 0, -1, 0, 2, 4, 5, 4]
+            return [6, 5, 0, -1, 4, 5]
 
         case .loudness:
-            // Curva de compensación Fletcher-Munson
-            return [7, 5, 0, -2, -3, -2, 0, 3, 5, 6]
+            return [7, 5, -2, -3, 3, 6]
 
         case .lounge:
-            // Suave y relajado
-            return [-2, -1, 0, 2, 3, 2, 1, 0, 1, 2]
+            return [-2, -1, 2, 3, 1, 2]
 
         case .piano:
-            // Claridad en medios-altos para piano
-            return [3, 2, 1, 2, 3, 4, 5, 4, 3, 2]
+            return [3, 2, 2, 3, 4, 3]
 
         case .pop:
-            // Balance equilibrado con presencia vocal
-            return [-1, 0, 1, 3, 5, 5, 3, 1, 0, -1]
+            return [-1, 0, 3, 5, 3, 0]
 
         case .rnb:
-            // Sub-bajos profundos con vocales claras
-            return [7, 6, 4, 2, -1, 0, 3, 4, 4, 3]
+            return [7, 6, 2, -1, 4, 4]
 
         case .rock:
-            // Bajos potentes, medios cortantes
-            return [7, 5, 3, 1, -2, -1, 1, 4, 5, 4]
+            return [7, 5, 1, -2, 4, 5]
 
         case .smallSpeakers:
-            // Compensa altavoces pequeños
-            return [7, 6, 5, 3, 1, 0, -1, -2, -3, -4]
+            return [7, 6, 3, 1, -2, -4]
 
         case .spokenWord:
-            // Claridad vocal (200Hz - 5kHz)
-            return [-5, -3, 0, 3, 5, 6, 5, 3, 1, -2]
+            return [-5, -3, 3, 6, 5, -2]
 
         case .trebleBooster:
-            // Aumenta agudos gradualmente
-            return [0, 0, 0, 0, 1, 2, 4, 6, 8, 9]
+            return [0, 0, 0, 2, 6, 9]
 
         case .trebleReducer:
-            // Reduce agudos (para grabaciones brillantes)
-            return [0, 0, 0, 0, -1, -2, -4, -6, -8, -9]
+            return [0, 0, 0, -2, -6, -9]
 
         case .vocalBooster:
-            // Realza frecuencias de voz (1kHz - 4kHz)
-            return [-3, -2, 0, 4, 6, 6, 4, 2, 0, -2]
+            return [-3, -2, 4, 6, 4, 0]
         }
     }
 }
@@ -295,16 +275,12 @@ struct EqualizerBand {
     var gain: Double // -12 to +12 dB
 
     static let defaultBands: [EqualizerBand] = [
-        EqualizerBand(frequency: "60", label: "60", gain: 0),
-        EqualizerBand(frequency: "150", label: "150", gain: 0),
-        EqualizerBand(frequency: "400", label: "400", gain: 0),
-        EqualizerBand(frequency: "1k", label: "1k", gain: 0),
-        EqualizerBand(frequency: "2.4k", label: "2.4k", gain: 0),
-        EqualizerBand(frequency: "3.5k", label: "3.5k", gain: 0),
-        EqualizerBand(frequency: "6k", label: "6k", gain: 0),
-        EqualizerBand(frequency: "10k", label: "10k", gain: 0),
-        EqualizerBand(frequency: "15k", label: "15k", gain: 0),
-        EqualizerBand(frequency: "20k", label: "20k", gain: 0),
+        EqualizerBand(frequency: "60", label: "60 Hz", gain: 0),
+        EqualizerBand(frequency: "150", label: "150 Hz", gain: 0),
+        EqualizerBand(frequency: "400", label: "400 Hz", gain: 0),
+        EqualizerBand(frequency: "1k", label: "1 KHz", gain: 0),
+        EqualizerBand(frequency: "2.4k", label: "2.4 KHz", gain: 0),
+        EqualizerBand(frequency: "15k", label: "15 KHz", gain: 0),
     ]
 }
 
