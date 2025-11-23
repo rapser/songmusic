@@ -177,7 +177,14 @@ struct SearchResultsList: View {
         ScrollView {
             LazyVStack(spacing: 8) {
                 ForEach(songs) { song in
-                    SearchResultRow(song: song, playerViewModel: playerViewModel)
+                    SearchResultRow(
+                        song: song,
+                        currentlyPlayingID: playerViewModel.currentlyPlayingID,
+                        isPlaying: playerViewModel.isPlaying,
+                        onTap: { playerViewModel.play(song: song) }
+                    )
+                    .equatable() // Usar Equatable para evitar re-renderizados innecesarios
+                    .id(song.id)
                 }
             }
             .padding(.horizontal, 16)
@@ -186,43 +193,48 @@ struct SearchResultsList: View {
     }
 }
 
-struct SearchResultRow: View {
+struct SearchResultRow: View, Equatable {
     let song: Song
-    @ObservedObject var playerViewModel: PlayerViewModel
+    let currentlyPlayingID: UUID?
+    let isPlaying: Bool
+    let onTap: () -> Void
 
-    var isPlaying: Bool {
-        playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
+    // Implementar Equatable para optimizar re-renderizados
+    static func == (lhs: SearchResultRow, rhs: SearchResultRow) -> Bool {
+        lhs.song.id == rhs.song.id &&
+        lhs.currentlyPlayingID == rhs.currentlyPlayingID &&
+        lhs.isPlaying == rhs.isPlaying
+    }
+
+    // Usar thumbnail medio optimizado para listas (100x100) en lugar del artwork completo
+    private var cachedImage: UIImage? {
+        // Preferir el thumbnail medio que es mucho más ligero (< 10KB vs cientos de KB)
+        if let thumbnailData = song.artworkMediumThumbnail {
+            return UIImage(data: thumbnailData)
+        }
+        // Fallback al artwork completo si no hay thumbnail (canciones viejas)
+        if let artworkData = song.artworkData {
+            return UIImage(data: artworkData)
+        }
+        return nil
+    }
+
+    private var isCurrentSongPlaying: Bool {
+        currentlyPlayingID == song.id && isPlaying
     }
 
     var body: some View {
-        Button {
-            playerViewModel.play(song: song)
-        } label: {
+        Button(action: onTap) {
             HStack(spacing: 12) {
-                // Artwork
-                if let artworkData = song.artworkData,
-                   let uiImage = UIImage(data: artworkData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                } else {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.spotifyGray)
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Image(systemName: "music.note")
-                                .foregroundColor(.spotifyLightGray)
-                        )
-                }
+                // Artwork - optimizado para evitar recreación constante
+                ArtworkView(image: cachedImage)
 
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(song.title)
                         .font(.body)
                         .fontWeight(.medium)
-                        .foregroundColor(isPlaying ? .spotifyGreen : .white)
+                        .foregroundColor(isCurrentSongPlaying ? .spotifyGreen : .white)
                         .lineLimit(1)
 
                     Text(song.artist)
@@ -234,7 +246,7 @@ struct SearchResultRow: View {
                 Spacer()
 
                 // Playing indicator
-                if isPlaying {
+                if isCurrentSongPlaying {
                     Image(systemName: "waveform")
                         .foregroundColor(.spotifyGreen)
                         .symbolEffect(.variableColor.iterative.reversing)
@@ -244,10 +256,35 @@ struct SearchResultRow: View {
             .padding(.horizontal, 12)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(playerViewModel.currentlyPlayingID == song.id ? Color.spotifyGray.opacity(0.5) : Color.clear)
+                    .fill(currentlyPlayingID == song.id ? Color.spotifyGray.opacity(0.5) : Color.clear)
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Artwork View (Optimizado)
+private struct ArtworkView: View {
+    let image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image = image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.spotifyGray)
+                    .frame(width: 56, height: 56)
+                    .overlay(
+                        Image(systemName: "music.note")
+                            .foregroundColor(.spotifyLightGray)
+                    )
+            }
+        }
     }
 }
 

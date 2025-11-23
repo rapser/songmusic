@@ -69,20 +69,63 @@ struct DownloadMusicView: View {
                     .padding(.horizontal, 40)
                 } else {
                     // Lista de canciones pendientes
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // Header con contador
-                            HStack {
+                    VStack(spacing: 0) {
+                        // Header con contador y botón de descargar todas
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text("\(pendingSongs.count) canciones por descargar")
                                     .font(.subheadline)
                                     .foregroundColor(.spotifyLightGray)
 
-                                Spacer()
+                                if songListViewModel.isDownloadingAll {
+                                    let downloadingCount = songListViewModel.downloadProgress.count
+                                    Text("Descargando \(downloadingCount) de \(pendingSongs.count)...")
+                                        .font(.caption)
+                                        .foregroundColor(.spotifyGreen)
+                                }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
 
-                            // Lista
+                            Spacer()
+
+                            if songListViewModel.isDownloadingAll {
+                                Button(action: {
+                                    songListViewModel.cancelDownloadAll()
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "stop.fill")
+                                            .font(.system(size: 12))
+                                        Text("Detener")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.red)
+                                    .cornerRadius(20)
+                                }
+                            } else {
+                                Button(action: {
+                                    songListViewModel.downloadAll(songs: pendingSongs, modelContext: modelContext)
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                            .font(.system(size: 12))
+                                        Text("Descargar todas")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .foregroundColor(.spotifyBlack)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.spotifyGreen)
+                                    .cornerRadius(20)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        // Lista
+                        ScrollView {
                             VStack(spacing: 0) {
                                 ForEach(pendingSongs) { song in
                                     SongRow(song: song)
@@ -94,9 +137,9 @@ struct DownloadMusicView: View {
                                     }
                                 }
                             }
+                            .padding(.horizontal, 16)
                             .padding(.bottom, 100)
                         }
-                        .padding(.horizontal, 16)
                     }
                 }
             }

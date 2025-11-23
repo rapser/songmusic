@@ -18,8 +18,8 @@ class ImageCompressionService {
             return nil
         }
 
-        // Tamaño objetivo: 40x40 píxeles (suficiente para el Dynamic Island)
-        let targetSize = CGSize(width: 40, height: 40)
+        // Tamaño objetivo: 32x32 píxeles (más pequeño para cumplir límite de 1KB)
+        let targetSize = CGSize(width: 32, height: 32)
 
         // Redimensionar la imagen
         let renderer = UIGraphicsImageRenderer(size: targetSize)
@@ -27,22 +27,22 @@ class ImageCompressionService {
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
 
-        // Comprimir con calidad baja pero suficiente para un thumbnail
-        // Objetivo: menos de 1KB
-        guard let compressedData = resizedImage.jpegData(compressionQuality: 0.3) else {
-            return nil
+        // Comprimir con calidad muy baja para cumplir límite de 1KB
+        // Intentar con diferentes niveles de compresión
+        let qualityLevels: [CGFloat] = [0.15, 0.1, 0.05, 0.02]
+
+        for quality in qualityLevels {
+            if let compressedData = resizedImage.jpegData(compressionQuality: quality),
+               compressedData.count <= 1024 {
+                return compressedData
+            }
         }
 
-        // Verificar que no exceda 1KB
-        if compressedData.count > 1024 {
-            // Si aún es muy grande, comprimir más
-            return resizedImage.jpegData(compressionQuality: 0.1)
-        }
-
-        return compressedData
+        // Si aún es muy grande, usar la compresión mínima
+        return resizedImage.jpegData(compressionQuality: 0.01)
     }
 
-    /// Crea un thumbnail de tamaño medio para vistas de lista (< 10KB)
+    /// Crea un thumbnail de tamaño medio para vistas de lista (< 5KB)
     /// - Parameter imageData: Datos de la imagen original
     /// - Returns: Datos de la imagen comprimida, o nil si falla
     static func createMediumThumbnail(from imageData: Data) -> Data? {
@@ -50,15 +50,25 @@ class ImageCompressionService {
             return nil
         }
 
-        // Tamaño objetivo: 100x100 píxeles
-        let targetSize = CGSize(width: 100, height: 100)
+        // Tamaño objetivo: 64x64 píxeles (suficiente para vistas de lista que usan 56x56)
+        let targetSize = CGSize(width: 64, height: 64)
 
         let renderer = UIGraphicsImageRenderer(size: targetSize)
         let resizedImage = renderer.image { context in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
 
-        // Comprimir con calidad media
-        return resizedImage.jpegData(compressionQuality: 0.5)
+        // Intentar con diferentes niveles de calidad para cumplir límite de 5KB
+        let qualityLevels: [CGFloat] = [0.5, 0.4, 0.3, 0.2]
+
+        for quality in qualityLevels {
+            if let compressedData = resizedImage.jpegData(compressionQuality: quality),
+               compressedData.count <= 5120 {
+                return compressedData
+            }
+        }
+
+        // Si aún es muy grande, usar compresión baja
+        return resizedImage.jpegData(compressionQuality: 0.15)
     }
 }

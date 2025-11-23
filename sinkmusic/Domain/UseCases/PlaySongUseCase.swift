@@ -49,6 +49,7 @@ final class PlaySongUseCase {
                 song.duration = metadata.duration
                 song.artworkData = metadata.artwork
                 song.artworkThumbnail = metadata.artworkThumbnail
+                song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
 
                 try? songRepository.update(song)
             }

@@ -10,6 +10,7 @@ import SwiftData
 
 struct AddToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject var viewModel: PlaylistViewModel
     let song: Song
 
@@ -135,7 +136,10 @@ struct AddToPlaylistView: View {
             }
         }
         .sheet(isPresented: $viewModel.showCreatePlaylist) {
-            CreatePlaylistView(viewModel: viewModel)
+            CreatePlaylistView(onPlaylistCreated: {
+                viewModel.fetchPlaylists()
+            })
+            .environment(\.modelContext, modelContext)
         }
     }
 
@@ -159,18 +163,28 @@ struct PlaylistSelectRow: View {
     let song: Song
     let isAdded: Bool
 
+    @State private var cachedImage: UIImage?
+
     var body: some View {
         HStack(spacing: 12) {
             // Cover Image
             ZStack {
-                if let coverData = playlist.coverImageData,
-                   let uiImage = UIImage(data: coverData) {
-                    Image(uiImage: uiImage)
+                if let image = cachedImage {
+                    Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 50, height: 50)
                         .clipped()
                         .cornerRadius(4)
+                } else if playlist.coverImageData != nil {
+                    Color.spotifyGray
+                        .frame(width: 50, height: 50)
+                        .cornerRadius(4)
+                        .overlay(
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.7)
+                        )
                 } else {
                     LinearGradient(
                         gradient: Gradient(colors: [
@@ -214,6 +228,17 @@ struct PlaylistSelectRow: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
         .background(Color.clear)
+        .task(id: playlist.id) {
+            // Cargar imagen en background para no bloquear el audio
+            if let coverData = playlist.coverImageData, cachedImage == nil {
+                await Task.detached(priority: .userInitiated) {
+                    let image = UIImage(data: coverData)
+                    await MainActor.run {
+                        cachedImage = image
+                    }
+                }.value
+            }
+        }
     }
 }
 

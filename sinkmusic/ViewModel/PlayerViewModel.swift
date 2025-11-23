@@ -62,6 +62,7 @@ class PlayerViewModel: ObservableObject {
                     song.duration = metadata.duration
                     song.artworkData = metadata.artwork
                     song.artworkThumbnail = metadata.artworkThumbnail
+                    song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
                 }
             }
         }
@@ -81,15 +82,16 @@ class PlayerViewModel: ObservableObject {
             audioPlayerService.play(songID: song.id, url: url)
         }
 
-        // Actualizar Now Playing Info
+        // Actualizar Now Playing Info (Live Activity se actualiza en onPlaybackStateChanged)
         updateNowPlayingInfo()
 
         scrollResetter?.resetScrollState()
     }
-    
+
     func pause() {
         audioPlayerService.pause()
         isPlaying = false
+        // Live Activity se actualiza automáticamente en onPlaybackStateChanged
     }
 
     func stop() {
@@ -239,6 +241,8 @@ class PlayerViewModel: ObservableObject {
                 // NO actualizar currentlyPlayingID aquí - ya se actualiza en play()
                 // Esto previene que el servicio sobrescriba el ID cuando hay cambios rápidos
                 self?.updateNowPlayingInfo()
+                // Actualizar Live Activity cuando cambia el estado de reproducción
+                self?.updateLiveActivity()
             }
             .store(in: &cancellables)
 
@@ -306,8 +310,8 @@ class PlayerViewModel: ObservableObject {
             artwork: song.artworkData
         )
 
-        // Actualizar Live Activity
-        updateLiveActivity()
+        // NO actualizar Live Activity aquí - se actualiza solo cuando cambia el estado
+        // Live Activity maneja el progreso automáticamente
     }
 
     private func updateLiveActivity() {

@@ -96,11 +96,9 @@ struct SongRow: View {
         .padding(.vertical, 8)
         .listRowBackground(Color.spotifyBlack)
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
-            // Solo mostrar "Agregar a playlist" si la canción tiene duración (ya se reprodujo)
-            if song.duration != nil {
-                Button(action: { showAddToPlaylist = true }) {
-                    Label("Agregar a playlist", systemImage: "plus")
-                }
+            // Agregar a playlist (siempre disponible para canciones descargadas)
+            Button(action: { showAddToPlaylist = true }) {
+                Label("Agregar a playlist", systemImage: "plus")
             }
 
             Button(action: {
@@ -121,14 +119,6 @@ struct SongRow: View {
                 songListViewModel.deleteDownload(song: song, modelContext: modelContext)
             }) {
                 Label("Eliminar descarga", systemImage: "trash")
-            }
-
-            // Mensaje si no tiene duración
-            if song.duration == nil {
-                Button(action: {}) {
-                    Label("Reproduce primero para agregar a playlist", systemImage: "info.circle")
-                }
-                .disabled(true)
             }
 
             Button("Cancelar", role: .cancel) {}

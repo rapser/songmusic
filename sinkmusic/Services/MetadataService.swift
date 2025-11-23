@@ -17,7 +17,8 @@ struct SongMetadata {
     let author: String?
     let duration: TimeInterval
     let artwork: Data?
-    let artworkThumbnail: Data? // Thumbnail pequeño generado automáticamente
+    let artworkThumbnail: Data? // Thumbnail pequeño generado automáticamente (32x32, < 1KB)
+    let artworkMediumThumbnail: Data? // Thumbnail medio para listas (64x64, < 5KB)
 }
 
 /// Servicio para extraer metadatos de archivos de audio
@@ -113,11 +114,14 @@ final class MetadataService: MetadataServiceProtocol {
         let finalArtist = artist ?? "Artista Desconocido"
         let finalAlbum = album ?? "Álbum Desconocido"
 
-        // Generar thumbnail si hay artwork
+        // Generar thumbnails si hay artwork
         var thumbnail: Data?
+        var mediumThumbnail: Data?
         if let artworkData = artwork {
             thumbnail = ImageCompressionService.createThumbnail(from: artworkData)
-            logger.info("   Thumbnail generado: \(thumbnail != nil ? "Sí (\(thumbnail!.count) bytes)" : "No")")
+            mediumThumbnail = ImageCompressionService.createMediumThumbnail(from: artworkData)
+            logger.info("   Thumbnail pequeño generado: \(thumbnail != nil ? "Sí (\(thumbnail!.count) bytes)" : "No")")
+            logger.info("   Thumbnail medio generado: \(mediumThumbnail != nil ? "Sí (\(mediumThumbnail!.count) bytes)" : "No")")
         }
 
         logger.info("🎵 Metadatos extraídos:")
@@ -135,7 +139,8 @@ final class MetadataService: MetadataServiceProtocol {
             author: author,
             duration: durationSeconds,
             artwork: artwork,
-            artworkThumbnail: thumbnail
+            artworkThumbnail: thumbnail,
+            artworkMediumThumbnail: mediumThumbnail
         )
     }
 }
