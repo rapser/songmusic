@@ -6,7 +6,6 @@ import MediaPlayer
 
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
-    // Publishers para que el ViewModel pueda suscribirse a los cambios
     var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
     var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
     var onSongFinished = PassthroughSubject<UUID, Never>()
@@ -29,11 +28,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var wasPlayingBeforeInterruption = false // Flag para saber si estaba reproduciendo antes de una interrupción
 
     override init() {
-        // Inicializar Audio Engine y nodos
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
 
-        // Crear ecualizador de 6 bandas (como Spotify)
         self.eq = AVAudioUnitEQ(numberOfBands: 6)
 
         super.init()
@@ -45,7 +42,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
     private func setupAudioSession() {
         do {
-            // Configurar la sesión de audio para reproducción en background
             try AVAudioSession.sharedInstance().setCategory(
                 .playback,
                 mode: .default,
@@ -58,11 +54,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     private func setupAudioEngine() {
-        // Adjuntar los nodos al engine
         audioEngine.attach(playerNode)
         audioEngine.attach(eq)
 
-        // Configurar las bandas del ecualizador con frecuencias específicas (como Spotify)
         let frequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
         for (index, frequency) in frequencies.enumerated() where index < eq.bands.count {
             eq.bands[index].filterType = .parametric
@@ -72,12 +66,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             eq.bands[index].bypass = false
         }
 
-        // NO conectar ni preparar aquí - lo haremos dinámicamente en play() con el formato correcto
     }
 
     func play(songID: UUID, url: URL) {
         if currentlyPlayingID == songID {
-            // Si es la misma canción, simplemente reanuda
             if !playerNode.isPlaying {
                 playerNode.play()
                 if !audioEngine.isRunning {
@@ -85,31 +77,24 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 }
                 startPlaybackTimer()
 
-                // Notificar después de que el player esté reproduciendo
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                     guard let self = self else { return }
                     self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
                 }
             }
         } else {
-            // Es una canción nueva
             do {
-                // Cargar el archivo de audio PRIMERO
                 audioFile = try AVAudioFile(forReading: url)
 
                 guard let audioFile = audioFile else {
                     return
                 }
 
-                // Reconectar los nodos con el formato del archivo actual
                 let fileFormat = audioFile.processingFormat
 
-                // Desconectar solo si NO es la primera vez (evita crash)
                 if !isFirstConnection {
-                    // IMPORTANTE: reset() cancela todos los buffers pendientes y completion handlers
                     playerNode.reset()
 
-                    // Detener el engine antes de desconectar para evitar crash
                     if audioEngine.isRunning {
                         audioEngine.stop()
                     }
@@ -120,15 +105,11 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                     isFirstConnection = false
                 }
 
-                // Conectar con el formato del archivo
                 audioEngine.connect(playerNode, to: eq, format: fileFormat)
                 audioEngine.connect(eq, to: audioEngine.mainMixerNode, format: fileFormat)
 
-                // Preparar el engine después de conectar
                 audioEngine.prepare()
 
-                // Generar un nuevo ID de schedule para este archivo
-                // Esto nos permite ignorar completion handlers de schedules anteriores
                 let scheduleID = UUID()
                 self.currentScheduleID = scheduleID
 
@@ -139,7 +120,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                             return
                         }
 
-                        // Verificar si este completion handler es del schedule actual
                         guard self.currentScheduleID == scheduleID else {
                             return
                         }
@@ -148,7 +128,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                             return
                         }
 
-                        // Detener el timer de reproducción
                         self.playbackTimer?.invalidate()
                         self.playbackTimer = nil
 
@@ -156,19 +135,15 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                     }
                 }
 
-                // Iniciar el engine si no está corriendo
                 if !audioEngine.isRunning {
                     try audioEngine.start()
                 }
 
-                // Reproducir
                 playerNode.play()
 
-                // Actualizar el ID interno y notificar
                 self.currentlyPlayingID = songID
                 startPlaybackTimer()
 
-                // IMPORTANTE: Notificar DESPUÉS de que el player esté reproduciendo
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                     self?.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
                 }
@@ -214,7 +189,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 DispatchQueue.main.async {
                     guard let self = self, let currentID = self.currentlyPlayingID else { return }
 
-                    // Detener el timer de reproducción
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil
 
@@ -260,7 +234,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
     // MARK: - Interruption Handling
     private func setupInterruptionHandling() {
-        // Suscribirse a las notificaciones de interrupción de audio (llamadas, alarmas, etc.)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAudioSessionInterruption),
@@ -278,34 +251,28 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
         switch type {
         case .began:
-            // Interrupción comenzó (llamada entrante, alarma, etc.)
             if playerNode.isPlaying {
                 wasPlayingBeforeInterruption = true
                 pause()
             }
 
         case .ended:
-            // Interrupción terminó
             guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else {
                 return
             }
 
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
 
-            // Solo reanudar si estaba reproduciendo antes Y el sistema nos indica que podemos reanudar
             if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
-                // Pequeño delay para asegurar que la sesión de audio esté lista
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                     guard let self = self, let songID = self.currentlyPlayingID else { return }
 
-                    // Reactivar la sesión de audio si es necesario
                     do {
                         try AVAudioSession.sharedInstance().setActive(true)
                     } catch {
                         // Error al reactivar la sesión
                     }
 
-                    // Reanudar reproducción
                     self.playerNode.play()
                     if !self.audioEngine.isRunning {
                         try? self.audioEngine.start()
@@ -331,35 +298,30 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
 
-        // Play command
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [weak self] _ in
             self?.onRemotePlayPause.send()
             return .success
         }
 
-        // Pause command
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { [weak self] _ in
             self?.onRemotePlayPause.send()
             return .success
         }
 
-        // Next track command
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in
             self?.onRemoteNext.send()
             return .success
         }
 
-        // Previous track command
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
             self?.onRemotePrevious.send()
             return .success
         }
 
-        // Change playback position command (para el seek desde la pantalla de bloqueo)
         commandCenter.changePlaybackPositionCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else {
@@ -379,7 +341,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
 
-        // Solo establecer duración si es válida
         if duration > 0 {
             nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
         }
@@ -387,7 +348,6 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = playerNode.isPlaying ? 1.0 : 0.0
 
-        // Incluir artwork - iOS decidirá cómo mostrarlo
         if let artworkData = artwork, let image = UIImage(data: artworkData) {
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
                 return image

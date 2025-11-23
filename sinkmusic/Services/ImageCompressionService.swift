@@ -2,7 +2,7 @@
 //  ImageCompressionService.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import UIKit
