@@ -19,6 +19,10 @@ struct sinkmusicApp: App {
                 .environmentObject(viewModel)
                 .environmentObject(viewModel.playerViewModel)
                 .environmentObject(songListViewModel)
+                .onAppear {
+                    // Configurar CarPlay cuando la app aparece
+                    CarPlayService.shared.configure(with: viewModel.playerViewModel)
+                }
         }
         .modelContainer(for: [Song.self, Playlist.self])
     }

@@ -1,9 +1,190 @@
 
 import SwiftUI
+import UIKit
+import SwiftData
 
 extension Color {
     static let spotifyBlack = Color(red: 25/255, green: 20/255, blue: 20/255)
     static let spotifyGreen = Color(red: 30/255, green: 215/255, blue: 96/255)
     static let spotifyGray = Color(red: 40/255, green: 40/255, blue: 40/255)
     static let spotifyLightGray = Color(red: 179/255, green: 179/255, blue: 179/255)
+    
+    // Extraer color dominante de una canción con caché
+    static func dominantColor(from song: Song) -> Color {
+        // Si ya está cacheado, devolverlo inmediatamente
+        if let r = song.cachedDominantColorRed,
+           let g = song.cachedDominantColorGreen,
+           let b = song.cachedDominantColorBlue {
+            return Color(red: r, green: g, blue: b)
+        }
+        
+        // Si no hay caché, calcularlo
+        guard let imageData = song.artworkData,
+              let uiImage = UIImage(data: imageData),
+              let cgImage = uiImage.cgImage else {
+            return Color.spotifyGray
+        }
+        
+        let color = extractDominantColor(from: cgImage)
+        
+        // Guardar en caché (se debe hacer desde un contexto que permita mutación)
+        return color
+    }
+    
+    // Versión legacy para compatibilidad
+    static func dominantColor(from imageData: Data?) -> Color {
+        guard let imageData = imageData,
+              let uiImage = UIImage(data: imageData),
+              let cgImage = uiImage.cgImage else {
+            return Color.spotifyGray
+        }
+        
+        return extractDominantColor(from: cgImage)
+    }
+    
+    // Método para cachear el color en el modelo Song
+    static func cacheAndGetDominantColor(for song: Song) -> Color {
+        // Si ya está cacheado, devolverlo inmediatamente
+        if let r = song.cachedDominantColorRed,
+           let g = song.cachedDominantColorGreen,
+           let b = song.cachedDominantColorBlue {
+            return Color(red: r, green: g, blue: b)
+        }
+        
+        // Calcular el color
+        let color = dominantColor(from: song.artworkData)
+        
+        // Extraer componentes RGB
+        if let components = UIColor(color).cgColor.components, components.count >= 3 {
+            song.cachedDominantColorRed = Double(components[0])
+            song.cachedDominantColorGreen = Double(components[1])
+            song.cachedDominantColorBlue = Double(components[2])
+        }
+        
+        return color
+    }
+    
+    private static func extractDominantColor(from cgImage: CGImage) -> Color {
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        let bitsPerComponent = 8
+        
+        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        
+        guard let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return Color.spotifyGray
+        }
+        
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        
+        // Muestrear píxeles en una cuadrícula para mejor rendimiento
+        var colorCounts: [String: (color: (r: Double, g: Double, b: Double), count: Int)] = [:]
+        let sampleRate = 10
+        
+        for x in stride(from: 0, to: width, by: sampleRate) {
+            for y in stride(from: 0, to: height, by: sampleRate) {
+                let pixelIndex = ((width * y) + x) * bytesPerPixel
+                
+                let r = Double(pixelData[pixelIndex]) / 255.0
+                let g = Double(pixelData[pixelIndex + 1]) / 255.0
+                let b = Double(pixelData[pixelIndex + 2]) / 255.0
+                
+                // Ignorar colores muy oscuros o muy claros
+                let brightness = (r + g + b) / 3.0
+                guard brightness > 0.15 && brightness < 0.85 else { continue }
+                
+                // Agrupar colores similares
+                let key = "\(Int(r * 10))-\(Int(g * 10))-\(Int(b * 10))"
+                if var existing = colorCounts[key] {
+                    existing.count += 1
+                    colorCounts[key] = existing
+                } else {
+                    colorCounts[key] = ((r, g, b), 1)
+                }
+            }
+        }
+        
+        // Encontrar el color más común
+        guard let dominantColor = colorCounts.max(by: { $0.value.count < $1.value.count })?.value.color else {
+            return Color.spotifyGray
+        }
+        
+        // Ajustar saturación y brillo estilo Spotify - colores oscuros pero con mejor claridad
+        let hsb = rgbToHSB(r: dominantColor.r, g: dominantColor.g, b: dominantColor.b)
+        let adjustedColor = hsbToRGB(
+            h: hsb.h,
+            s: min(hsb.s * 0.8, 1.0),
+            b: hsb.b * 0.55
+        )
+        
+        return Color(
+            red: adjustedColor.r,
+            green: adjustedColor.g,
+            blue: adjustedColor.b
+        )
+    }
+    
+    private static func rgbToHSB(r: Double, g: Double, b: Double) -> (h: Double, s: Double, b: Double) {
+        let maxC = max(r, g, b)
+        let minC = min(r, g, b)
+        let delta = maxC - minC
+        
+        var h: Double = 0
+        let s: Double = maxC == 0 ? 0 : delta / maxC
+        let brightness = maxC
+        
+        if delta != 0 {
+            if maxC == r {
+                h = ((g - b) / delta).truncatingRemainder(dividingBy: 6)
+            } else if maxC == g {
+                h = (b - r) / delta + 2
+            } else {
+                h = (r - g) / delta + 4
+            }
+            h *= 60
+            if h < 0 {
+                h += 360
+            }
+        }
+        
+        return (h / 360.0, s, brightness)
+    }
+    
+    private static func hsbToRGB(h: Double, s: Double, b: Double) -> (r: Double, g: Double, b: Double) {
+        let hue = h * 360
+        let c = b * s
+        let x = c * (1 - abs((hue / 60).truncatingRemainder(dividingBy: 2) - 1))
+        let m = b - c
+        
+        var r: Double = 0, g: Double = 0, blue: Double = 0
+        
+        switch hue {
+        case 0..<60:
+            r = c; g = x; blue = 0
+        case 60..<120:
+            r = x; g = c; blue = 0
+        case 120..<180:
+            r = 0; g = c; blue = x
+        case 180..<240:
+            r = 0; g = x; blue = c
+        case 240..<300:
+            r = x; g = 0; blue = c
+        case 300..<360:
+            r = c; g = 0; blue = x
+        default:
+            break
+        }
+        
+        return (r + m, g + m, blue + m)
+    }
 }

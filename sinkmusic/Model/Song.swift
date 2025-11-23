@@ -13,6 +13,13 @@ final class Song: Identifiable {
     var isDownloaded: Bool
     var duration: TimeInterval?
     var artworkData: Data?
+    var artworkThumbnail: Data? // Thumbnail pequeño para Live Activities (32x32, < 1KB)
+    var artworkMediumThumbnail: Data? // Thumbnail medio para listas (64x64, < 5KB)
+
+    // Caché del color dominante (RGB components)
+    var cachedDominantColorRed: Double?
+    var cachedDominantColorGreen: Double?
+    var cachedDominantColorBlue: Double?
 
     // Relación con playlists (muchos a muchos)
     var playlists: [Playlist] = []

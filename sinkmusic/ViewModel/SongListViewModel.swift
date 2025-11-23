@@ -6,10 +6,12 @@ import SwiftData
 @MainActor
 class SongListViewModel: ObservableObject {
     @Published var downloadProgress: [UUID: Double] = [:]
+    @Published var isDownloadingAll: Bool = false
 
     private let downloadService: DownloadService
     private let metadataService: MetadataService
     private var cancellables = Set<AnyCancellable>()
+    private var downloadAllTask: Task<Void, Never>?
 
     init(downloadService: DownloadService = DownloadService(), metadataService: MetadataService = MetadataService()) {
         self.downloadService = downloadService
@@ -26,32 +28,74 @@ class SongListViewModel: ObservableObject {
                 song.isDownloaded = true
 
                 // Extraer metadatos del archivo descargado
-                print("📥 Iniciando extracción de metadatos desde: \(localURL.path)")
                 if let metadata = await metadataService.extractMetadata(from: localURL) {
-                    print("📝 Antes de actualizar - Título: '\(song.title)', Artista: '\(song.artist)'")
-
                     song.title = metadata.title
                     song.artist = metadata.artist
                     song.album = metadata.album
                     song.author = metadata.author
                     song.duration = metadata.duration
                     song.artworkData = metadata.artwork
-
-                    print("📝 Después de actualizar - Título: '\(song.title)', Artista: '\(song.artist)'")
-                    print("✅ Metadatos actualizados exitosamente")
-                } else {
-                    print("❌ No se pudieron extraer metadatos del archivo")
+                    song.artworkThumbnail = metadata.artworkThumbnail
+                    song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
                 }
 
                 try modelContext.save()
-                print("💾 Cambios guardados en SwiftData")
-                print("🔎 Verificación final - Título: '\(song.title)', Artista: '\(song.artist)', Artwork: \(song.artworkData != nil ? "Sí" : "No")")
                 downloadProgress[song.id] = nil
             } catch {
-                print("Error al descargar \(song.title): \(error.localizedDescription)")
                 downloadProgress[song.id] = nil
             }
         }
+    }
+
+    func downloadAll(songs: [Song], modelContext: ModelContext) {
+        // Cancelar cualquier descarga masiva anterior
+        cancelDownloadAll()
+
+        isDownloadingAll = true
+
+        downloadAllTask = Task {
+            for song in songs {
+                // Verificar si la tarea fue cancelada
+                if Task.isCancelled {
+                    break
+                }
+
+                // Solo descargar si no está descargada
+                guard !song.isDownloaded else { continue }
+
+                downloadProgress[song.id] = -1
+
+                do {
+                    let localURL = try await downloadService.download(song: song)
+                    song.isDownloaded = true
+
+                    // Extraer metadatos del archivo descargado
+                    if let metadata = await metadataService.extractMetadata(from: localURL) {
+                        song.title = metadata.title
+                        song.artist = metadata.artist
+                        song.album = metadata.album
+                        song.author = metadata.author
+                        song.duration = metadata.duration
+                        song.artworkData = metadata.artwork
+                        song.artworkThumbnail = metadata.artworkThumbnail
+                        song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
+                    }
+
+                    try modelContext.save()
+                    downloadProgress[song.id] = nil
+                } catch {
+                    downloadProgress[song.id] = nil
+                }
+            }
+
+            isDownloadingAll = false
+        }
+    }
+
+    func cancelDownloadAll() {
+        downloadAllTask?.cancel()
+        downloadAllTask = nil
+        isDownloadingAll = false
     }
 
     func deleteDownload(song: Song, modelContext: ModelContext) {
@@ -69,9 +113,7 @@ class SongListViewModel: ObservableObject {
 
                 // Guardar cambios
                 try modelContext.save()
-                print("✅ Canción '\(song.title)' eliminada y reseteada correctamente")
             } catch {
-                print("❌ Error al eliminar descarga: \(error.localizedDescription)")
             }
         }
     }
