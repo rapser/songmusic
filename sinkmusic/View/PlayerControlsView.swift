@@ -11,6 +11,10 @@ struct PlayerControlsView: View {
     let song: Song
     var namespace: Namespace.ID
     @EnvironmentObject var playerViewModel: PlayerViewModel
+    
+    private var dominantColor: Color {
+        Color.dominantColor(from: song)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -95,10 +99,24 @@ struct PlayerControlsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.spotifyGray)
+                .fill(dominantColor.opacity(0.95))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.black.opacity(0.2))
+                )
                 .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
         )
         .matchedGeometryEffect(id: "player", in: namespace)
+        .onAppear {
+            // Cachear color si no está cacheado
+            if song.cachedDominantColorRed == nil {
+                Task.detached(priority: .userInitiated) {
+                    _ = await MainActor.run {
+                        Color.cacheAndGetDominantColor(for: song)
+                    }
+                }
+            }
+        }
     }
 
     // Computed property para calcular el progreso

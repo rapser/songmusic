@@ -13,8 +13,8 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
     @Published var isScrolling: Bool = false
     @Published var isLoadingSongs: Bool = false
     var playerViewModel: PlayerViewModel
-    private var cancellables = Set<AnyCancellable>()
     private let googleDriveService = GoogleDriveService()
+    private let keychainService = KeychainService.shared
 
     init() {
         self.playerViewModel = PlayerViewModel()
@@ -23,17 +23,13 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
     
     func resetScrollState() {
         isScrolling = false
-        print("🔄 Scroll state reseteado desde protocolo")
     }
     
     func syncLibraryWithCatalog(modelContext: ModelContext) {
-        print("🔄 Sincronizando la librería de canciones...")
-
-        // TEMPORAL: Mostrar la ruta donde se guardan las canciones
-        if let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let musicPath = documentsPath.appendingPathComponent("Music")
-            print("📂 RUTA DE CANCIONES: \(musicPath.path)")
-            print("📂 Puedes abrir en Finder con: open \(musicPath.path)")
+        guard keychainService.hasGoogleDriveCredentials else {
+            // Si no hay credenciales, limpiar la base de datos local.
+            clearLibrary(modelContext: modelContext)
+            return
         }
 
         isLoadingSongs = true
@@ -46,7 +42,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                 let descriptor = FetchDescriptor<Song>()
 
                 guard let existingSongs = try? modelContext.fetch(descriptor) else {
-                    print("❌ Error al leer la base de datos de canciones.")
                     isLoadingSongs = false
                     return
                 }
@@ -66,9 +61,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                             existingSong.title = driveFile.title
                             existingSong.artist = driveFile.artist
                             songsUpdated += 1
-                            print("📝 Actualizando canción sin metadatos: '\(driveFile.title)'")
-                        } else if hasMetadata {
-                            print("✅ Canción '\(existingSong.title)' ya tiene metadatos, no sobrescribir")
                         }
                     } else {
                         let newSong = Song(title: driveFile.title, artist: driveFile.artist, fileID: driveFile.id)
@@ -77,20 +69,33 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                     }
                 }
 
-                if newSongsAdded > 0 || songsUpdated > 0 {
-                    print("✅ Sync completa desde Google Drive. \(newSongsAdded) nuevas, \(songsUpdated) actualizadas.")
-                } else {
-                    print("✅ Sync completa desde Google Drive. Nada que actualizar.")
-                }
-
                 isLoadingSongs = false
             } catch {
-                print("❌ Error al sincronizar con Google Drive: \(error.localizedDescription)")
+                // El error se manejará en la UI, por ejemplo mostrando un mensaje.
+                // Ya no se recurre al catálogo local.
                 isLoadingSongs = false
+            }
+        }
+    }
 
-                // Fallback: usar SongCatalog si falla Google Drive
-                print("⚠️ Usando SongCatalog como fallback...")
-                syncWithLocalCatalog(modelContext: modelContext)
+    func clearLibrary(modelContext: ModelContext) {
+        Task {
+            let descriptor = FetchDescriptor<Song>()
+            if let existingSongs = try? modelContext.fetch(descriptor) {
+                for song in existingSongs {
+                    // Borrar el archivo de audio físico si existe
+                    do {
+                        try googleDriveService.deleteDownload(for: song.id)
+                    } catch {
+                        print("No se pudo borrar el archivo para la canción \(song.title): \(error.localizedDescription)")
+                    }
+                    
+                    // Borrar el registro de la base de datos
+                    modelContext.delete(song)
+                }
+                
+                try? modelContext.save()
+                print("🗑️ Biblioteca local y archivos descargados limpiados.")
             }
         }
     }
@@ -99,7 +104,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
         let descriptor = FetchDescriptor<Song>()
 
         guard let existingSongs = try? modelContext.fetch(descriptor) else {
-            print("❌ Error al leer la base de datos de canciones.")
             return
         }
 
@@ -124,12 +128,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                 modelContext.insert(newSong)
                 newSongsAdded += 1
             }
-        }
-
-        if newSongsAdded > 0 || songsUpdated > 0 {
-            print("✅ Sync completa con fallback. \(newSongsAdded) nuevas, \(songsUpdated) actualizadas.")
-        } else {
-            print("✅ Sync completa con fallback. Nada que actualizar.")
         }
     }
 }

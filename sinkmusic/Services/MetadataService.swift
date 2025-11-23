@@ -13,13 +13,17 @@ import OSLog
 struct SongMetadata {
     let title: String
     let artist: String
-    let album: String?
+    let album: String // Siempre tendrá un valor, por defecto "Álbum Desconocido"
     let author: String?
     let duration: TimeInterval
     let artwork: Data?
+    let artworkThumbnail: Data? // Thumbnail pequeño generado automáticamente (32x32, < 1KB)
+    let artworkMediumThumbnail: Data? // Thumbnail medio para listas (64x64, < 5KB)
 }
 
-class MetadataService {
+/// Servicio para extraer metadatos de archivos de audio
+/// Implementa MetadataServiceProtocol cumpliendo con SOLID
+final class MetadataService: MetadataServiceProtocol {
     private let logger = Logger(subsystem: "com.sinkmusic.app", category: "MetadataService")
 
     /// Extrae los metadatos de un archivo de audio local
@@ -108,11 +112,22 @@ class MetadataService {
         // Si no se encontró título en metadatos, usar nombre del archivo
         let finalTitle = title ?? url.deletingPathExtension().lastPathComponent
         let finalArtist = artist ?? "Artista Desconocido"
+        let finalAlbum = album ?? "Álbum Desconocido"
+
+        // Generar thumbnails si hay artwork
+        var thumbnail: Data?
+        var mediumThumbnail: Data?
+        if let artworkData = artwork {
+            thumbnail = ImageCompressionService.createThumbnail(from: artworkData)
+            mediumThumbnail = ImageCompressionService.createMediumThumbnail(from: artworkData)
+            logger.info("   Thumbnail pequeño generado: \(thumbnail != nil ? "Sí (\(thumbnail!.count) bytes)" : "No")")
+            logger.info("   Thumbnail medio generado: \(mediumThumbnail != nil ? "Sí (\(mediumThumbnail!.count) bytes)" : "No")")
+        }
 
         logger.info("🎵 Metadatos extraídos:")
         logger.info("   Título: \(finalTitle)")
         logger.info("   Artista: \(finalArtist)")
-        logger.info("   Álbum: \(album ?? "N/A")")
+        logger.info("   Álbum: \(finalAlbum)")
         logger.info("   Autor: \(author ?? "N/A")")
         logger.info("   Duración: \(durationSeconds)s")
         logger.info("   Artwork: \(artwork != nil ? "Sí (\(artwork!.count) bytes)" : "No")")
@@ -120,10 +135,12 @@ class MetadataService {
         return SongMetadata(
             title: finalTitle,
             artist: finalArtist,
-            album: album,
+            album: finalAlbum,
             author: author,
             duration: durationSeconds,
-            artwork: artwork
+            artwork: artwork,
+            artworkThumbnail: thumbnail,
+            artworkMediumThumbnail: mediumThumbnail
         )
     }
 }

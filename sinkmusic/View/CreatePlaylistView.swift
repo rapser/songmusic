@@ -10,12 +10,14 @@ import PhotosUI
 
 struct CreatePlaylistView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: PlaylistViewModel
+    @Environment(\.modelContext) private var modelContext
+    let onPlaylistCreated: () -> Void
 
     @State private var playlistName = ""
     @State private var playlistDescription = ""
     @State private var selectedImage: PhotosPickerItem?
     @State private var coverImageData: Data?
+    @State private var cachedCoverImage: UIImage?
 
     var body: some View {
         NavigationStack {
@@ -27,14 +29,22 @@ struct CreatePlaylistView: View {
                         // Cover Image Picker
                         PhotosPicker(selection: $selectedImage, matching: .images) {
                             ZStack {
-                                if let coverImageData = coverImageData,
-                                   let uiImage = UIImage(data: coverImageData) {
-                                    Image(uiImage: uiImage)
+                                if let cachedImage = cachedCoverImage {
+                                    Image(uiImage: cachedImage)
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: 180, height: 180)
                                         .clipped()
                                         .cornerRadius(8)
+                                } else if coverImageData != nil {
+                                    // Mostrar placeholder mientras carga
+                                    Color.spotifyGray
+                                        .frame(width: 180, height: 180)
+                                        .cornerRadius(8)
+                                        .overlay(
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        )
                                 } else {
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(Color.spotifyGray)
@@ -54,9 +64,15 @@ struct CreatePlaylistView: View {
                             }
                         }
                         .onChange(of: selectedImage) { _, newValue in
-                            Task {
+                            Task.detached(priority: .userInitiated) {
+                                // Cargar la imagen en background para no bloquear el UI ni el audio
                                 if let data = try? await newValue?.loadTransferable(type: Data.self) {
-                                    coverImageData = data
+                                    // Decodificar la imagen en background
+                                    let image = UIImage(data: data)
+                                    await MainActor.run {
+                                        coverImageData = data
+                                        cachedCoverImage = image
+                                    }
                                 }
                             }
                         }
@@ -103,6 +119,9 @@ struct CreatePlaylistView: View {
             }
             .navigationTitle("Nueva playlist")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.spotifyBlack, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancelar") {
@@ -123,15 +142,32 @@ struct CreatePlaylistView: View {
     }
 
     private func createPlaylist() {
-        viewModel.createPlaylist(
-            name: playlistName,
-            description: playlistDescription,
-            coverImageData: coverImageData
-        )
-        dismiss()
+        // Crear playlist de forma asíncrona para no bloquear el audio
+        Task {
+            let playlist = Playlist(
+                name: playlistName,
+                description: playlistDescription,
+                coverImageData: coverImageData
+            )
+
+            modelContext.insert(playlist)
+
+            do {
+                try modelContext.save()
+                await MainActor.run {
+                    onPlaylistCreated()
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    dismiss()
+                }
+            }
+        }
     }
 }
 
 #Preview {
-    CreatePlaylistView(viewModel: PlaylistViewModel(modelContext: PreviewContainer.shared.mainContext))
+    CreatePlaylistView(onPlaylistCreated: {})
+        .modelContainer(PreviewContainer.shared.container)
 }

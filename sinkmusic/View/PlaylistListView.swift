@@ -67,7 +67,10 @@ struct PlaylistListView: View {
             }
         }
         .sheet(isPresented: $viewModel.showCreatePlaylist) {
-            CreatePlaylistView(viewModel: viewModel)
+            CreatePlaylistView(onPlaylistCreated: {
+                viewModel.fetchPlaylists()
+            })
+            .environment(\.modelContext, modelContext)
         }
         .onAppear {
             viewModel.fetchPlaylists()
@@ -78,18 +81,26 @@ struct PlaylistListView: View {
 // MARK: - Playlist Card View
 struct PlaylistCardView: View {
     let playlist: Playlist
+    @State private var cachedImage: UIImage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Cover Image
             ZStack {
-                if let coverData = playlist.coverImageData,
-                   let uiImage = UIImage(data: coverData) {
-                    Image(uiImage: uiImage)
+                if let image = cachedImage {
+                    Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 160, height: 160)
                         .clipped()
+                } else if playlist.coverImageData != nil {
+                    // Mostrar placeholder mientras carga
+                    Color.spotifyGray
+                        .frame(width: 160, height: 160)
+                        .overlay(
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        )
                 } else {
                     // Default gradient background
                     LinearGradient(
@@ -109,6 +120,17 @@ struct PlaylistCardView: View {
                 }
             }
             .cornerRadius(8)
+            .task(id: playlist.id) {
+                // Cargar imagen en background para no bloquear el audio
+                if let coverData = playlist.coverImageData, cachedImage == nil {
+                    await Task.detached(priority: .userInitiated) {
+                        let image = UIImage(data: coverData)
+                        await MainActor.run {
+                            cachedImage = image
+                        }
+                    }.value
+                }
+            }
 
             // Playlist Info
             VStack(alignment: .leading, spacing: 2) {

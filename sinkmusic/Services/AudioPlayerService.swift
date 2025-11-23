@@ -2,6 +2,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import MediaPlayer
 
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
@@ -9,6 +10,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
     var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
     var onSongFinished = PassthroughSubject<UUID, Never>()
+    var onRemotePlayPause = PassthroughSubject<Void, Never>()
+    var onRemoteNext = PassthroughSubject<Void, Never>()
+    var onRemotePrevious = PassthroughSubject<Void, Never>()
 
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
@@ -22,26 +26,34 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var useAudioEngine = true // Flag para usar engine con ecualizador
     private var isFirstConnection = true // Flag para saber si es la primera vez que conectamos
     private var currentScheduleID = UUID() // ID único para cada scheduleFile, para ignorar completion handlers obsoletos
+    private var wasPlayingBeforeInterruption = false // Flag para saber si estaba reproduciendo antes de una interrupción
 
     override init() {
         // Inicializar Audio Engine y nodos
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
 
-        // Crear ecualizador de 10 bandas
-        self.eq = AVAudioUnitEQ(numberOfBands: 10)
+        // Crear ecualizador de 6 bandas (como Spotify)
+        self.eq = AVAudioUnitEQ(numberOfBands: 6)
 
         super.init()
         setupAudioSession()
         setupAudioEngine()
+        setupRemoteCommandCenter()
+        setupInterruptionHandling()
     }
 
     private func setupAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            // Configurar la sesión de audio para reproducción en background
+            try AVAudioSession.sharedInstance().setCategory(
+                .playback,
+                mode: .default,
+                options: []
+            )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("Error al configurar AVAudioSession: \(error.localizedDescription)")
+            // Error al configurar la sesión de audio
         }
     }
 
@@ -50,8 +62,8 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         audioEngine.attach(playerNode)
         audioEngine.attach(eq)
 
-        // Configurar las bandas del ecualizador con frecuencias específicas
-        let frequencies: [Float] = [60, 150, 400, 1000, 2400, 3500, 6000, 10000, 15000, 20000]
+        // Configurar las bandas del ecualizador con frecuencias específicas (como Spotify)
+        let frequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
         for (index, frequency) in frequencies.enumerated() where index < eq.bands.count {
             eq.bands[index].filterType = .parametric
             eq.bands[index].frequency = frequency
@@ -61,108 +73,80 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         }
 
         // NO conectar ni preparar aquí - lo haremos dinámicamente en play() con el formato correcto
-
-        print("🎚️ Audio Engine configurado con ecualizador de 10 bandas")
     }
 
     func play(songID: UUID, url: URL) {
-        print("▶️ AudioPlayerService.play() - Iniciando reproducción")
-        print("   Song ID: \(songID.uuidString.prefix(8))...")
-        print("   Archivo existe: \(FileManager.default.fileExists(atPath: url.path))")
-
         if currentlyPlayingID == songID {
             // Si es la misma canción, simplemente reanuda
-            print("🔄 Misma canción - Reanudando")
             if !playerNode.isPlaying {
                 playerNode.play()
                 if !audioEngine.isRunning {
                     try? audioEngine.start()
                 }
                 startPlaybackTimer()
-                onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
+
+                // Notificar después de que el player esté reproduciendo
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    guard let self = self else { return }
+                    self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
+                }
             }
         } else {
             // Es una canción nueva
-            print("🆕 Nueva canción - Cargando archivo")
             do {
                 // Cargar el archivo de audio PRIMERO
-                print("📂 Intentando cargar AVAudioFile desde: \(url.path)")
                 audioFile = try AVAudioFile(forReading: url)
 
                 guard let audioFile = audioFile else {
-                    print("❌ No se pudo cargar el archivo de audio (audioFile es nil)")
                     return
                 }
 
-                print("✅ AVAudioFile cargado exitosamente")
-                print("   - Sample Rate: \(audioFile.processingFormat.sampleRate)")
-                print("   - Channels: \(audioFile.processingFormat.channelCount)")
-                print("   - Length: \(audioFile.length) frames")
-                print("   - Duration: \(Double(audioFile.length) / audioFile.processingFormat.sampleRate) segundos")
-
                 // Reconectar los nodos con el formato del archivo actual
                 let fileFormat = audioFile.processingFormat
-                print("🔌 Configurando nodos con formato: \(fileFormat.sampleRate) Hz, \(fileFormat.channelCount) canales")
 
                 // Desconectar solo si NO es la primera vez (evita crash)
                 if !isFirstConnection {
                     // IMPORTANTE: reset() cancela todos los buffers pendientes y completion handlers
                     playerNode.reset()
-                    print("⏹️ Nodo reseteado (cancela completion handlers pendientes)")
 
                     // Detener el engine antes de desconectar para evitar crash
                     if audioEngine.isRunning {
                         audioEngine.stop()
-                        print("⏸️ Audio Engine detenido para reconexión")
                     }
 
                     audioEngine.disconnectNodeInput(playerNode)
                     audioEngine.disconnectNodeInput(eq)
-                    print("✅ Nodos desconectados")
                 } else {
-                    print("✅ Primera conexión, omitiendo desconexión")
                     isFirstConnection = false
                 }
 
                 // Conectar con el formato del archivo
                 audioEngine.connect(playerNode, to: eq, format: fileFormat)
                 audioEngine.connect(eq, to: audioEngine.mainMixerNode, format: fileFormat)
-                print("✅ Nodos conectados correctamente")
 
                 // Preparar el engine después de conectar
                 audioEngine.prepare()
-                print("✅ Audio Engine preparado")
 
                 // Generar un nuevo ID de schedule para este archivo
                 // Esto nos permite ignorar completion handlers de schedules anteriores
                 let scheduleID = UUID()
                 self.currentScheduleID = scheduleID
-                print("📅 Programando archivo para reproducción (Schedule ID: \(scheduleID.uuidString.prefix(8)))")
 
-                let scheduledAt = Date()
                 playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
-                    let completedAt = Date()
-                    let elapsed = completedAt.timeIntervalSince(scheduledAt)
 
                     DispatchQueue.main.async {
                         guard let self = self else {
-                            print("⚠️ Completion handler llamado pero self es nil")
                             return
                         }
 
                         // Verificar si este completion handler es del schedule actual
                         guard self.currentScheduleID == scheduleID else {
-                            print("🚫 Completion handler IGNORADO - Schedule ID obsoleto (\(scheduleID.uuidString.prefix(8))) vs actual (\(self.currentScheduleID.uuidString.prefix(8))) - Elapsed: \(elapsed)s")
                             return
                         }
 
                         guard let currentID = self.currentlyPlayingID else {
-                            print("⚠️ Completion handler válido pero currentID es nil")
                             return
                         }
-
-                        print("⏰ Completion handler VÁLIDO ejecutado después de \(elapsed) segundos - Song ID: \(currentID)")
-                        print("🎵 Canción terminada: \(currentID)")
 
                         // Detener el timer de reproducción
                         self.playbackTimer?.invalidate()
@@ -171,15 +155,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         self.onSongFinished.send(currentID)
                     }
                 }
-                print("✅ Archivo programado en playerNode")
 
                 // Iniciar el engine si no está corriendo
                 if !audioEngine.isRunning {
-                    print("🎛️ Iniciando Audio Engine")
                     try audioEngine.start()
-                    print("✅ Audio Engine iniciado")
-                } else {
-                    print("✅ Audio Engine ya estaba corriendo")
                 }
 
                 // Reproducir
@@ -188,12 +167,12 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 // Actualizar el ID interno y notificar
                 self.currentlyPlayingID = songID
                 startPlaybackTimer()
-                onPlaybackStateChanged.send((isPlaying: true, songID: songID))
 
-                print("✅ Reproducción iniciada exitosamente")
+                // IMPORTANTE: Notificar DESPUÉS de que el player esté reproduciendo
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                }
             } catch {
-                print("❌ Error al iniciar Audio Engine: \(error.localizedDescription)")
-                print("❌ Error completo: \(error)")
                 onPlaybackStateChanged.send((isPlaying: false, songID: nil))
             }
         }
@@ -260,29 +239,15 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             let currentTime = Double(playerTime.sampleTime) / playerTime.sampleRate
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
 
-            // Debug: verificar si el tiempo es consistente con el ID de canción
-            if self.currentlyPlayingID != nil {
-                // Solo imprimir cada 5 segundos para no saturar
-                let shouldPrint = Int(currentTime) % 5 == 0 && Int(currentTime * 10) % 10 == 0
-                if shouldPrint {
-                    print("⏱️ Tiempo actual: \(currentTime) / \(duration) - Song ID: \(self.currentlyPlayingID?.uuidString ?? "nil")")
-                }
-            }
-
             self.onPlaybackTimeChanged.send((time: currentTime, duration: duration))
         }
     }
 
     // MARK: - Equalizer
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
-        print("🎚️ Aplicando configuración del ecualizador:")
-
         for (index, band) in bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = Float(band.gain)
-            print("  Banda \(index) (\(band.label)): \(band.gain) dB")
         }
-
-        print("✅ Ecualizador actualizado en tiempo real")
     }
 
     // MARK: - AVAudioPlayerDelegate
@@ -291,5 +256,145 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         currentlyPlayingID = nil
         onPlaybackStateChanged.send((isPlaying: false, songID: finishedSongID))
         onSongFinished.send(finishedSongID)
+    }
+
+    // MARK: - Interruption Handling
+    private func setupInterruptionHandling() {
+        // Suscribirse a las notificaciones de interrupción de audio (llamadas, alarmas, etc.)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc private func handleAudioSessionInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            // Interrupción comenzó (llamada entrante, alarma, etc.)
+            if playerNode.isPlaying {
+                wasPlayingBeforeInterruption = true
+                pause()
+            }
+
+        case .ended:
+            // Interrupción terminó
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else {
+                return
+            }
+
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+
+            // Solo reanudar si estaba reproduciendo antes Y el sistema nos indica que podemos reanudar
+            if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
+                // Pequeño delay para asegurar que la sesión de audio esté lista
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self = self, let songID = self.currentlyPlayingID else { return }
+
+                    // Reactivar la sesión de audio si es necesario
+                    do {
+                        try AVAudioSession.sharedInstance().setActive(true)
+                    } catch {
+                        // Error al reactivar la sesión
+                    }
+
+                    // Reanudar reproducción
+                    self.playerNode.play()
+                    if !self.audioEngine.isRunning {
+                        try? self.audioEngine.start()
+                    }
+                    self.startPlaybackTimer()
+                    self.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                    self.wasPlayingBeforeInterruption = false
+                }
+            } else {
+                wasPlayingBeforeInterruption = false
+            }
+
+        @unknown default:
+            break
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Now Playing Info & Remote Commands
+    private func setupRemoteCommandCenter() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        // Play command
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.playCommand.addTarget { [weak self] _ in
+            self?.onRemotePlayPause.send()
+            return .success
+        }
+
+        // Pause command
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
+            self?.onRemotePlayPause.send()
+            return .success
+        }
+
+        // Next track command
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            self?.onRemoteNext.send()
+            return .success
+        }
+
+        // Previous track command
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            self?.onRemotePrevious.send()
+            return .success
+        }
+
+        // Change playback position command (para el seek desde la pantalla de bloqueo)
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            self?.seek(to: event.positionTime)
+            return .success
+        }
+    }
+
+    func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) {
+        var nowPlayingInfo = [String: Any]()
+        nowPlayingInfo[MPMediaItemPropertyTitle] = title
+        nowPlayingInfo[MPMediaItemPropertyArtist] = artist
+
+        if let album = album {
+            nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
+        }
+
+        // Solo establecer duración si es válida
+        if duration > 0 {
+            nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = playerNode.isPlaying ? 1.0 : 0.0
+
+        // Incluir artwork - iOS decidirá cómo mostrarlo
+        if let artworkData = artwork, let image = UIImage(data: artworkData) {
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
+                return image
+            }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }
