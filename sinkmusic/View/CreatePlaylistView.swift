@@ -2,7 +2,7 @@
 //  CreatePlaylistView.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import SwiftUI
@@ -22,7 +22,7 @@ struct CreatePlaylistView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+                Color.appDark.edgesIgnoringSafeArea(.all)
 
                 ScrollView {
                     VStack(spacing: 24) {
@@ -38,7 +38,7 @@ struct CreatePlaylistView: View {
                                         .cornerRadius(8)
                                 } else if coverImageData != nil {
                                     // Mostrar placeholder mientras carga
-                                    Color.spotifyGray
+                                    Color.appGray
                                         .frame(width: 180, height: 180)
                                         .cornerRadius(8)
                                         .overlay(
@@ -47,7 +47,7 @@ struct CreatePlaylistView: View {
                                         )
                                 } else {
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.spotifyGray)
+                                        .fill(Color.appGray)
                                         .frame(width: 180, height: 180)
                                         .overlay(
                                             VStack(spacing: 8) {
@@ -89,7 +89,7 @@ struct CreatePlaylistView: View {
                                     .font(.system(size: 15))
                                     .foregroundColor(.white)
                                     .padding(12)
-                                    .background(Color.spotifyGray)
+                                    .background(Color.appGray)
                                     .cornerRadius(8)
                                     .autocorrectionDisabled()
                             }
@@ -104,7 +104,7 @@ struct CreatePlaylistView: View {
                                     .font(.system(size: 15))
                                     .foregroundColor(.white)
                                     .padding(12)
-                                    .background(Color.spotifyGray)
+                                    .background(Color.appGray)
                                     .cornerRadius(8)
                                     .lineLimit(3...6)
                                     .autocorrectionDisabled()
@@ -119,7 +119,7 @@ struct CreatePlaylistView: View {
             }
             .navigationTitle("Nueva playlist")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.spotifyBlack, for: .navigationBar)
+            .toolbarBackground(Color.appDark, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -134,7 +134,7 @@ struct CreatePlaylistView: View {
                     Button("Crear") {
                         createPlaylist()
                     }
-                    .foregroundColor(playlistName.isEmpty ? .gray : .spotifyGreen)
+                    .foregroundColor(playlistName.isEmpty ? .gray : .appPurple)
                     .disabled(playlistName.isEmpty)
                 }
             }

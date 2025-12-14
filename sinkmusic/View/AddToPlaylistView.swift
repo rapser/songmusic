@@ -2,7 +2,7 @@
 //  AddToPlaylistView.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import SwiftUI
@@ -27,13 +27,13 @@ struct AddToPlaylistView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+                Color.appDark.edgesIgnoringSafeArea(.all)
 
                 VStack(spacing: 0) {
                     // Search Bar
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
 
                         TextField("Buscar playlist", text: $searchText)
                             .font(.system(size: 15))
@@ -43,12 +43,12 @@ struct AddToPlaylistView: View {
                         if !searchText.isEmpty {
                             Button(action: { searchText = "" }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
                             }
                         }
                     }
                     .padding(12)
-                    .background(Color.spotifyGray)
+                    .background(Color.appGray)
                     .cornerRadius(8)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
@@ -60,7 +60,7 @@ struct AddToPlaylistView: View {
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.spotifyGray)
+                                    .fill(Color.appGray)
                                     .frame(width: 50, height: 50)
 
                                 Image(systemName: "plus")
@@ -90,11 +90,11 @@ struct AddToPlaylistView: View {
 
                             Image(systemName: "music.note.list")
                                 .font(.system(size: 50))
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
 
                             Text(searchText.isEmpty ? "No hay playlists" : "No se encontraron playlists")
                                 .font(.system(size: 16))
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
 
                             Spacer()
                         }
@@ -177,7 +177,7 @@ struct PlaylistSelectRow: View {
                         .clipped()
                         .cornerRadius(4)
                 } else if playlist.coverImageData != nil {
-                    Color.spotifyGray
+                    Color.appGray
                         .frame(width: 50, height: 50)
                         .cornerRadius(4)
                         .overlay(
@@ -213,7 +213,7 @@ struct PlaylistSelectRow: View {
 
                 Text("\(playlist.songCount) canciones")
                     .font(.system(size: 13))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
 
             Spacer()
@@ -222,7 +222,7 @@ struct PlaylistSelectRow: View {
             if isAdded {
                 Image(systemName: "checkmark")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.spotifyGreen)
+                    .foregroundColor(.appPurple)
             }
         }
         .padding(.horizontal, 20)

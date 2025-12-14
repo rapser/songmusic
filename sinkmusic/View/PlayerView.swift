@@ -8,7 +8,6 @@ struct PlayerView: View {
     var namespace: Namespace.ID
     
     @State private var sliderValue: Double = 0
-    @State private var isEditingSlider = false
     @State private var showEqualizer = false
     
     private var dominantColor: Color {
@@ -67,7 +66,7 @@ struct PlayerView: View {
                     } else {
                         ZStack {
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.spotifyGreen)
+                                .fill(Color.appPurple)
                                 .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
 
                             Image(systemName: "music.note")
@@ -91,22 +90,21 @@ struct PlayerView: View {
                         .lineLimit(1)
                     Text(currentSong.artist)
                         .font(.system(size: 18))
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
                 
-                // Slider de progreso
                 VStack {
-                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1)) { editing in
-                        isEditingSlider = editing
-                        if !editing {
-                            playerViewModel.seek(to: sliderValue)
+                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1))
+                        .accentColor(.white)
+                        .disabled(true)
+                        .onAppear {
+                            UISlider.appearance().setThumbImage(UIImage(), for: .normal)
+                            UISlider.appearance().setThumbImage(UIImage(), for: .highlighted)
                         }
-                    }
-                    .accentColor(.spotifyGreen)
 
                     HStack {
                         Text(playerViewModel.formatTime(playerViewModel.playbackTime))
@@ -114,7 +112,7 @@ struct PlayerView: View {
                         Text(playerViewModel.formatTime(playerViewModel.songDuration))
                     }
                     .font(.caption)
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
                 }
                 .padding(.horizontal, 20)
                 
@@ -124,7 +122,7 @@ struct PlayerView: View {
                     Button(action: { playerViewModel.toggleShuffle() }) {
                         Image(systemName: "shuffle")
                             .font(.title3)
-                            .foregroundColor(playerViewModel.isShuffleEnabled ? .spotifyGreen : .spotifyLightGray)
+                            .foregroundColor(playerViewModel.isShuffleEnabled ? .appPurple : .textGray)
                             .frame(width: 50, height: 50)
                     }
                     
@@ -163,7 +161,7 @@ struct PlayerView: View {
                     Button(action: { playerViewModel.toggleRepeat() }) {
                         Image(systemName: playerViewModel.repeatMode == .repeatOne ? "repeat.1" : "repeat")
                             .font(.title3)
-                            .foregroundColor(playerViewModel.repeatMode != .off ? .spotifyGreen : .spotifyLightGray)
+                            .foregroundColor(playerViewModel.repeatMode != .off ? .appPurple : .textGray)
                             .frame(width: 50, height: 50)
                     }
                 }
@@ -174,7 +172,6 @@ struct PlayerView: View {
         }
         .onAppear {
             sliderValue = playerViewModel.playbackTime
-            // Cachear color si no está cacheado
             if currentSong.cachedDominantColorRed == nil {
                 Task.detached(priority: .userInitiated) {
                     _ = await MainActor.run {
@@ -183,10 +180,8 @@ struct PlayerView: View {
                 }
             }
         }
-        .onChange(of: playerViewModel.playbackTime) { _, newValue in
-            if !isEditingSlider {
-                sliderValue = newValue
-            }
+        .onChange(of: playerViewModel.playbackTime) { oldValue, newValue in
+            sliderValue = newValue
         }
         .sheet(isPresented: $showEqualizer) {
             EqualizerView()

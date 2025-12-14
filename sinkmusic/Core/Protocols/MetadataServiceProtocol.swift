@@ -2,7 +2,7 @@
 //  MetadataServiceProtocol.swift
 //  sinkmusic
 //
-//  Created by Refactoring - SOLID Principles
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import Foundation

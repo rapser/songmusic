@@ -16,7 +16,6 @@ final class Song: Identifiable {
     var artworkThumbnail: Data? // Thumbnail pequeño para Live Activities (32x32, < 1KB)
     var artworkMediumThumbnail: Data? // Thumbnail medio para listas (64x64, < 5KB)
 
-    // Caché del color dominante (RGB components)
     var cachedDominantColorRed: Double?
     var cachedDominantColorGreen: Double?
     var cachedDominantColorBlue: Double?

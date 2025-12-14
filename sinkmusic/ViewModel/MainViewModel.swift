@@ -39,6 +39,12 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                 // Obtener canciones desde Google Drive
                 let driveFiles = try await googleDriveService.fetchSongsFromFolder()
 
+                // Imprimir ruta donde se guardan los archivos M4A
+                if let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                    let musicDirectory = documentsDirectory.appendingPathComponent("Music")
+                    print("📁 Ruta de archivos M4A: \(musicDirectory.path)")
+                }
+
                 let descriptor = FetchDescriptor<Song>()
 
                 guard let existingSongs = try? modelContext.fetch(descriptor) else {

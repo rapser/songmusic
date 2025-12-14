@@ -2,7 +2,7 @@
 //  PlaylistListView.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import SwiftUI
@@ -19,7 +19,7 @@ struct PlaylistListView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             VStack(spacing: 0) {
                 // Header
@@ -95,7 +95,7 @@ struct PlaylistCardView: View {
                         .clipped()
                 } else if playlist.coverImageData != nil {
                     // Mostrar placeholder mientras carga
-                    Color.spotifyGray
+                    Color.appGray
                         .frame(width: 160, height: 160)
                         .overlay(
                             ProgressView()
@@ -141,7 +141,7 @@ struct PlaylistCardView: View {
 
                 Text("\(playlist.songCount) canciones")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,7 +158,7 @@ struct EmptyPlaylistsView: View {
 
             Image(systemName: "music.note.list")
                 .font(.system(size: 60))
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
 
             VStack(spacing: 8) {
                 Text("No tienes playlists")
@@ -167,7 +167,7 @@ struct EmptyPlaylistsView: View {
 
                 Text("Crea tu primera playlist para empezar")
                     .font(.system(size: 14))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
 
             Button(action: onCreate) {
@@ -176,7 +176,7 @@ struct EmptyPlaylistsView: View {
                     .foregroundColor(.black)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 12)
-                    .background(Color.spotifyGreen)
+                    .background(Color.appPurple)
                     .cornerRadius(24)
             }
             .padding(.top, 10)

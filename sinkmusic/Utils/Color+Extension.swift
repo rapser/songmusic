@@ -4,11 +4,12 @@ import UIKit
 import SwiftData
 
 extension Color {
-    static let spotifyBlack = Color(red: 25/255, green: 20/255, blue: 20/255)
-    static let spotifyGreen = Color(red: 30/255, green: 215/255, blue: 96/255)
-    static let spotifyGray = Color(red: 40/255, green: 40/255, blue: 40/255)
-    static let spotifyLightGray = Color(red: 179/255, green: 179/255, blue: 179/255)
-    
+    // Colores de la app
+    static let appDark = Color(red: 25/255, green: 20/255, blue: 20/255)
+    static let appPurple = Color(red: 138/255, green: 43/255, blue: 226/255)  // #8A2BE2
+    static let appGray = Color(red: 40/255, green: 40/255, blue: 40/255)
+    static let textGray = Color(red: 179/255, green: 179/255, blue: 179/255)
+
     // Extraer color dominante de una canción con caché
     static func dominantColor(from song: Song) -> Color {
         // Si ya está cacheado, devolverlo inmediatamente
@@ -22,7 +23,7 @@ extension Color {
         guard let imageData = song.artworkData,
               let uiImage = UIImage(data: imageData),
               let cgImage = uiImage.cgImage else {
-            return Color.spotifyGray
+            return Color.appGray
         }
         
         let color = extractDominantColor(from: cgImage)
@@ -36,7 +37,7 @@ extension Color {
         guard let imageData = imageData,
               let uiImage = UIImage(data: imageData),
               let cgImage = uiImage.cgImage else {
-            return Color.spotifyGray
+            return Color.appGray
         }
         
         return extractDominantColor(from: cgImage)
@@ -82,7 +83,7 @@ extension Color {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {
-            return Color.spotifyGray
+            return Color.appGray
         }
         
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
@@ -116,7 +117,7 @@ extension Color {
         
         // Encontrar el color más común
         guard let dominantColor = colorCounts.max(by: { $0.value.count < $1.value.count })?.value.color else {
-            return Color.spotifyGray
+            return Color.appGray
         }
         
         // Ajustar saturación y brillo estilo Spotify - colores oscuros pero con mejor claridad

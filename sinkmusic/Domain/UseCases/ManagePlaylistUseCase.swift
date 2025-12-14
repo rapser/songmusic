@@ -2,7 +2,7 @@
 //  ManagePlaylistUseCase.swift
 //  sinkmusic
 //
-//  Created by Refactoring - Use Case Pattern
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import Foundation

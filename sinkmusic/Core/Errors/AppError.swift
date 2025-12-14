@@ -2,7 +2,7 @@
 //  AppError.swift
 //  sinkmusic
 //
-//  Created by Refactoring
+//  Created by miguel tomairo on 6/09/25.
 //
 
 import Foundation
