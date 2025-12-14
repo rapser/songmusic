@@ -21,6 +21,7 @@ final class StereoProcessingEngine {
     private let bassEQ: AVAudioUnitEQ
     private let trebleEQ: AVAudioUnitEQ
     private let mainEQ: AVAudioUnitEQ
+    private let reverb: AVAudioUnitReverb  // Para ambiente espacial
     private let compressor: AVAudioUnitEffect
     private let limiter: AVAudioUnitEffect
 
@@ -43,6 +44,7 @@ final class StereoProcessingEngine {
         self.bassEQ = AVAudioUnitEQ(numberOfBands: 3)
         self.trebleEQ = AVAudioUnitEQ(numberOfBands: 3)
         self.mainEQ = AVAudioUnitEQ(numberOfBands: 10)
+        self.reverb = AVAudioUnitReverb()
 
         self.compressor = AVAudioUnitEffect(
             audioComponentDescription: AudioComponentDescription(
@@ -75,68 +77,86 @@ final class StereoProcessingEngine {
         audioEngine.attach(bassEQ)
         audioEngine.attach(trebleEQ)
         audioEngine.attach(mainEQ)
+        audioEngine.attach(reverb)
         audioEngine.attach(compressor)
         audioEngine.attach(limiter)
     }
 
     private func configureProcessing() {
-        // Bass boost (60-120 Hz)
+        // Bass boost (60-120 Hz) - Estilo Spotify (controlado)
         bassEQ.bands[0].filterType = .lowShelf
         bassEQ.bands[0].frequency = 60
-        bassEQ.bands[0].gain = 3.5
+        bassEQ.bands[0].gain = 1.5  // Más sutil
         bassEQ.bands[0].bypass = false
 
         bassEQ.bands[1].filterType = .parametric
         bassEQ.bands[1].frequency = 120
         bassEQ.bands[1].bandwidth = 0.8
-        bassEQ.bands[1].gain = 4.0
+        bassEQ.bands[1].gain = 2.0  // Controlado
         bassEQ.bands[1].bypass = false
 
         bassEQ.bands[2].filterType = .parametric
         bassEQ.bands[2].frequency = 250
         bassEQ.bands[2].bandwidth = 1.2
-        bassEQ.bands[2].gain = -1.0 // Reduce mud
+        bassEQ.bands[2].gain = -1.0 // Limpiar más las frecuencias bajas-medias
         bassEQ.bands[2].bypass = false
 
-        // Treble boost (4k-12k Hz)
+        // Treble boost (4k-12k Hz) - Aumentado para claridad
         trebleEQ.bands[0].filterType = .parametric
         trebleEQ.bands[0].frequency = 4000
         trebleEQ.bands[0].bandwidth = 1.0
-        trebleEQ.bands[0].gain = 2.5
+        trebleEQ.bands[0].gain = 3.0  // Aumentado para claridad
         trebleEQ.bands[0].bypass = false
 
         trebleEQ.bands[1].filterType = .parametric
         trebleEQ.bands[1].frequency = 8000
         trebleEQ.bands[1].bandwidth = 1.2
-        trebleEQ.bands[1].gain = 3.5
+        trebleEQ.bands[1].gain = 3.5  // Aumentado para brillo
         trebleEQ.bands[1].bypass = false
 
         trebleEQ.bands[2].filterType = .highShelf
         trebleEQ.bands[2].frequency = 12000
-        trebleEQ.bands[2].gain = 3.0
+        trebleEQ.bands[2].gain = 3.0  // Aumentado para "aire"
         trebleEQ.bands[2].bypass = false
 
-        // Main EQ (10 bandas)
+        // Main EQ (10 bandas) - Perfil Spotify/Apple Music
         let frequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+        let vocalBoost: [Float] = [-1.0, -0.5, -0.5, -2.0, -1.5, 2.5, 5.0, 4.0, 3.0, 2.5]
+        // Perfil Spotify:
+        // 32 Hz: -1.0 dB (limpiar sub-bass)
+        // 64 Hz: -0.5 dB (control de graves)
+        // 125 Hz: -0.5 dB (control)
+        // 250 Hz: -2.0 dB (limpiar barro vocal)
+        // 500 Hz: -1.5 dB (limpiar resonancias)
+        // 1000 Hz: +2.5 dB (inteligibilidad)
+        // 2000 Hz: +5.0 dB (presencia vocal CLAVE)
+        // 4000 Hz: +4.0 dB (claridad brillante)
+        // 8000 Hz: +3.0 dB (definición)
+        // 16000 Hz: +2.5 dB (aire)
+
         for (index, frequency) in frequencies.enumerated() where index < mainEQ.bands.count {
             mainEQ.bands[index].filterType = .parametric
             mainEQ.bands[index].frequency = frequency
             mainEQ.bands[index].bandwidth = 1.0
-            mainEQ.bands[index].gain = 0.0
+            mainEQ.bands[index].gain = vocalBoost[index]
             mainEQ.bands[index].bypass = false
         }
 
-        // Compressor
-        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 0)?.value = -20.0 // Threshold
-        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 1)?.value = 5.0   // Headroom
-        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 2)?.value = 0.005 // Attack
-        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 3)?.value = 0.050 // Release
-        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 4)?.value = 6.0   // Master Gain
-        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 5)?.value = 50.0  // Amount
+        // Reverb - Mínimo (Spotify casi no usa reverb)
+        reverb.loadFactoryPreset(.smallRoom)  // Cambio a Small Room (más sutil)
+        reverb.wetDryMix = 3  // 3% wet - apenas perceptible
 
-        // Limiter
-        limiter.auAudioUnit.parameterTree?.parameter(withAddress: 0)?.value = 4.0    // Pre-gain
-        limiter.auAudioUnit.parameterTree?.parameter(withAddress: 1)?.value = 0.01   // Release
+        // Compressor - Estilo Spotify (compresión más agresiva)
+        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 0)?.value = -18.0 // Threshold (más agresivo)
+        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 1)?.value = 6.0   // Headroom
+        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 2)?.value = 0.003 // Attack (más rápido)
+        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 3)?.value = 0.080 // Release
+        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 4)?.value = 4.0   // Master Gain (más volumen)
+        compressor.auAudioUnit.parameterTree?.parameter(withAddress: 5)?.value = 45.0  // Amount (más compresión)
+
+        // Limiter - Más agresivo para volumen consistente
+        limiter.auAudioUnit.parameterTree?.parameter(withAddress: 0)?.value = 2.0    // Pre-gain (más volumen)
+        limiter.auAudioUnit.parameterTree?.parameter(withAddress: 1)?.value = 0.02   // Release
         limiter.auAudioUnit.parameterTree?.parameter(withAddress: 2)?.value = 0.001  // Attack
     }
 
@@ -165,6 +185,7 @@ final class StereoProcessingEngine {
             audioEngine.disconnectNodeInput(bassEQ)
             audioEngine.disconnectNodeInput(trebleEQ)
             audioEngine.disconnectNodeInput(mainEQ)
+            audioEngine.disconnectNodeInput(reverb)
             audioEngine.disconnectNodeInput(compressor)
             audioEngine.disconnectNodeInput(limiter)
         } else {
@@ -181,7 +202,8 @@ final class StereoProcessingEngine {
             installStereoWideningTap(on: mainEQ, format: format)
         }
 
-        audioEngine.connect(mainEQ, to: compressor, format: format)
+        audioEngine.connect(mainEQ, to: reverb, format: format)
+        audioEngine.connect(reverb, to: compressor, format: format)
         audioEngine.connect(compressor, to: limiter, format: format)
         audioEngine.connect(limiter, to: audioEngine.mainMixerNode, format: format)
 

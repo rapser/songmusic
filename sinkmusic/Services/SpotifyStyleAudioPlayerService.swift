@@ -48,17 +48,17 @@ final class SpotifyStyleAudioPlayerService: NSObject, AudioPlayerProtocol {
 
         var stereoWidth: Float {
             switch self {
-            case .standard: return 0.5
-            case .spotify: return 0.7
-            case .audiophile: return 0.8
+            case .standard: return 0.1
+            case .spotify: return 0.15  // Muy sutil - todos los instrumentos en ambos lados
+            case .audiophile: return 0.25
             }
         }
 
         var compressionIntensity: Float {
             switch self {
-            case .standard: return 0.3
-            case .spotify: return 0.5
-            case .audiophile: return 0.4
+            case .standard: return 0.2
+            case .spotify: return 0.3  // Reducido para más rango dinámico
+            case .audiophile: return 0.25
             }
         }
     }

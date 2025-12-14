@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var notificationsEnabled = true
     @State private var offlineMode = false
     @State private var showExplicitContent = true
@@ -38,17 +39,17 @@ struct SettingsView: View {
                                 .foregroundColor(.spotifyGreen)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Usuario Premium")
+                                Text(authManager.userFullName ?? "Usuario Premium")
                                     .font(.headline)
                                     .foregroundColor(.white)
-                                Text("Ver perfil")
+                                Text(authManager.userEmail ?? "Ver perfil")
                                     .font(.subheadline)
                                     .foregroundColor(.spotifyLightGray)
                             }
 
                             Spacer()
 
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "apple.logo")
                                 .foregroundColor(.spotifyLightGray)
                         }
                         .padding(16)
@@ -213,7 +214,7 @@ struct SettingsView: View {
 
                     // Botón Cerrar sesión
                     Button(action: {
-                        // Acción de cerrar sesión
+                        authManager.signOut()
                     }) {
                         HStack {
                             Image(systemName: "arrow.right.square.fill")
@@ -335,5 +336,6 @@ struct SettingsToggleView: View {
         mainVM: PreviewViewModels.mainVM()
     ) {
         SettingsView()
+            .environmentObject(AuthenticationManager.shared)
     }
 }

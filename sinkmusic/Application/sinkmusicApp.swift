@@ -12,17 +12,27 @@ import SwiftData
 struct sinkmusicApp: App {
     @StateObject private var viewModel = MainViewModel()
     @StateObject private var songListViewModel = SongListViewModel()
+    @StateObject private var authManager = AuthenticationManager.shared
 
     var body: some Scene {
         WindowGroup {
-            MainAppView()
-                .environmentObject(viewModel)
-                .environmentObject(viewModel.playerViewModel)
-                .environmentObject(songListViewModel)
-                .onAppear {
-                    // Configurar CarPlay cuando la app aparece
-                    CarPlayService.shared.configure(with: viewModel.playerViewModel)
+            Group {
+                if authManager.isAuthenticated {
+                    MainAppView()
+                        .environmentObject(viewModel)
+                        .environmentObject(viewModel.playerViewModel)
+                        .environmentObject(songListViewModel)
+                        .environmentObject(authManager)
+                        .onAppear {
+                            // Configurar CarPlay cuando la app aparece
+                            CarPlayService.shared.configure(with: viewModel.playerViewModel)
+                        }
+                } else {
+                    LoginView(authManager: authManager)
+                        .transition(.opacity)
                 }
+            }
+            .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
         }
         .modelContainer(for: [Song.self, Playlist.self])
     }
