@@ -180,6 +180,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         if startFrame < audioFile.length {
             let frameCount = AVAudioFrameCount(audioFile.length - startFrame)
 
+            // Generar nuevo scheduleID para este seek
+            let scheduleID = UUID()
+            self.currentScheduleID = scheduleID
+
             playerNode.scheduleSegment(
                 audioFile,
                 startingFrame: startFrame,
@@ -187,7 +191,15 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 at: nil
             ) { [weak self] in
                 DispatchQueue.main.async {
-                    guard let self = self, let currentID = self.currentlyPlayingID else { return }
+                    guard let self = self else { return }
+
+                    // Validar que este completion corresponde al seek actual
+                    guard self.currentScheduleID == scheduleID else {
+                        // Ignorar completions de seeks antiguos
+                        return
+                    }
+
+                    guard let currentID = self.currentlyPlayingID else { return }
 
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil

@@ -17,7 +17,11 @@ struct sinkmusicApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if authManager.isAuthenticated {
+                if authManager.isCheckingAuth {
+                    // Mostrar pantalla en blanco mientras se verifica la autenticación
+                    Color.appDark
+                        .ignoresSafeArea()
+                } else if authManager.isAuthenticated {
                     MainAppView()
                         .environmentObject(viewModel)
                         .environmentObject(viewModel.playerViewModel)

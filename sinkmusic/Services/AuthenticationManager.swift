@@ -12,6 +12,7 @@ import Combine
 @MainActor
 final class AuthenticationManager: NSObject, ObservableObject {
     @Published var isAuthenticated: Bool = false
+    @Published var isCheckingAuth: Bool = true  // Nuevo estado para evitar flash de login
     @Published var userID: String?
     @Published var userEmail: String?
     @Published var userFullName: String?
@@ -43,6 +44,7 @@ final class AuthenticationManager: NSObject, ObservableObject {
             userEmail = "dev@simulator.test"
             userFullName = "Usuario Simulador"
             isAuthenticated = true
+            isCheckingAuth = false
             return
         }
 
@@ -64,8 +66,12 @@ final class AuthenticationManager: NSObject, ObservableObject {
                     default:
                         break
                     }
+                    self.isCheckingAuth = false
                 }
             }
+        } else {
+            // No hay usuario guardado, finalizar verificación
+            isCheckingAuth = false
         }
     }
 
@@ -139,6 +145,7 @@ final class AuthenticationManager: NSObject, ObservableObject {
         print("   FullName: \(self.userFullName ?? "nil")")
 
         isAuthenticated = true
+        isCheckingAuth = false
     }
 
     // MARK: - Sign Out
@@ -208,10 +215,12 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
         }
 
         isAuthenticated = true
+        isCheckingAuth = false
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         print("❌ Sign In with Apple error: \(error.localizedDescription)")
+        isCheckingAuth = false
     }
 }
 
