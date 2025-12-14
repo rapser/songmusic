@@ -29,7 +29,7 @@ struct MusicPlayerLiveActivity: Widget {
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     } else {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.spotifyGreen)
+                            .fill(Color.appPurple)
                             .frame(width: 60, height: 60)
                             .overlay(
                                 Image(systemName: "music.note")
@@ -80,17 +80,17 @@ struct MusicPlayerLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     // Barra de progreso
                     ProgressView(value: context.state.currentTime, total: context.state.duration)
-                        .tint(.spotifyGreen)
+                        .tint(.appPurple)
                 }
             } compactLeading: {
                 // Vista compacta izquierda (icono pequeño)
                 Image(systemName: context.state.isPlaying ? "play.fill" : "pause.fill")
-                    .foregroundColor(.spotifyGreen)
+                    .foregroundColor(.appPurple)
             } compactTrailing: {
                 // Vista compacta derecha (waveform animado)
                 if context.state.isPlaying {
                     Image(systemName: "waveform")
-                        .foregroundColor(.spotifyGreen)
+                        .foregroundColor(.appPurple)
                         .symbolEffect(.variableColor.iterative.reversing)
                 } else {
                     Image(systemName: "waveform")
@@ -99,7 +99,7 @@ struct MusicPlayerLiveActivity: Widget {
             } minimal: {
                 // Vista mínima (cuando hay múltiples Live Activities)
                 Image(systemName: context.state.isPlaying ? "play.fill" : "pause.fill")
-                    .foregroundColor(.spotifyGreen)
+                    .foregroundColor(.appPurple)
             }
         }
     }
@@ -121,7 +121,7 @@ struct LockScreenLiveActivityView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.spotifyGreen)
+                    .fill(Color.appPurple)
                     .frame(width: 50, height: 50)
                     .overlay(
                         Image(systemName: "music.note")
@@ -143,7 +143,7 @@ struct LockScreenLiveActivityView: View {
 
                 // Barra de progreso
                 ProgressView(value: context.state.currentTime, total: context.state.duration)
-                    .tint(.spotifyGreen)
+                    .tint(.appPurple)
             }
 
             Spacer()
@@ -156,7 +156,7 @@ struct LockScreenLiveActivityView: View {
             }
         }
         .padding()
-        .activityBackgroundTint(Color.spotifyBlack)
+        .activityBackgroundTint(Color.appDark)
         .activitySystemActionForegroundColor(.white)
     }
 }

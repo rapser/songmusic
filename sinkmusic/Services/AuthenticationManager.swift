@@ -81,6 +81,66 @@ final class AuthenticationManager: NSObject, ObservableObject {
         controller.performRequests()
     }
 
+    // Procesar directamente una autorización exitosa (usado por SignInWithAppleButton)
+    // IMPORTANTE: Apple solo proporciona email y nombre la PRIMERA vez que el usuario autoriza la app.
+    // En logins subsiguientes, estos valores serán nil. Por eso los guardamos en UserDefaults.
+    // Si el usuario revoca y vuelve a autorizar, Apple volverá a proporcionar los datos.
+    func handleSuccessfulAuthorization(_ authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            print("❌ No se pudo obtener credencial de Apple")
+            return
+        }
+
+        let userID = credential.user
+        let email = credential.email
+        let fullName = credential.fullName
+
+        print("📝 Datos recibidos de Apple:")
+        print("   UserID: \(userID)")
+        print("   Email: \(email ?? "nil")")
+        print("   FullName: \(fullName?.givenName ?? "nil") \(fullName?.familyName ?? "nil")")
+
+        // Guardar datos del usuario (solo si vienen datos nuevos)
+        saveUserData(userID: userID, email: email, fullName: fullName)
+
+        // Actualizar estado - priorizar datos nuevos, luego recuperar de UserDefaults
+        self.userID = userID
+
+        // Para email: usar el nuevo si existe, sino recuperar de UserDefaults
+        if let email = email {
+            self.userEmail = email
+            print("✅ Email actualizado: \(email)")
+        } else {
+            self.userEmail = UserDefaults.standard.string(forKey: "appleUserEmail")
+            print("ℹ️ Email recuperado de UserDefaults: \(self.userEmail ?? "nil")")
+        }
+
+        // Para nombre: construir si viene, sino recuperar de UserDefaults
+        if let fullName = fullName {
+            let name = [fullName.givenName, fullName.familyName]
+                .compactMap { $0 }
+                .joined(separator: " ")
+
+            if !name.isEmpty {
+                self.userFullName = name
+                print("✅ Nombre actualizado: \(name)")
+            } else {
+                self.userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
+                print("ℹ️ Nombre recuperado de UserDefaults: \(self.userFullName ?? "nil")")
+            }
+        } else {
+            self.userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
+            print("ℹ️ Nombre recuperado de UserDefaults: \(self.userFullName ?? "nil")")
+        }
+
+        print("📊 Estado final:")
+        print("   UserID: \(self.userID ?? "nil")")
+        print("   Email: \(self.userEmail ?? "nil")")
+        print("   FullName: \(self.userFullName ?? "nil")")
+
+        isAuthenticated = true
+    }
+
     // MARK: - Sign Out
 
     func signOut() {

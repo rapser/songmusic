@@ -10,7 +10,7 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+                Color.appDark.edgesIgnoringSafeArea(.all)
 
                 VStack(spacing: 0) {
                     // Barra de búsqueda
@@ -61,21 +61,21 @@ struct SearchBar: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
 
-            TextField("", text: $text, prompt: Text("¿Qué quieres escuchar?").foregroundColor(.spotifyLightGray))
+            TextField("", text: $text, prompt: Text("¿Qué quieres escuchar?").foregroundColor(.textGray))
                 .foregroundColor(.white)
                 .autocorrectionDisabled()
 
             if !text.isEmpty {
                 Button(action: { text = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                 }
             }
         }
         .padding(12)
-        .background(Color.spotifyGray)
+        .background(Color.appGray)
         .cornerRadius(8)
     }
 }
@@ -109,10 +109,10 @@ struct FilterChip: View {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundColor(isSelected ? .spotifyBlack : .white)
+                .foregroundColor(isSelected ? .appDark : .white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.spotifyGreen : Color.spotifyGray)
+                .background(isSelected ? Color.appPurple : Color.appGray)
                 .cornerRadius(20)
         }
     }
@@ -126,7 +126,7 @@ struct EmptySearchView: View {
 
             Image(systemName: "music.note.list")
                 .font(.system(size: 60))
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
 
             Text("Encuentra tu música")
                 .font(.title2)
@@ -135,7 +135,7 @@ struct EmptySearchView: View {
 
             Text("Busca canciones, artistas o álbumes")
                 .font(.subheadline)
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
@@ -152,7 +152,7 @@ struct NoResultsView: View {
 
             Image(systemName: "questionmark.circle")
                 .font(.system(size: 60))
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
 
             Text("No se encontraron resultados")
                 .font(.title2)
@@ -161,7 +161,7 @@ struct NoResultsView: View {
 
             Text("Intenta buscar algo diferente")
                 .font(.subheadline)
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
 
             Spacer()
         }
@@ -234,12 +234,12 @@ struct SearchResultRow: View, Equatable {
                     Text(song.title)
                         .font(.body)
                         .fontWeight(.medium)
-                        .foregroundColor(isCurrentSongPlaying ? .spotifyGreen : .white)
+                        .foregroundColor(isCurrentSongPlaying ? .appPurple : .white)
                         .lineLimit(1)
 
                     Text(song.artist)
                         .font(.subheadline)
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .lineLimit(1)
                 }
 
@@ -248,7 +248,7 @@ struct SearchResultRow: View, Equatable {
                 // Playing indicator
                 if isCurrentSongPlaying {
                     Image(systemName: "waveform")
-                        .foregroundColor(.spotifyGreen)
+                        .foregroundColor(.appPurple)
                         .symbolEffect(.variableColor.iterative.reversing)
                 }
             }
@@ -256,7 +256,7 @@ struct SearchResultRow: View, Equatable {
             .padding(.horizontal, 12)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(currentlyPlayingID == song.id ? Color.spotifyGray.opacity(0.5) : Color.clear)
+                    .fill(currentlyPlayingID == song.id ? Color.appGray.opacity(0.5) : Color.clear)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -277,11 +277,11 @@ private struct ArtworkView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             } else {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.spotifyGray)
+                    .fill(Color.appGray)
                     .frame(width: 56, height: 56)
                     .overlay(
                         Image(systemName: "music.note")
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
                     )
             }
         }

@@ -14,12 +14,12 @@ struct MainAppView: View {
     init() {
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor =  UIColor(Color.spotifyGray)
+        tabBarAppearance.backgroundColor =  UIColor(Color.appGray)
         
-        let textAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor(Color.spotifyLightGray)]
+        let textAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor(Color.textGray)]
         let selectedTextAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.white]
         
-        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(Color.spotifyLightGray)
+        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(Color.textGray)
         tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = textAttributes
         
         tabBarAppearance.stackedLayoutAppearance.selected.iconColor = .white

@@ -20,7 +20,7 @@ struct GoogleDriveConfigView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -33,7 +33,7 @@ struct GoogleDriveConfigView: View {
 
                         Text("Configura tus credenciales para acceder a Google Drive")
                             .font(.subheadline)
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 20)
@@ -49,10 +49,10 @@ struct GoogleDriveConfigView: View {
                                 .foregroundColor(.white)
                         } icon: {
                             Image(systemName: "key.fill")
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
                         }
 
-                        TextField("", text: $apiKey, prompt: Text("Ingresa tu API Key").foregroundColor(.spotifyLightGray))
+                        TextField("", text: $apiKey, prompt: Text("Ingresa tu API Key").foregroundColor(.textGray))
                             .textFieldStyle(CustomTextFieldStyle())
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -67,10 +67,10 @@ struct GoogleDriveConfigView: View {
                                 .foregroundColor(.white)
                         } icon: {
                             Image(systemName: "folder.fill")
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
                         }
 
-                        TextField("", text: $folderId, prompt: Text("Ingresa el ID de la carpeta").foregroundColor(.spotifyLightGray))
+                        TextField("", text: $folderId, prompt: Text("Ingresa el ID de la carpeta").foregroundColor(.textGray))
                             .textFieldStyle(CustomTextFieldStyle())
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -81,13 +81,13 @@ struct GoogleDriveConfigView: View {
                     if hasExistingCredentials {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
                             Text("Credenciales configuradas correctamente")
                                 .font(.subheadline)
                                 .foregroundColor(.white)
                         }
                         .padding(12)
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                         .cornerRadius(8)
                         .padding(.horizontal, 16)
                     }
@@ -104,7 +104,7 @@ struct GoogleDriveConfigView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(16)
-                            .background(apiKey.isEmpty || folderId.isEmpty ? Color.gray : Color.spotifyGreen)
+                            .background(apiKey.isEmpty || folderId.isEmpty ? Color.gray : Color.appPurple)
                             .cornerRadius(12)
                         }
                         .disabled(apiKey.isEmpty || folderId.isEmpty)
@@ -136,7 +136,7 @@ struct GoogleDriveConfigView: View {
                 Button("Cerrar") {
                     dismiss()
                 }
-                .foregroundColor(.spotifyGreen)
+                .foregroundColor(.appPurple)
             }
         }
         .onAppear {
@@ -200,7 +200,7 @@ struct InstructionsCard: View {
             Button(action: { withAnimation { isExpanded.toggle() } }) {
                 HStack {
                     Image(systemName: "info.circle.fill")
-                        .foregroundColor(.spotifyGreen)
+                        .foregroundColor(.appPurple)
 
                     Text("¿Cómo obtener estas credenciales?")
                         .font(.subheadline)
@@ -210,7 +210,7 @@ struct InstructionsCard: View {
                     Spacer()
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .font(.caption)
                 }
             }
@@ -224,21 +224,21 @@ struct InstructionsCard: View {
 
                     Text("Ejemplo de URL:")
                         .font(.caption)
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .padding(.top, 4)
 
                     Text("drive.google.com/drive/folders/[FOLDER_ID]")
                         .font(.caption)
-                        .foregroundColor(.spotifyGreen)
+                        .foregroundColor(.appPurple)
                         .padding(8)
-                        .background(Color.spotifyGray.opacity(0.5))
+                        .background(Color.appGray.opacity(0.5))
                         .cornerRadius(4)
                 }
                 .padding(.top, 8)
             }
         }
         .padding(16)
-        .background(Color.spotifyGray)
+        .background(Color.appGray)
         .cornerRadius(12)
         .padding(.horizontal, 16)
     }
@@ -253,12 +253,12 @@ struct InstructionStep: View {
             Text("\(number).")
                 .font(.caption)
                 .fontWeight(.bold)
-                .foregroundColor(.spotifyGreen)
+                .foregroundColor(.appPurple)
                 .frame(width: 20)
 
             Text(text)
                 .font(.caption)
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
         }
     }
 }
@@ -268,11 +268,11 @@ struct CustomTextFieldStyle: TextFieldStyle {
         configuration
             .foregroundColor(.white)
             .padding(12)
-            .background(Color.spotifyGray)
+            .background(Color.appGray)
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.spotifyLightGray.opacity(0.3), lineWidth: 1)
+                    .stroke(Color.textGray.opacity(0.3), lineWidth: 1)
             )
     }
 }

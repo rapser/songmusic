@@ -17,9 +17,9 @@ struct LoginView: View {
             // Background gradient (Spotify style)
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color.spotifyBlack,
-                    Color.spotifyGray.opacity(0.8),
-                    Color.spotifyBlack
+                    Color.appDark,
+                    Color.appGray.opacity(0.8),
+                    Color.appDark
                 ]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -33,8 +33,8 @@ struct LoginView: View {
                 VStack(spacing: 24) {
                     Image(systemName: "music.note.list")
                         .font(.system(size: 80))
-                        .foregroundColor(.spotifyGreen)
-                        .shadow(color: .spotifyGreen.opacity(0.3), radius: 20, x: 0, y: 10)
+                        .foregroundColor(.appPurple)
+                        .shadow(color: .appPurple.opacity(0.3), radius: 20, x: 0, y: 10)
 
                     Text("App Music")
                         .font(.system(size: 48, weight: .bold))
@@ -42,7 +42,7 @@ struct LoginView: View {
 
                     Text("Tu música local con calidad premium")
                         .font(.system(size: 16))
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -53,7 +53,7 @@ struct LoginView: View {
                 VStack(spacing: 20) {
                     FeatureBadge(
                         icon: "waveform.circle.fill",
-                        title: "Calidad Spotify Premium",
+                        title: "Calidad Premium",
                         description: "Procesamiento de audio profesional"
                     )
 
@@ -79,8 +79,9 @@ struct LoginView: View {
                         request.requestedScopes = [.fullName, .email]
                     } onCompletion: { result in
                         switch result {
-                        case .success:
-                            authManager.signInWithApple()
+                        case .success(let authorization):
+                            // Procesar directamente la autorización sin crear una segunda petición
+                            authManager.handleSuccessfulAuthorization(authorization)
                         case .failure(let error):
                             print("Sign In error: \(error)")
                         }
@@ -92,7 +93,7 @@ struct LoginView: View {
 
                     Text("Toca para iniciar sesión con Apple")
                         .font(.caption)
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                 }
                 .padding(.horizontal, 40)
                 .padding(.bottom, 60)
@@ -112,7 +113,7 @@ struct FeatureBadge: View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(.spotifyGreen)
+                .foregroundColor(.appPurple)
                 .frame(width: 40)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -122,13 +123,13 @@ struct FeatureBadge: View {
 
                 Text(description)
                     .font(.system(size: 14))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
 
             Spacer()
         }
         .padding(16)
-        .background(Color.spotifyGray.opacity(0.5))
+        .background(Color.appGray.opacity(0.5))
         .cornerRadius(12)
     }
 }

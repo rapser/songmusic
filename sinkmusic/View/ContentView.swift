@@ -14,7 +14,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             VStack(spacing: 0) {
                 // Header
@@ -34,7 +34,7 @@ struct ContentView: View {
                 HStack {
                     Text("\(downloadedSongs.count) canciones descargadas")
                         .font(.subheadline)
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
 
                     Spacer()
                 }
@@ -48,7 +48,7 @@ struct ContentView: View {
 
                         Image(systemName: "music.note.list")
                             .font(.system(size: 60))
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
 
                         VStack(spacing: 8) {
                             Text("No hay canciones descargadas")
@@ -57,7 +57,7 @@ struct ContentView: View {
 
                             Text("Ve a Configuración para descargar música")
                                 .font(.system(size: 14))
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .multilineTextAlignment(.center)
                         }
 

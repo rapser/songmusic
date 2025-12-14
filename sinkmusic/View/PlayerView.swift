@@ -67,7 +67,7 @@ struct PlayerView: View {
                     } else {
                         ZStack {
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.spotifyGreen)
+                                .fill(Color.appPurple)
                                 .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
 
                             Image(systemName: "music.note")
@@ -91,7 +91,7 @@ struct PlayerView: View {
                         .lineLimit(1)
                     Text(currentSong.artist)
                         .font(.system(size: 18))
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,7 +106,7 @@ struct PlayerView: View {
                             playerViewModel.seek(to: sliderValue)
                         }
                     }
-                    .accentColor(.spotifyGreen)
+                    .accentColor(.appPurple)
 
                     HStack {
                         Text(playerViewModel.formatTime(playerViewModel.playbackTime))
@@ -114,7 +114,7 @@ struct PlayerView: View {
                         Text(playerViewModel.formatTime(playerViewModel.songDuration))
                     }
                     .font(.caption)
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
                 }
                 .padding(.horizontal, 20)
                 
@@ -124,7 +124,7 @@ struct PlayerView: View {
                     Button(action: { playerViewModel.toggleShuffle() }) {
                         Image(systemName: "shuffle")
                             .font(.title3)
-                            .foregroundColor(playerViewModel.isShuffleEnabled ? .spotifyGreen : .spotifyLightGray)
+                            .foregroundColor(playerViewModel.isShuffleEnabled ? .appPurple : .textGray)
                             .frame(width: 50, height: 50)
                     }
                     
@@ -163,7 +163,7 @@ struct PlayerView: View {
                     Button(action: { playerViewModel.toggleRepeat() }) {
                         Image(systemName: playerViewModel.repeatMode == .repeatOne ? "repeat.1" : "repeat")
                             .font(.title3)
-                            .foregroundColor(playerViewModel.repeatMode != .off ? .spotifyGreen : .spotifyLightGray)
+                            .foregroundColor(playerViewModel.repeatMode != .off ? .appPurple : .textGray)
                             .frame(width: 50, height: 50)
                     }
                 }

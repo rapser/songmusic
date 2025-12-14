@@ -17,7 +17,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -36,7 +36,7 @@ struct SettingsView: View {
                             Image(systemName: "person.circle.fill")
                                 .resizable()
                                 .frame(width: 60, height: 60)
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(authManager.userFullName ?? "Usuario Premium")
@@ -44,16 +44,16 @@ struct SettingsView: View {
                                     .foregroundColor(.white)
                                 Text(authManager.userEmail ?? "Ver perfil")
                                     .font(.subheadline)
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
                             }
 
                             Spacer()
 
                             Image(systemName: "apple.logo")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                         }
                         .padding(16)
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                         .cornerRadius(8)
                     }
                     .padding(.horizontal, 16)
@@ -62,9 +62,35 @@ struct SettingsView: View {
                     // Sección: Cuenta
                     SectionHeaderView(title: "Cuenta")
 
-                    SettingsRowView(icon: "envelope.fill", title: "Correo electrónico", value: "usuario@taki.com")
-                    SettingsRowView(icon: "lock.fill", title: "Cambiar contraseña")
-                    SettingsRowView(icon: "creditcard.fill", title: "Suscripción", value: "Premium")
+                    if let email = authManager.userEmail {
+                        SettingsRowView(icon: "envelope.fill", title: "Correo electrónico", value: email)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 16) {
+                                Image(systemName: "envelope.fill")
+                                    .foregroundColor(.textGray)
+                                    .frame(width: 24)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Correo electrónico")
+                                        .foregroundColor(.white)
+                                    Text("No compartido por Apple")
+                                        .font(.caption)
+                                        .foregroundColor(.textGray)
+                                }
+
+                                Spacer()
+                            }
+                            .padding(16)
+                            .background(Color.appGray)
+                        }
+                    }
+
+                    if let userID = authManager.userID {
+                        SettingsRowView(icon: "person.text.rectangle.fill", title: "ID de usuario", value: String(userID.prefix(12)))
+                    }
+
+                    SettingsRowView(icon: "apple.logo", title: "Cuenta Apple", value: "Conectada")
 
                     // Sección: Descargas
                     SectionHeaderView(title: "Descargas")
@@ -72,7 +98,7 @@ struct SettingsView: View {
                     NavigationLink(destination: DownloadMusicView()) {
                         HStack(spacing: 16) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .frame(width: 24)
 
                             Text("Descargar música")
@@ -86,22 +112,22 @@ struct SettingsView: View {
                                     .font(.subheadline)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Color.spotifyGreen)
+                                    .background(Color.appPurple)
                                     .cornerRadius(12)
                             }
 
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .font(.caption)
                         }
                         .padding(16)
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                     }
 
                     NavigationLink(destination: GoogleDriveConfigView()) {
                         HStack(spacing: 16) {
                             Image(systemName: "cloud.fill")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .frame(width: 24)
 
                             Text("Configurar Google Drive")
@@ -111,15 +137,15 @@ struct SettingsView: View {
 
                             if KeychainService.shared.hasGoogleDriveCredentials {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.spotifyGreen)
+                                    .foregroundColor(.appPurple)
                             }
 
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .font(.caption)
                         }
                         .padding(16)
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                     }
 
                     // Sección: Reproducción
@@ -152,7 +178,7 @@ struct SettingsView: View {
                     NavigationLink(destination: AudioQualitySettingsView().environmentObject(DependencyContainer.shared)) {
                         HStack(spacing: 16) {
                             Image(systemName: "waveform.circle.fill")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .frame(width: 24)
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -160,21 +186,21 @@ struct SettingsView: View {
                                     .foregroundColor(.white)
                                 Text("Stereo widening, EQ, compresión")
                                     .font(.caption)
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
                             }
 
                             Spacer()
 
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
                                 .font(.caption)
 
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .font(.caption)
                         }
                         .padding(16)
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                     }
 
                     // Sección: Almacenamiento
@@ -191,7 +217,7 @@ struct SettingsView: View {
                     }) {
                         HStack {
                             Image(systemName: "trash.fill")
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
                                 .frame(width: 24, height: 24)
                             
                             Text("Limpiar caché de colores")
@@ -202,7 +228,7 @@ struct SettingsView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                     }
 
                     // Sección: Acerca de
@@ -262,7 +288,7 @@ struct SectionHeaderView: View {
         Text(title.uppercased())
             .font(.caption)
             .fontWeight(.semibold)
-            .foregroundColor(.spotifyLightGray)
+            .foregroundColor(.textGray)
             .padding(.horizontal, 16)
             .padding(.top, 24)
             .padding(.bottom, 8)
@@ -277,7 +303,7 @@ struct SettingsRowView: View {
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
                 .frame(width: 24)
 
             Text(title)
@@ -287,16 +313,16 @@ struct SettingsRowView: View {
 
             if let value = value {
                 Text(value)
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
                     .font(.subheadline)
             }
 
             Image(systemName: "chevron.right")
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
                 .font(.caption)
         }
         .padding(16)
-        .background(Color.spotifyGray)
+        .background(Color.appGray)
     }
 }
 
@@ -309,7 +335,7 @@ struct SettingsToggleView: View {
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -317,17 +343,17 @@ struct SettingsToggleView: View {
                     .foregroundColor(.white)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
 
             Spacer()
 
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .toggleStyle(SwitchToggleStyle(tint: .spotifyGreen))
+                .toggleStyle(SwitchToggleStyle(tint: .appPurple))
         }
         .padding(16)
-        .background(Color.spotifyGray)
+        .background(Color.appGray)
     }
 }
 

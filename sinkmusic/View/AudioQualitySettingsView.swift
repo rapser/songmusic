@@ -21,7 +21,7 @@ struct AudioQualitySettingsView: View {
 
     enum QualityPreset: String, CaseIterable, Identifiable {
         case standard = "Standard"
-        case spotify = "Spotify"
+        case spotify = "Premium"
         case audiophile = "Audiophile"
 
         var id: String { rawValue }
@@ -31,7 +31,7 @@ struct AudioQualitySettingsView: View {
             case .standard:
                 return "Calidad básica, menor uso de CPU"
             case .spotify:
-                return "Calidad Premium, recomendado"
+                return "Calidad óptima, recomendado"
             case .audiophile:
                 return "Máxima calidad, mayor uso de CPU"
             }
@@ -53,7 +53,7 @@ struct AudioQualitySettingsView: View {
             case .standard:
                 return .blue
             case .spotify:
-                return .spotifyGreen
+                return .appPurple
             case .audiophile:
                 return .purple
             }
@@ -62,7 +62,7 @@ struct AudioQualitySettingsView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -71,7 +71,7 @@ struct AudioQualitySettingsView: View {
                         HStack {
                             Image(systemName: "waveform.circle.fill")
                                 .font(.title)
-                                .foregroundColor(.spotifyGreen)
+                                .foregroundColor(.appPurple)
 
                             Text("Calidad de Audio")
                                 .font(.largeTitle)
@@ -81,7 +81,7 @@ struct AudioQualitySettingsView: View {
 
                         Text("Optimiza el sonido de tu música local")
                             .font(.subheadline)
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
@@ -117,14 +117,14 @@ struct AudioQualitySettingsView: View {
                         VStack(spacing: 16) {
                             HStack {
                                 Image(systemName: "waveform.circle")
-                                    .foregroundColor(.spotifyGreen)
+                                    .foregroundColor(.appPurple)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Stereo Widening")
                                         .font(.subheadline)
                                         .foregroundColor(.white)
                                     Text("\(Int(stereoWidth * 100))% - \(widthDescription)")
                                         .font(.caption)
-                                        .foregroundColor(.spotifyLightGray)
+                                        .foregroundColor(.textGray)
                                 }
                                 Spacer()
                             }
@@ -132,17 +132,17 @@ struct AudioQualitySettingsView: View {
                             HStack(spacing: 12) {
                                 Text("Mono")
                                     .font(.caption)
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
 
                                 Slider(value: $stereoWidth, in: 0...1.5, step: 0.1)
-                                    .accentColor(.spotifyGreen)
+                                    .accentColor(.appPurple)
                                     .onChange(of: stereoWidth) { _, newValue in
                                         audioPlayer?.setStereoWidth(newValue)
                                     }
 
                                 Text("Wide")
                                     .font(.caption)
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
                             }
 
                             // Visual indicator
@@ -151,7 +151,7 @@ struct AudioQualitySettingsView: View {
                                     ForEach(0..<20, id: \.self) { index in
                                         let threshold = Float(index) / 20.0 * 1.5
                                         RoundedRectangle(cornerRadius: 2)
-                                            .fill(stereoWidth >= threshold ? Color.spotifyGreen : Color.gray.opacity(0.3))
+                                            .fill(stereoWidth >= threshold ? Color.appPurple : Color.gray.opacity(0.3))
                                             .frame(height: 6)
                                     }
                                 }
@@ -159,7 +159,7 @@ struct AudioQualitySettingsView: View {
                             .frame(height: 6)
                         }
                         .padding()
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                         .cornerRadius(12)
                         .padding(.horizontal)
                     }
@@ -180,7 +180,7 @@ struct AudioQualitySettingsView: View {
                             )
 
                             Divider()
-                                .background(Color.spotifyLightGray.opacity(0.3))
+                                .background(Color.textGray.opacity(0.3))
 
                             FeatureRow(
                                 icon: "checkmark.circle.fill",
@@ -190,7 +190,7 @@ struct AudioQualitySettingsView: View {
                             )
 
                             Divider()
-                                .background(Color.spotifyLightGray.opacity(0.3))
+                                .background(Color.textGray.opacity(0.3))
 
                             FeatureRow(
                                 icon: "checkmark.circle.fill",
@@ -200,7 +200,7 @@ struct AudioQualitySettingsView: View {
                             )
 
                             Divider()
-                                .background(Color.spotifyLightGray.opacity(0.3))
+                                .background(Color.textGray.opacity(0.3))
 
                             FeatureRow(
                                 icon: "checkmark.circle.fill",
@@ -209,7 +209,7 @@ struct AudioQualitySettingsView: View {
                                 color: .green
                             )
                         }
-                        .background(Color.spotifyGray)
+                        .background(Color.appGray)
                         .cornerRadius(12)
                         .padding(.horizontal)
                     }
@@ -226,11 +226,11 @@ struct AudioQualitySettingsView: View {
                                 .fontWeight(.semibold)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .font(.caption)
                         }
                         .padding()
-                        .background(Color.spotifyGreen)
+                        .background(Color.appPurple)
                         .cornerRadius(12)
                     }
                     .padding(.horizontal)
@@ -245,13 +245,13 @@ struct AudioQualitySettingsView: View {
                                 .foregroundColor(.white)
                         }
 
-                        Text("Esta configuración mejora la calidad de audio de tus archivos locales AAC/M4A, emulando la calidad de Spotify Premium. Todo el procesamiento se realiza en tiempo real sin modificar los archivos originales.")
+                        Text("Esta configuración mejora la calidad de audio de tus archivos locales AAC/M4A con procesamiento profesional. Todo el procesamiento se realiza en tiempo real sin modificar los archivos originales.")
                             .font(.caption)
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding()
-                    .background(Color.spotifyGray.opacity(0.5))
+                    .background(Color.appGray.opacity(0.5))
                     .cornerRadius(12)
                     .padding(.horizontal)
                     .padding(.bottom, 100)
@@ -326,7 +326,7 @@ struct PresetCard: View {
             HStack(spacing: 16) {
                 Image(systemName: preset.icon)
                     .font(.title2)
-                    .foregroundColor(isSelected ? preset.color : .spotifyLightGray)
+                    .foregroundColor(isSelected ? preset.color : .textGray)
                     .frame(width: 40)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -336,7 +336,7 @@ struct PresetCard: View {
 
                     Text(preset.description)
                         .font(.caption)
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -349,7 +349,7 @@ struct PresetCard: View {
                 }
             }
             .padding()
-            .background(isSelected ? preset.color.opacity(0.2) : Color.spotifyGray)
+            .background(isSelected ? preset.color.opacity(0.2) : Color.appGray)
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
@@ -379,7 +379,7 @@ struct FeatureRow: View {
 
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
 
             Spacer()

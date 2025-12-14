@@ -26,7 +26,7 @@ struct PlaylistDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             ScrollView {
                 VStack(spacing: 0) {
@@ -71,14 +71,14 @@ struct PlaylistDetailView: View {
                             if !playlist.desc.isEmpty {
                                 Text(playlist.desc)
                                     .font(.system(size: 14))
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 40)
                             }
 
                             Text("\(playlist.songCount) canciones • \(playlist.formattedDuration)")
                                 .font(.system(size: 13))
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                         }
                         .padding(.horizontal, 20)
                     }
@@ -99,7 +99,7 @@ struct PlaylistDetailView: View {
                                 .foregroundColor(.black)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
-                                .background(Color.spotifyGreen)
+                                .background(Color.appPurple)
                                 .cornerRadius(24)
                             }
                         }
@@ -108,7 +108,7 @@ struct PlaylistDetailView: View {
                         Button(action: { showEditSheet = true }) {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .frame(width: 32, height: 32)
                                 .background(Color.white.opacity(0.1))
                                 .cornerRadius(16)
@@ -166,7 +166,7 @@ struct PlaylistDetailView: View {
                             editMode = editMode == .active ? .inactive : .active
                         }
                     }
-                    .foregroundColor(.spotifyGreen)
+                    .foregroundColor(.appPurple)
                 }
             }
         }
@@ -210,11 +210,11 @@ struct PlaylistSongRow: View {
                 if isPlaying {
                     Image(systemName: "waveform")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.spotifyGreen)
+                        .foregroundColor(.appPurple)
                 } else {
                     Text("\(index)")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                 }
             }
             .frame(width: 30)
@@ -223,12 +223,12 @@ struct PlaylistSongRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(song.title)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(isPlaying ? .spotifyGreen : .white)
+                    .foregroundColor(isPlaying ? .appPurple : .white)
                     .lineLimit(1)
 
                 Text(song.artist)
                     .font(.system(size: 13))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
                     .lineLimit(1)
             }
 
@@ -238,7 +238,7 @@ struct PlaylistSongRow: View {
             if let duration = song.duration {
                 Text(formatDuration(duration))
                     .font(.system(size: 13))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
         }
         .padding(.horizontal, 20)
@@ -259,7 +259,7 @@ struct EmptyPlaylistSongsView: View {
         VStack(spacing: 16) {
             Image(systemName: "music.note")
                 .font(.system(size: 50))
-                .foregroundColor(.spotifyLightGray)
+                .foregroundColor(.textGray)
 
             VStack(spacing: 4) {
                 Text("No hay canciones")
@@ -268,7 +268,7 @@ struct EmptyPlaylistSongsView: View {
 
                 Text("Agrega canciones a esta playlist")
                     .font(.system(size: 13))
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
         }
         .frame(maxWidth: .infinity)

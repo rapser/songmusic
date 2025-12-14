@@ -23,7 +23,7 @@ struct DownloadMusicView: View {
         // Configurar apariencia del NavigationBar
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(Color.spotifyBlack)
+        appearance.backgroundColor = UIColor(Color.appDark)
         appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
         appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
 
@@ -41,7 +41,7 @@ struct DownloadMusicView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.ignoresSafeArea()
+            Color.appDark.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 if pendingSongs.isEmpty {
@@ -51,7 +51,7 @@ struct DownloadMusicView: View {
 
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 60))
-                            .foregroundColor(.spotifyGreen)
+                            .foregroundColor(.appPurple)
 
                         VStack(spacing: 8) {
                             Text("Todo descargado")
@@ -60,7 +60,7 @@ struct DownloadMusicView: View {
 
                             Text("Todas las canciones están descargadas")
                                 .font(.system(size: 14))
-                                .foregroundColor(.spotifyLightGray)
+                                .foregroundColor(.textGray)
                                 .multilineTextAlignment(.center)
                         }
 
@@ -75,13 +75,13 @@ struct DownloadMusicView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("\(pendingSongs.count) canciones por descargar")
                                     .font(.subheadline)
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
 
                                 if songListViewModel.isDownloadingAll {
                                     let downloadingCount = songListViewModel.downloadProgress.count
                                     Text("Descargando \(downloadingCount) de \(pendingSongs.count)...")
                                         .font(.caption)
-                                        .foregroundColor(.spotifyGreen)
+                                        .foregroundColor(.appPurple)
                                 }
                             }
 
@@ -113,10 +113,10 @@ struct DownloadMusicView: View {
                                         Text("Descargar todas")
                                             .font(.system(size: 14, weight: .semibold))
                                     }
-                                    .foregroundColor(.spotifyBlack)
+                                    .foregroundColor(.appDark)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
-                                    .background(Color.spotifyGreen)
+                                    .background(Color.appPurple)
                                     .cornerRadius(20)
                                 }
                             }

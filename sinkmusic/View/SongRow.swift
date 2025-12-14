@@ -31,7 +31,7 @@ struct SongRow: View {
                     .foregroundColor(.white)
                 Text(song.artist)
                     .font(.subheadline)
-                    .foregroundColor(.spotifyLightGray)
+                    .foregroundColor(.textGray)
             }
             Spacer(minLength: 0)
 
@@ -43,7 +43,7 @@ struct SongRow: View {
                 } else {
                     VStack {
                         ProgressView(value: progress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .spotifyGreen))
+                            .progressViewStyle(LinearProgressViewStyle(tint: .appPurple))
                         Text("\(Int(progress * 100))%")
                             .font(.caption)
                             .foregroundColor(.white)
@@ -59,7 +59,7 @@ struct SongRow: View {
                               ? "pause.circle.fill"
                               : "play.circle.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(.spotifyGreen)
+                            .foregroundColor(.appPurple)
                             .frame(width: 44, height: 44)
                     }
 
@@ -69,13 +69,13 @@ struct SongRow: View {
                     }) {
                         HStack(spacing: 2) {
                             Circle()
-                                .fill(Color.spotifyLightGray)
+                                .fill(Color.textGray)
                                 .frame(width: 4, height: 4)
                             Circle()
-                                .fill(Color.spotifyLightGray)
+                                .fill(Color.textGray)
                                 .frame(width: 4, height: 4)
                             Circle()
-                                .fill(Color.spotifyLightGray)
+                                .fill(Color.textGray)
                                 .frame(width: 4, height: 4)
                         }
                         .frame(width: 44, height: 44)
@@ -88,13 +88,13 @@ struct SongRow: View {
                 }) {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 24))
-                        .foregroundColor(.spotifyGreen)
+                        .foregroundColor(.appPurple)
                         .frame(width: 44, height: 44)
                 }
             }
         }
         .padding(.vertical, 8)
-        .listRowBackground(Color.spotifyBlack)
+        .listRowBackground(Color.appDark)
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
             // Agregar a playlist (siempre disponible para canciones descargadas)
             Button(action: { showAddToPlaylist = true }) {

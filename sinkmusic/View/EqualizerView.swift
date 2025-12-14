@@ -13,7 +13,7 @@ struct EqualizerView: View {
 
     var body: some View {
         ZStack {
-            Color.spotifyBlack.edgesIgnoringSafeArea(.all)
+            Color.appDark.edgesIgnoringSafeArea(.all)
 
             VStack(spacing: 0) {
                 // Header
@@ -35,7 +35,7 @@ struct EqualizerView: View {
                     Button(action: { playerViewModel.resetEqualizer() }) {
                         Text("Restaurar")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.spotifyLightGray)
+                            .foregroundColor(.textGray)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -54,7 +54,7 @@ struct EqualizerView: View {
                                     .padding(.vertical, 7)
                                     .background(
                                         Capsule()
-                                            .fill(playerViewModel.selectedPreset == preset ? Color.spotifyGreen : Color.spotifyGray.opacity(0.3))
+                                            .fill(playerViewModel.selectedPreset == preset ? Color.appPurple : Color.appGray.opacity(0.3))
                                     )
                             }
                         }
@@ -71,7 +71,7 @@ struct EqualizerView: View {
                                 // Valor actual
                                 Text(String(format: "%.0f", band.gain))
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.spotifyLightGray)
+                                    .foregroundColor(.textGray)
                                     .frame(height: 14)
 
                                 // Slider vertical
@@ -99,7 +99,7 @@ struct EqualizerView: View {
                                                 Capsule()
                                                     .fill(
                                                         LinearGradient(
-                                                            gradient: Gradient(colors: [Color.spotifyGreen.opacity(0.8), Color.spotifyGreen]),
+                                                            gradient: Gradient(colors: [Color.appPurple.opacity(0.8), Color.appPurple]),
                                                             startPoint: .top,
                                                             endPoint: .bottom
                                                         )
@@ -112,7 +112,7 @@ struct EqualizerView: View {
                                                 Capsule()
                                                     .fill(
                                                         LinearGradient(
-                                                            gradient: Gradient(colors: [Color.spotifyGreen, Color.spotifyGreen.opacity(0.8)]),
+                                                            gradient: Gradient(colors: [Color.appPurple, Color.appPurple.opacity(0.8)]),
                                                             startPoint: .top,
                                                             endPoint: .bottom
                                                         )

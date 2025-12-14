@@ -75,6 +75,7 @@ final class SpotifyStyleAudioPlayerService: NSObject, AudioPlayerProtocol {
         applyQualityPreset(.spotify)
         setupRemoteCommandCenter()
         setupInterruptionHandling()
+        setupRouteChangeHandling()
     }
 
     // MARK: - Audio Session
@@ -367,6 +368,108 @@ final class SpotifyStyleAudioPlayerService: NSObject, AudioPlayerProtocol {
 
         @unknown default:
             break
+        }
+    }
+
+    // MARK: - Route Change Handling
+
+    private func setupRouteChangeHandling() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc private func handleRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+
+        // Solo pausar cuando se desconectan los audífonos
+        if reason == .oldDeviceUnavailable {
+            // Verificar si era un dispositivo de salida (audífonos/AirPods)
+            guard let previousRoute = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription else {
+                return
+            }
+
+            // Verificar si había audífonos conectados
+            let wasHeadphones = previousRoute.outputs.contains { output in
+                output.portType == .headphones ||
+                output.portType == .bluetoothA2DP ||
+                output.portType == .bluetoothHFP ||
+                output.portType == .bluetoothLE
+            }
+
+            if wasHeadphones {
+                print("🎧 Audífonos desconectados - pausando reproducción")
+                pause()
+
+                // Reconfigurar la sesión de audio para redirigir a los altavoces
+                reconfigureAudioSessionForCurrentRoute()
+            }
+        } else if reason == .newDeviceAvailable {
+            // Cuando se conectan nuevos audífonos, reconfigurar la ruta
+            print("🎧 Nuevo dispositivo de audio conectado")
+            reconfigureAudioSessionForCurrentRoute()
+        }
+    }
+
+    private func reconfigureAudioSessionForCurrentRoute() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+
+            // Desactivar y reactivar la sesión para forzar la actualización de la ruta
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
+
+            // Pequeña pausa para permitir que el sistema actualice la ruta
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                do {
+                    // Reactivar con la nueva ruta de audio
+                    try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+                    // Verificar la ruta actual
+                    let currentRoute = session.currentRoute
+                    let outputType = currentRoute.outputs.first?.portType
+
+                    if outputType == .builtInSpeaker {
+                        print("🔊 Audio redirigido a altavoces del iPhone")
+                    } else if outputType == .headphones || outputType == .bluetoothA2DP {
+                        print("🎧 Audio conectado a audífonos")
+                    }
+
+                    // Reiniciar el motor de audio con la nueva ruta
+                    self?.restartAudioEngine()
+
+                } catch {
+                    print("Error reactivando sesión de audio: \(error)")
+                }
+            }
+        } catch {
+            print("Error reconfigurando sesión de audio: \(error)")
+        }
+    }
+
+    private func restartAudioEngine() {
+        guard let audioFile = audioFile else { return }
+
+        do {
+            // Detener el motor actual
+            audioEngine.stop()
+
+            // Reconectar los nodos con el formato correcto
+            try audioEngine.connectNodes(with: audioFile.processingFormat)
+
+            // Solo reiniciar si había una canción cargada
+            if currentlyPlayingID != nil {
+                try audioEngine.start()
+                print("✅ Motor de audio reiniciado con nueva ruta")
+            }
+        } catch {
+            print("Error reiniciando motor de audio: \(error)")
         }
     }
 

@@ -31,7 +31,7 @@ struct PlayerControlsView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     } else {
                         ZStack {
-                            Color.spotifyGreen
+                            Color.appPurple
                                 .frame(width: 42, height: 42)
                                 .cornerRadius(4)
 
@@ -53,7 +53,7 @@ struct PlayerControlsView: View {
 
                     Text(song.artist)
                         .font(.system(size: 12))
-                        .foregroundColor(.spotifyLightGray)
+                        .foregroundColor(.textGray)
                         .lineLimit(1)
                 }
                 .padding(.leading, 8)
@@ -67,7 +67,7 @@ struct PlayerControlsView: View {
                         .frame(width: 14, height: 14)
                         .foregroundColor(.white)
                         .padding(10)
-                        .background(Color.spotifyGreen)
+                        .background(Color.appPurple)
                         .cornerRadius(16)
                 }
             }
@@ -84,7 +84,7 @@ struct PlayerControlsView: View {
 
                     // Progreso (verde)
                     Rectangle()
-                        .fill(Color.spotifyGreen)
+                        .fill(Color.appPurple)
                         .frame(
                             width: geometry.size.width * progress,
                             height: 2
