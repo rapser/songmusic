@@ -145,6 +145,37 @@ struct SettingsView: View {
                         isOn: $showExplicitContent
                     )
 
+                    // Sección: Calidad de Audio
+                    SectionHeaderView(title: "Calidad de Audio")
+
+                    NavigationLink(destination: AudioQualitySettingsView().environmentObject(DependencyContainer.shared)) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "waveform.circle.fill")
+                                .foregroundColor(.spotifyLightGray)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Calidad de Audio")
+                                    .foregroundColor(.white)
+                                Text("Stereo widening, EQ, compresión")
+                                    .font(.caption)
+                                    .foregroundColor(.spotifyLightGray)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.spotifyGreen)
+                                .font(.caption)
+
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.spotifyLightGray)
+                                .font(.caption)
+                        }
+                        .padding(16)
+                        .background(Color.spotifyGray)
+                    }
+
                     // Sección: Almacenamiento
                     SectionHeaderView(title: "Almacenamiento")
 

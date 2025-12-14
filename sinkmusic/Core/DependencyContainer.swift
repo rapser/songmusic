@@ -7,19 +7,20 @@
 
 import Foundation
 import SwiftData
+import Combine
 
 /// Contenedor de dependencias para gestionar la creación de objetos
 /// Implementa el patrón Dependency Injection Container
 /// Cumple con Single Responsibility: solo crea y gestiona dependencias
 @MainActor
-final class DependencyContainer {
+final class DependencyContainer: ObservableObject {
     
     // MARK: - Singleton
     static let shared = DependencyContainer()
     
     // MARK: - Services (Lazy initialization)
     private lazy var _audioPlayerService: AudioPlayerProtocol = {
-        RefactoredAudioPlayerService()
+        SpotifyStyleAudioPlayerService()
     }()
 
     private lazy var _metadataService: MetadataServiceProtocol = {

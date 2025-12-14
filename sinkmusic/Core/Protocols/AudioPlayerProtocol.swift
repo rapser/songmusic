@@ -40,3 +40,23 @@ protocol AudioPlayerProtocol {
     /// - Parameter bands: Array con los valores de ganancia de cada banda
     func updateEqualizer(bands: [Float])
 }
+
+// MARK: - Extensión con métodos avanzados de audio (opcionales)
+
+extension AudioPlayerProtocol {
+    /// Ajusta la amplitud del estéreo (0.0 = mono, 1.0 = muy ancho)
+    /// - Parameter width: Valor entre 0.0 y 1.5 (recomendado: 0.5-0.8)
+    func setStereoWidth(_ width: Float) { }
+
+    /// Activa/desactiva el boost de graves
+    /// - Parameter enabled: true para activar, false para desactivar
+    func setBassBoost(_ enabled: Bool) { }
+
+    /// Activa/desactiva el boost de agudos
+    /// - Parameter enabled: true para activar, false para desactivar
+    func setTrebleBoost(_ enabled: Bool) { }
+
+    /// Ajusta la intensidad de la compresión dinámica
+    /// - Parameter intensity: Valor entre 0.0 (sin compresión) y 1.0 (máxima)
+    func setCompression(_ intensity: Float) { }
+}
