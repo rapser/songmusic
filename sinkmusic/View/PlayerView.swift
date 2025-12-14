@@ -8,7 +8,6 @@ struct PlayerView: View {
     var namespace: Namespace.ID
     
     @State private var sliderValue: Double = 0
-    @State private var isEditingSlider = false
     @State private var showEqualizer = false
     
     private var dominantColor: Color {
@@ -98,15 +97,14 @@ struct PlayerView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
                 
-                // Slider de progreso
                 VStack {
-                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1)) { editing in
-                        isEditingSlider = editing
-                        if !editing {
-                            playerViewModel.seek(to: sliderValue)
+                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1))
+                        .accentColor(.white)
+                        .disabled(true)
+                        .onAppear {
+                            UISlider.appearance().setThumbImage(UIImage(), for: .normal)
+                            UISlider.appearance().setThumbImage(UIImage(), for: .highlighted)
                         }
-                    }
-                    .accentColor(.appPurple)
 
                     HStack {
                         Text(playerViewModel.formatTime(playerViewModel.playbackTime))
@@ -174,7 +172,6 @@ struct PlayerView: View {
         }
         .onAppear {
             sliderValue = playerViewModel.playbackTime
-            // Cachear color si no está cacheado
             if currentSong.cachedDominantColorRed == nil {
                 Task.detached(priority: .userInitiated) {
                     _ = await MainActor.run {
@@ -183,10 +180,8 @@ struct PlayerView: View {
                 }
             }
         }
-        .onChange(of: playerViewModel.playbackTime) { _, newValue in
-            if !isEditingSlider {
-                sliderValue = newValue
-            }
+        .onChange(of: playerViewModel.playbackTime) { oldValue, newValue in
+            sliderValue = newValue
         }
         .sheet(isPresented: $showEqualizer) {
             EqualizerView()

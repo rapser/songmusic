@@ -82,9 +82,9 @@ struct PlayerControlsView: View {
                         .fill(Color.white.opacity(0.2))
                         .frame(height: 2)
 
-                    // Progreso (verde)
+                    // Progreso (blanco)
                     Rectangle()
-                        .fill(Color.appPurple)
+                        .fill(Color.white)
                         .frame(
                             width: geometry.size.width * progress,
                             height: 2

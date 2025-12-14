@@ -170,7 +170,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     func seek(to time: TimeInterval) {
-        guard let audioFile = audioFile else { return }
+        guard let audioFile = audioFile else {
+            return
+        }
 
         let sampleRate = audioFile.processingFormat.sampleRate
         let startFrame = AVAudioFramePosition(time * sampleRate)
@@ -224,6 +226,15 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
             let currentTime = Double(playerTime.sampleTime) / playerTime.sampleRate
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+
+            // Log comentado - solo debe aparecer cuando el usuario mueve el slider
+            // let currentMinutes = Int(currentTime) / 60
+            // let currentSeconds = Int(currentTime) % 60
+            // let currentFormatted = String(format: "%02d:%02d", currentMinutes, currentSeconds)
+            // let durationMinutes = Int(duration) / 60
+            // let durationSeconds = Int(duration) % 60
+            // let durationFormatted = String(format: "%02d:%02d", durationMinutes, durationSeconds)
+            // print("⏱️ TIMER: Enviando playbackTime=\(currentTime)s [\(currentFormatted)], duration=\(duration)s [\(durationFormatted)]")
 
             self.onPlaybackTimeChanged.send((time: currentTime, duration: duration))
         }

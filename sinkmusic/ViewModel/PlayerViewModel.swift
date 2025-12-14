@@ -51,7 +51,6 @@ class PlayerViewModel: ObservableObject {
             return
         }
 
-        // Capturar metadatos si no existen (para canciones ya descargadas antes del cambio)
         if song.duration == nil || song.artworkData == nil {
             Task {
                 if let metadata = await metadataService.extractMetadata(from: url) {
@@ -67,31 +66,27 @@ class PlayerViewModel: ObservableObject {
             }
         }
 
-        // Guardar la canción actual
         currentSong = song
 
         if currentlyPlayingID == song.id {
-            // Toggle play/pause para la misma canción
             if isPlaying {
                 audioPlayerService.pause()
             } else {
                 audioPlayerService.play(songID: song.id, url: url)
             }
         } else {
+            playbackTime = 0
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
 
-        // Actualizar Now Playing Info (Live Activity se actualiza en onPlaybackStateChanged)
         updateNowPlayingInfo()
-
         scrollResetter?.resetScrollState()
     }
 
     func pause() {
         audioPlayerService.pause()
         isPlaying = false
-        // Live Activity se actualiza automáticamente en onPlaybackStateChanged
     }
 
     func stop() {
@@ -100,9 +95,6 @@ class PlayerViewModel: ObservableObject {
         currentlyPlayingID = nil
     }
 
-    func seek(to time: TimeInterval) {
-        audioPlayerService.seek(to: time)
-    }
 
     func updateSongsList(_ songs: [Song]) {
         self.allSongs = songs.filter { $0.isDownloaded }
@@ -238,10 +230,7 @@ class PlayerViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] (isPlaying, songID) in
                 self?.isPlaying = isPlaying
-                // NO actualizar currentlyPlayingID aquí - ya se actualiza en play()
-                // Esto previene que el servicio sobrescriba el ID cuando hay cambios rápidos
                 self?.updateNowPlayingInfo()
-                // Actualizar Live Activity cuando cambia el estado de reproducción
                 self?.updateLiveActivity()
             }
             .store(in: &cancellables)
@@ -249,12 +238,12 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.onPlaybackTimeChanged
             .receive(on: DispatchQueue.main)
             .sink { [weak self] (time, duration) in
-                self?.playbackTime = time
-                self?.songDuration = duration
+                guard let self = self else { return }
+                self.playbackTime = time
+                self.songDuration = duration
             }
             .store(in: &cancellables)
 
-        // Actualizar Now Playing Info cada segundo (throttle)
         audioPlayerService.onPlaybackTimeChanged
             .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
             .sink { [weak self] _ in
@@ -265,11 +254,12 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.onSongFinished
             .receive(on: DispatchQueue.main)
             .sink { [weak self] finishedSongID in
-                self?.playNextAutomatically(finishedSongID: finishedSongID)
+                guard let self = self else { return }
+                self.playbackTime = self.songDuration
+                self.playNextAutomatically(finishedSongID: finishedSongID)
             }
             .store(in: &cancellables)
 
-        // Suscribirse a los comandos remotos desde la pantalla de bloqueo
         audioPlayerService.onRemotePlayPause
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
@@ -297,8 +287,6 @@ class PlayerViewModel: ObservableObject {
 
     private func updateNowPlayingInfo() {
         guard let song = currentSong else { return }
-
-        // Asegurarse de que tenemos una duración válida
         let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
 
         audioPlayerService.updateNowPlayingInfo(
@@ -309,19 +297,13 @@ class PlayerViewModel: ObservableObject {
             currentTime: playbackTime,
             artwork: song.artworkData
         )
-
-        // NO actualizar Live Activity aquí - se actualiza solo cuando cambia el estado
-        // Live Activity maneja el progreso automáticamente
     }
 
     private func updateLiveActivity() {
         guard let song = currentSong else { return }
-
         let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
 
         if isPlaying {
-            // Iniciar o actualizar Live Activity
-            // Usamos el thumbnail pequeño (< 1KB) en lugar del artwork completo
             liveActivityService.startActivity(
                 songID: song.id,
                 songTitle: song.title,
@@ -332,7 +314,6 @@ class PlayerViewModel: ObservableObject {
                 artworkThumbnail: song.artworkThumbnail
             )
         } else if !isPlaying && liveActivityService.hasActiveActivity {
-            // Actualizar estado a pausado
             liveActivityService.updateActivity(
                 songTitle: song.title,
                 artistName: song.artist,
@@ -345,7 +326,6 @@ class PlayerViewModel: ObservableObject {
     }
 
     private func setupLiveActivityHandlers() {
-        // Escuchar notificaciones de los botones de Live Activity usando Combine
         NotificationCenter.default.publisher(for: .playPauseFromLiveActivity)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
