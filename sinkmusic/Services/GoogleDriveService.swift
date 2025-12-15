@@ -42,6 +42,7 @@ struct GoogleDriveFile: Codable, Identifiable {
 
 struct GoogleDriveResponse: Codable {
     let files: [GoogleDriveFile]
+    let nextPageToken: String?
 }
 
 enum GoogleDriveError: Error {
@@ -87,39 +88,60 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
             throw GoogleDriveError.missingFolderId
         }
 
-        // URL de la API de Google Drive Files.list
-        // Usando acceso público sin autenticación para carpetas compartidas
-        let urlString = "https://www.googleapis.com/drive/v3/files"
+        var allFiles: [GoogleDriveFile] = []
+        var pageToken: String? = nil
 
-        guard var components = URLComponents(string: urlString) else {
-            throw URLError(.badURL)
-        }
+        // Iterar sobre todas las páginas de resultados
+        repeat {
+            // URL de la API de Google Drive Files.list
+            // Usando acceso público sin autenticación para carpetas compartidas
+            let urlString = "https://www.googleapis.com/drive/v3/files"
 
-        // Parámetros de consulta
-        components.queryItems = [
-            URLQueryItem(name: "q", value: "'\(folderId)' in parents and (mimeType='audio/mpeg' or mimeType='audio/mp4' or mimeType='audio/x-m4a')"),
-            URLQueryItem(name: "fields", value: "files(id,name,mimeType)"),
-            URLQueryItem(name: "key", value: apiKey)
-        ]
+            guard var components = URLComponents(string: urlString) else {
+                throw URLError(.badURL)
+            }
 
-        guard let url = components.url else {
-            throw URLError(.badURL)
-        }
+            // Parámetros de consulta
+            var queryItems = [
+                URLQueryItem(name: "q", value: "'\(folderId)' in parents and (mimeType='audio/mpeg' or mimeType='audio/mp4' or mimeType='audio/x-m4a')"),
+                URLQueryItem(name: "fields", value: "files(id,name,mimeType),nextPageToken"),
+                URLQueryItem(name: "pageSize", value: "1000"),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+            // Agregar pageToken si existe
+            if let pageToken = pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
+            components.queryItems = queryItems
 
-        if httpResponse.statusCode != 200 {
-            throw URLError(.badServerResponse)
-        }
+            guard let url = components.url else {
+                throw URLError(.badURL)
+            }
 
-        let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
+            let (data, response) = try await URLSession.shared.data(from: url)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw URLError(.badServerResponse)
+            }
+
+            if httpResponse.statusCode != 200 {
+                throw URLError(.badServerResponse)
+            }
+
+            let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
+
+            // Agregar archivos de esta página
+            allFiles.append(contentsOf: driveResponse.files)
+
+            // Actualizar pageToken para la siguiente iteración
+            pageToken = driveResponse.nextPageToken
+
+        } while pageToken != nil
 
         // Filtrar solo archivos .m4a
-        let m4aFiles = driveResponse.files.filter { file in
+        let m4aFiles = allFiles.filter { file in
             file.name.hasSuffix(".m4a")
         }
 

@@ -7,12 +7,43 @@ struct SettingsView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @EnvironmentObject var authManager: AuthenticationManager
-    @State private var notificationsEnabled = true
-    @State private var offlineMode = false
-    @State private var showExplicitContent = true
 
     var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
+    }
+
+    var downloadedSongs: [Song] {
+        songs.filter { $0.isDownloaded }
+    }
+
+    var totalStorageUsed: String {
+        let fileManager = FileManager.default
+        var totalSize: Int64 = 0
+
+        for song in downloadedSongs {
+            if let localURL = GoogleDriveService().localURL(for: song.id),
+               fileManager.fileExists(atPath: localURL.path) {
+                do {
+                    let attributes = try fileManager.attributesOfItem(atPath: localURL.path)
+                    if let fileSize = attributes[.size] as? Int64 {
+                        totalSize += fileSize
+                    }
+                } catch {
+                    continue
+                }
+            }
+        }
+
+        return formatBytes(totalSize)
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useGB, .useMB]
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.isAdaptive = true
+        return formatter.string(fromByteCount: bytes)
     }
 
     var body: some View {
@@ -148,37 +179,13 @@ struct SettingsView: View {
                         .background(Color.appGray)
                     }
 
-                    // Sección: Reproducción
-                    SectionHeaderView(title: "Reproducción")
-
-                    SettingsToggleView(
-                        icon: "bell.fill",
-                        title: "Notificaciones",
-                        subtitle: "Recibe notificaciones de nuevas canciones",
-                        isOn: $notificationsEnabled
-                    )
-
-                    SettingsToggleView(
-                        icon: "arrow.down.circle.fill",
-                        title: "Modo offline",
-                        subtitle: "Solo reproduce música descargada",
-                        isOn: $offlineMode
-                    )
-
-                    SettingsToggleView(
-                        icon: "exclamationmark.triangle.fill",
-                        title: "Contenido explícito",
-                        subtitle: "Permitir canciones con contenido explícito",
-                        isOn: $showExplicitContent
-                    )
-
                     // Sección: Almacenamiento
                     SectionHeaderView(title: "Almacenamiento")
 
                     SettingsRowView(
                         icon: "internaldrive.fill",
                         title: "Espacio usado",
-                        value: "2.4 GB"
+                        value: totalStorageUsed
                     )
 
                     Button(action: {
