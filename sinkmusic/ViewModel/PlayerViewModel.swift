@@ -97,7 +97,9 @@ class PlayerViewModel: ObservableObject {
 
 
     func updateSongsList(_ songs: [Song]) {
-        self.allSongs = songs.filter { $0.isDownloaded }
+        let downloadedSongs = songs.filter { $0.isDownloaded }
+        self.allSongs = downloadedSongs
+        print("📋 Lista actualizada: \(downloadedSongs.count) canciones descargadas")
     }
 
     func toggleShuffle() {
@@ -161,36 +163,53 @@ class PlayerViewModel: ObservableObject {
     }
 
     private func playNextAutomatically(finishedSongID: UUID) {
+        // Buscar la canción actual en allSongs
         guard let currentSong = allSongs.first(where: { $0.id == finishedSongID }) else {
+            print("⚠️ Canción terminada no encontrada en allSongs. ID: \(finishedSongID)")
+            print("   allSongs count: \(allSongs.count)")
+            return
+        }
+
+        // Filtrar solo canciones descargadas
+        let downloadedSongs = allSongs.filter { $0.isDownloaded }
+
+        guard !downloadedSongs.isEmpty else {
+            print("⚠️ No hay canciones descargadas disponibles")
             return
         }
 
         switch repeatMode {
         case .repeatOne:
+            // Repetir la misma canción
+            print("🔁 Repeat One: Repitiendo '\(currentSong.title)'")
             play(song: currentSong)
+
         case .repeatAll:
+            // Continuar reproduciendo y volver al inicio si es la última
+            print("🔁 Repeat All: Siguiente canción")
             playNext(currentSong: currentSong, allSongs: allSongs)
+
         case .off:
+            // Comportamiento por defecto: continuar hasta la última canción
+            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else {
+                print("⚠️ No se encontró el índice de la canción actual")
+                return
+            }
 
             if isShuffleEnabled {
-                // En modo shuffle sin repeat, SIEMPRE reproduce una canción aleatoria
-                // No se detiene hasta que el usuario pause manualmente
-                let downloadedSongs = allSongs.filter { $0.isDownloaded }
-                if !downloadedSongs.isEmpty {
-                    playNext(currentSong: currentSong, allSongs: allSongs)
-                }
+                // En shuffle sin repeat: continuar con canciones aleatorias
+                print("🔀 Shuffle: Siguiente canción aleatoria")
+                playNext(currentSong: currentSong, allSongs: allSongs)
             } else {
-                // En modo secuencial sin repeat, solo avanza si no es la última
-                let downloadedSongs = allSongs.filter { $0.isDownloaded }
-                guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else {
-                    return
-                }
+                // En secuencial sin repeat: continuar hasta la última canción
                 if idx < downloadedSongs.count - 1 {
+                    // Hay más canciones, reproducir la siguiente
+                    print("▶️ Modo normal: Siguiente canción (\(idx + 1)/\(downloadedSongs.count))")
                     playNext(currentSong: currentSong, allSongs: allSongs)
                 } else {
-                    // Detener la reproducción y resetear el estado
+                    // Es la última canción, detener la reproducción
+                    print("⏹️ Última canción alcanzada. Deteniendo reproducción.")
                     isPlaying = false
-                    // Mantener el currentlyPlayingID para mostrar qué canción fue la última
                 }
             }
         }
@@ -200,6 +219,12 @@ class PlayerViewModel: ObservableObject {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    // MARK: - Seek
+    func seek(to time: TimeInterval) {
+        audioPlayerService.seek(to: time)
+        playbackTime = time
     }
 
     // MARK: - Equalizer Functions

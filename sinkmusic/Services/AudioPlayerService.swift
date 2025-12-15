@@ -174,10 +174,13 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             return
         }
 
+        let wasPlaying = playerNode.isPlaying
         let sampleRate = audioFile.processingFormat.sampleRate
         let startFrame = AVAudioFramePosition(time * sampleRate)
 
+        // Detener el nodo y el timer actual
         playerNode.stop()
+        playbackTimer?.invalidate()
 
         if startFrame < audioFile.length {
             let frameCount = AVAudioFrameCount(audioFile.length - startFrame)
@@ -210,7 +213,15 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 }
             }
 
-            playerNode.play()
+            // Solo reanudar si estaba reproduciendo
+            if wasPlaying {
+                playerNode.play()
+                startPlaybackTimer()
+            } else {
+                // Si estaba pausado, enviar el tiempo actualizado una vez
+                let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+                onPlaybackTimeChanged.send((time: time, duration: duration))
+            }
         }
     }
 

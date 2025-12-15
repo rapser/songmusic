@@ -25,14 +25,25 @@ struct SongRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading) {
-                Text(song.title)
-                    .font(.headline)
-                    .foregroundColor(.white)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    // Mostrar el indicador solo si esta canción está reproduciéndose
+                    if playerViewModel.currentlyPlayingID == song.id {
+                        PlayingBarsIndicator(isPlaying: playerViewModel.isPlaying)
+                    }
+
+                    Text(song.title)
+                        .font(.headline)
+                        .foregroundColor(playerViewModel.currentlyPlayingID == song.id ? .appPurple : .white)
+                        .lineLimit(1)
+                }
+
                 Text(song.artist)
                     .font(.subheadline)
                     .foregroundColor(.textGray)
+                    .lineLimit(1)
             }
+
             Spacer(minLength: 0)
 
             if let progress = songListViewModel.downloadProgress[song.id] {

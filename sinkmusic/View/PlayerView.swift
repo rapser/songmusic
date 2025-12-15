@@ -8,6 +8,7 @@ struct PlayerView: View {
     var namespace: Namespace.ID
     
     @State private var sliderValue: Double = 0
+    @State private var isSeekingManually = false
     @State private var showEqualizer = false
     
     private var dominantColor: Color {
@@ -98,16 +99,21 @@ struct PlayerView: View {
                 .padding(.bottom, 16)
                 
                 VStack {
-                    Slider(value: $sliderValue, in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1))
-                        .accentColor(.white)
-                        .disabled(true)
-                        .onAppear {
-                            UISlider.appearance().setThumbImage(UIImage(), for: .normal)
-                            UISlider.appearance().setThumbImage(UIImage(), for: .highlighted)
+                    Slider(
+                        value: $sliderValue,
+                        in: 0...(playerViewModel.songDuration > 0 ? playerViewModel.songDuration : 1),
+                        onEditingChanged: { editing in
+                            isSeekingManually = editing
+                            if !editing {
+                                // Usuario soltó el slider, hacer el seek
+                                playerViewModel.seek(to: sliderValue)
+                            }
                         }
+                    )
+                    .accentColor(.white)
 
                     HStack {
-                        Text(playerViewModel.formatTime(playerViewModel.playbackTime))
+                        Text(playerViewModel.formatTime(isSeekingManually ? sliderValue : playerViewModel.playbackTime))
                         Spacer()
                         Text(playerViewModel.formatTime(playerViewModel.songDuration))
                     }
@@ -181,7 +187,10 @@ struct PlayerView: View {
             }
         }
         .onChange(of: playerViewModel.playbackTime) { oldValue, newValue in
-            sliderValue = newValue
+            // Solo actualizar el slider si el usuario NO está arrastrándolo
+            if !isSeekingManually {
+                sliderValue = newValue
+            }
         }
         .sheet(isPresented: $showEqualizer) {
             EqualizerView()
