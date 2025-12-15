@@ -186,6 +186,11 @@ struct PlayerView: View {
                 }
             }
         }
+        .onChange(of: currentSong.id) { oldValue, newValue in
+            // Cuando cambia la canción, resetear el slider
+            sliderValue = 0
+            isSeekingManually = false
+        }
         .onChange(of: playerViewModel.playbackTime) { oldValue, newValue in
             // Solo actualizar el slider si el usuario NO está arrastrándolo
             if !isSeekingManually {

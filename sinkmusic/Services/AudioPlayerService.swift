@@ -26,6 +26,7 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var isFirstConnection = true // Flag para saber si es la primera vez que conectamos
     private var currentScheduleID = UUID() // ID único para cada scheduleFile, para ignorar completion handlers obsoletos
     private var wasPlayingBeforeInterruption = false // Flag para saber si estaba reproduciendo antes de una interrupción
+    private var seekOffset: TimeInterval = 0 // Offset de tiempo cuando hacemos seek
 
     override init() {
         self.audioEngine = AVAudioEngine()
@@ -142,6 +143,7 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 playerNode.play()
 
                 self.currentlyPlayingID = songID
+                self.seekOffset = 0 // Reset del offset al reproducir una nueva canción
                 startPlaybackTimer()
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
@@ -185,6 +187,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         if startFrame < audioFile.length {
             let frameCount = AVAudioFrameCount(audioFile.length - startFrame)
 
+            // Actualizar el offset de seek
+            self.seekOffset = time
+
             // Generar nuevo scheduleID para este seek
             let scheduleID = UUID()
             self.currentScheduleID = scheduleID
@@ -213,14 +218,14 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 }
             }
 
+            // Enviar inmediatamente el nuevo tiempo
+            let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+            onPlaybackTimeChanged.send((time: time, duration: duration))
+
             // Solo reanudar si estaba reproduciendo
             if wasPlaying {
                 playerNode.play()
                 startPlaybackTimer()
-            } else {
-                // Si estaba pausado, enviar el tiempo actualizado una vez
-                let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-                onPlaybackTimeChanged.send((time: time, duration: duration))
             }
         }
     }
@@ -235,17 +240,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 return
             }
 
-            let currentTime = Double(playerTime.sampleTime) / playerTime.sampleRate
+            // Calcular el tiempo desde que el nodo comenzó a reproducir + el offset del seek
+            let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
+            let currentTime = nodePlaybackTime + self.seekOffset
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-
-            // Log comentado - solo debe aparecer cuando el usuario mueve el slider
-            // let currentMinutes = Int(currentTime) / 60
-            // let currentSeconds = Int(currentTime) % 60
-            // let currentFormatted = String(format: "%02d:%02d", currentMinutes, currentSeconds)
-            // let durationMinutes = Int(duration) / 60
-            // let durationSeconds = Int(duration) % 60
-            // let durationFormatted = String(format: "%02d:%02d", durationMinutes, durationSeconds)
-            // print("⏱️ TIMER: Enviando playbackTime=\(currentTime)s [\(currentFormatted)], duration=\(duration)s [\(durationFormatted)]")
 
             self.onPlaybackTimeChanged.send((time: currentTime, duration: duration))
         }
