@@ -15,6 +15,7 @@ struct GoogleDriveConfigView: View {
     @State private var folderId: String = ""
     @State private var showSaveConfirmation = false
     @State private var hasExistingCredentials = false
+    @State private var showDeleteAlert = false
 
     private let keychainService = KeychainService.shared
 
@@ -111,7 +112,7 @@ struct GoogleDriveConfigView: View {
 
                         // Botón Eliminar
                         if hasExistingCredentials {
-                            Button(action: deleteCredentials) {
+                            Button(action: { showDeleteAlert = true }) {
                                 HStack {
                                     Image(systemName: "trash.fill")
                                     Text("Eliminar Credenciales")
@@ -146,6 +147,14 @@ struct GoogleDriveConfigView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Las credenciales se han guardado de forma segura en Keychain")
+        }
+        .alert("Eliminar Credenciales", isPresented: $showDeleteAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar", role: .destructive) {
+                deleteCredentials()
+            }
+        } message: {
+            Text("Se eliminarán las credenciales de Google Drive y todas las canciones descargadas. Esta acción no se puede deshacer.")
         }
     }
 

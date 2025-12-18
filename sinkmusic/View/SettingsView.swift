@@ -8,6 +8,8 @@ struct SettingsView: View {
     @EnvironmentObject var songListViewModel: SongListViewModel
     @EnvironmentObject var authManager: AuthenticationManager
 
+    @State private var showDeleteAllAlert = false
+
     var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
     }
@@ -195,17 +197,45 @@ struct SettingsView: View {
                             Image(systemName: "trash.fill")
                                 .foregroundColor(.appPurple)
                                 .frame(width: 24, height: 24)
-                            
+
                             Text("Limpiar caché de colores")
                                 .font(.body)
                                 .foregroundColor(.white)
-                            
+
                             Spacer()
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(Color.appGray)
                     }
+
+                    Button(action: {
+                        showDeleteAllAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "trash.circle.fill")
+                                .foregroundColor(.red)
+                                .frame(width: 24, height: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Eliminar todas las descargas")
+                                    .font(.body)
+                                    .foregroundColor(.white)
+
+                                if !downloadedSongs.isEmpty {
+                                    Text("\(downloadedSongs.count) canciones descargadas")
+                                        .font(.caption)
+                                        .foregroundColor(.textGray)
+                                }
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.appGray)
+                    }
+                    .disabled(downloadedSongs.isEmpty)
 
                     // Sección: Acerca de
                     SectionHeaderView(title: "Acerca de")
@@ -237,8 +267,49 @@ struct SettingsView: View {
                 }
             }
         }
+        .alert("Eliminar todas las descargas", isPresented: $showDeleteAllAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar", role: .destructive) {
+                deleteAllDownloads()
+            }
+        } message: {
+            Text("Se eliminarán \(downloadedSongs.count) canciones descargadas. Esta acción no se puede deshacer.")
+        }
     }
-    
+
+    private func deleteAllDownloads() {
+        Task {
+            // Pausar reproducción si hay algo tocando
+            if playerViewModel.isPlaying {
+                playerViewModel.pause()
+            }
+
+            for song in downloadedSongs {
+                // Eliminar el archivo descargado
+                do {
+                    try DownloadService().deleteDownload(for: song.id)
+                } catch {
+                    print("Error al eliminar descarga de \(song.title): \(error)")
+                }
+
+                // Resetear los datos de la canción
+                song.isDownloaded = false
+                song.duration = nil
+                song.artworkData = nil
+                song.album = nil
+                song.author = nil
+            }
+
+            // Guardar todos los cambios
+            do {
+                try modelContext.save()
+                print("✅ Todas las descargas eliminadas exitosamente")
+            } catch {
+                print("❌ Error al guardar cambios: \(error)")
+            }
+        }
+    }
+
     private func clearColorCache() {
         for song in songs {
             song.cachedDominantColorRed = nil

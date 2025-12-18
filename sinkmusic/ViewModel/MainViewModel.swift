@@ -27,8 +27,11 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
     
     func syncLibraryWithCatalog(modelContext: ModelContext) {
         guard keychainService.hasGoogleDriveCredentials else {
-            // Si no hay credenciales, limpiar la base de datos local.
-            clearLibrary(modelContext: modelContext)
+            // Si no hay credenciales, solo detener la sincronización
+            // NO eliminar canciones descargadas - el usuario puede querer conservarlas
+            print("⚠️ No hay credenciales de Google Drive. La sincronización no se ejecutará.")
+            print("ℹ️ Las canciones descargadas se conservarán hasta que el usuario las elimine manualmente desde Configuración.")
+            isLoadingSongs = false
             return
         }
 

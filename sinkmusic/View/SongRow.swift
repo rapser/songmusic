@@ -125,13 +125,6 @@ struct SongRow: View {
                 )
             }
 
-            // Opción para eliminar la descarga
-            Button(role: .destructive, action: {
-                songListViewModel.deleteDownload(song: song, modelContext: modelContext)
-            }) {
-                Label("Eliminar descarga", systemImage: "trash")
-            }
-
             Button("Cancelar", role: .cancel) {}
         }
         .sheet(isPresented: $showAddToPlaylist) {
