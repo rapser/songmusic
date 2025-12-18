@@ -179,10 +179,8 @@ struct PlayerView: View {
         .onAppear {
             sliderValue = playerViewModel.playbackTime
             if currentSong.cachedDominantColorRed == nil {
-                Task.detached(priority: .userInitiated) {
-                    _ = await MainActor.run {
-                        Color.cacheAndGetDominantColor(for: currentSong)
-                    }
+                Task(priority: .userInitiated) {
+                    Color.cacheAndGetDominantColor(for: currentSong)
                 }
             }
         }

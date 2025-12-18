@@ -8,48 +8,19 @@ struct SettingsView: View {
     @EnvironmentObject var songListViewModel: SongListViewModel
     @EnvironmentObject var authManager: AuthenticationManager
 
-    @State private var showDeleteAllAlert = false
+    @StateObject private var settingsViewModel = SettingsViewModel()
     @State private var showSignOutAlert = false
 
     var pendingSongs: [Song] {
-        songs.filter { !$0.isDownloaded }
+        settingsViewModel.filterPendingSongs(songs)
     }
 
     var downloadedSongs: [Song] {
-        songs.filter { $0.isDownloaded }
+        settingsViewModel.filterDownloadedSongs(songs)
     }
 
     var totalStorageUsed: String {
-        let fileManager = FileManager.default
-        var totalSize: Int64 = 0
-
-        for song in downloadedSongs {
-            if let localURL = GoogleDriveService().localURL(for: song.id),
-               fileManager.fileExists(atPath: localURL.path) {
-                do {
-                    let attributes = try fileManager.attributesOfItem(atPath: localURL.path)
-                    if let fileSize = attributes[.size] as? Int64 {
-                        totalSize += fileSize
-                    }
-                } catch {
-                    continue
-                }
-            }
-        }
-
-        return formatBytes(totalSize)
-    }
-
-    private func formatBytes(_ bytes: Int64) -> String {
-        if bytes == 0 {
-            return "0 KB"
-        }
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useGB, .useMB, .useKB]
-        formatter.countStyle = .file
-        formatter.includesUnit = true
-        formatter.isAdaptive = true
-        return formatter.string(fromByteCount: bytes)
+        settingsViewModel.calculateTotalStorageUsed(for: songs)
     }
 
     var body: some View {
@@ -195,7 +166,7 @@ struct SettingsView: View {
                     )
 
                     Button(action: {
-                        showDeleteAllAlert = true
+                        settingsViewModel.showDeleteAllAlert = true
                     }) {
                         HStack {
                             Image(systemName: "trash.circle.fill")
@@ -252,10 +223,16 @@ struct SettingsView: View {
                 }
             }
         }
-        .alert("Eliminar todas las descargas", isPresented: $showDeleteAllAlert) {
+        .alert("Eliminar todas las descargas", isPresented: $settingsViewModel.showDeleteAllAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
-                deleteAllDownloads()
+                Task {
+                    await settingsViewModel.deleteAllDownloads(
+                        songs: songs,
+                        modelContext: modelContext,
+                        playerViewModel: playerViewModel
+                    )
+                }
             }
         } message: {
             Text("Se eliminarán \(downloadedSongs.count) canciones descargadas. Esta acción no se puede deshacer.")
@@ -267,39 +244,6 @@ struct SettingsView: View {
             }
         } message: {
             Text("¿Estás seguro de que quieres cerrar sesión?")
-        }
-    }
-
-    private func deleteAllDownloads() {
-        Task {
-            // Pausar reproducción si hay algo tocando
-            if playerViewModel.isPlaying {
-                playerViewModel.pause()
-            }
-
-            for song in downloadedSongs {
-                // Eliminar el archivo descargado
-                do {
-                    try DownloadService().deleteDownload(for: song.id)
-                } catch {
-                    print("Error al eliminar descarga de \(song.title): \(error)")
-                }
-
-                // Resetear los datos de la canción
-                song.isDownloaded = false
-                song.duration = nil
-                song.artworkData = nil
-                song.album = nil
-                song.author = nil
-            }
-
-            // Guardar todos los cambios
-            do {
-                try modelContext.save()
-                print("✅ Todas las descargas eliminadas exitosamente")
-            } catch {
-                print("❌ Error al guardar cambios: \(error)")
-            }
         }
     }
 
