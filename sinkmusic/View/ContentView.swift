@@ -76,12 +76,8 @@ struct ContentView: View {
             }
         }
         .task {
-            // Ejecutar en background thread
-            await Task.detached(priority: .userInitiated) {
-                await MainActor.run {
-                    viewModel.syncLibraryWithCatalog(modelContext: modelContext)
-                }
-            }.value
+            // Sincronizar automáticamente al cargar la vista
+            viewModel.syncLibraryWithCatalog(modelContext: modelContext)
         }
     }
 }

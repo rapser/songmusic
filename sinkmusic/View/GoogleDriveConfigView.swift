@@ -183,6 +183,13 @@ struct GoogleDriveConfigView: View {
             hasExistingCredentials = true
             showSaveConfirmation = true
             print("✅ Credenciales guardadas en Keychain")
+
+            // Sincronizar automáticamente después de guardar credenciales
+            Task {
+                await MainActor.run {
+                    mainViewModel.syncLibraryWithCatalog(modelContext: modelContext)
+                }
+            }
         } else {
             print("❌ Error al guardar credenciales")
         }

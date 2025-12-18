@@ -8,10 +8,18 @@ protocol ScrollStateResettable: AnyObject {
     func resetScrollState()
 }
 
+enum SyncError: Error {
+    case invalidCredentials
+    case emptyFolder
+    case networkError(String)
+}
+
 @MainActor
 class MainViewModel: ObservableObject, ScrollStateResettable {
     @Published var isScrolling: Bool = false
     @Published var isLoadingSongs: Bool = false
+    @Published var syncError: SyncError?
+    @Published var syncErrorMessage: String?
     var playerViewModel: PlayerViewModel
     private let googleDriveService = GoogleDriveService()
     private let keychainService = KeychainService.shared
@@ -27,20 +35,30 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
     
     func syncLibraryWithCatalog(modelContext: ModelContext) {
         guard keychainService.hasGoogleDriveCredentials else {
-            // Si no hay credenciales, solo detener la sincronización
-            // NO eliminar canciones descargadas - el usuario puede querer conservarlas
-            print("⚠️ No hay credenciales de Google Drive. La sincronización no se ejecutará.")
-            print("ℹ️ Las canciones descargadas se conservarán hasta que el usuario las elimine manualmente desde Configuración.")
+            syncError = nil
+            syncErrorMessage = nil
             isLoadingSongs = false
             return
         }
 
         isLoadingSongs = true
+        syncError = nil
+        syncErrorMessage = nil
 
         Task {
             do {
                 // Obtener canciones desde Google Drive
                 let driveFiles = try await googleDriveService.fetchSongsFromFolder()
+
+                // Validar que haya canciones en la carpeta
+                if driveFiles.isEmpty {
+                    await MainActor.run {
+                        syncError = .emptyFolder
+                        syncErrorMessage = "La carpeta de Google Drive está vacía o no contiene archivos de audio"
+                        isLoadingSongs = false
+                    }
+                    return
+                }
 
                 // Imprimir ruta donde se guardan los archivos M4A
                 if let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
@@ -51,7 +69,9 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                 let descriptor = FetchDescriptor<Song>()
 
                 guard let existingSongs = try? modelContext.fetch(descriptor) else {
-                    isLoadingSongs = false
+                    await MainActor.run {
+                        isLoadingSongs = false
+                    }
                     return
                 }
 
@@ -62,8 +82,6 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
 
                 for driveFile in driveFiles {
                     if let existingSong = existingSongsMap[driveFile.id] {
-                        // Solo actualizar título y artista si NO tiene metadatos extraídos
-                        // Si tiene duration o artwork, significa que ya se extrajeron los metadatos reales
                         let hasMetadata = existingSong.duration != nil || existingSong.artworkData != nil
 
                         if !hasMetadata && (existingSong.title != driveFile.title || existingSong.artist != driveFile.artist) {
@@ -78,11 +96,30 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                     }
                 }
 
-                isLoadingSongs = false
+                await MainActor.run {
+                    syncError = nil
+                    syncErrorMessage = nil
+                    isLoadingSongs = false
+                    print("✅ Sincronización completada: \(newSongsAdded) nuevas, \(songsUpdated) actualizadas")
+                }
             } catch {
-                // El error se manejará en la UI, por ejemplo mostrando un mensaje.
-                // Ya no se recurre al catálogo local.
-                isLoadingSongs = false
+                await MainActor.run {
+                    let errorString = error.localizedDescription.lowercased()
+
+                    if errorString.contains("401") || errorString.contains("403") || errorString.contains("unauthorized") {
+                        syncError = .invalidCredentials
+                        syncErrorMessage = "Las credenciales de Google Drive son inválidas o han expirado"
+                    } else if errorString.contains("404") || errorString.contains("not found") {
+                        syncError = .emptyFolder
+                        syncErrorMessage = "No se encontró la carpeta o no contiene archivos de audio"
+                    } else {
+                        syncError = .networkError(error.localizedDescription)
+                        syncErrorMessage = "Error de conexión: \(error.localizedDescription)"
+                    }
+
+                    isLoadingSongs = false
+                    print("❌ Error en sincronización: \(syncErrorMessage ?? "Error desconocido")")
+                }
             }
         }
     }

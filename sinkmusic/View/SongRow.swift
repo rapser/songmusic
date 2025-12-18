@@ -62,35 +62,22 @@ struct SongRow: View {
                     .frame(width: 100)
                 }
             } else if song.isDownloaded {
-                HStack(spacing: 4) {
-                    Button(action: {
-                        playerViewModel.play(song: song)
-                    }) {
-                        Image(systemName: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
-                              ? "pause.circle.fill"
-                              : "play.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.appPurple)
-                            .frame(width: 44, height: 44)
+                // Botón de tres puntos horizontales (menú) - estilo Spotify
+                Button(action: {
+                    showSongMenu = true
+                }) {
+                    HStack(spacing: 2) {
+                        Circle()
+                            .fill(Color.textGray)
+                            .frame(width: 4, height: 4)
+                        Circle()
+                            .fill(Color.textGray)
+                            .frame(width: 4, height: 4)
+                        Circle()
+                            .fill(Color.textGray)
+                            .frame(width: 4, height: 4)
                     }
-
-                    // Botón de tres puntos horizontales (menú) - estilo Spotify
-                    Button(action: {
-                        showSongMenu = true
-                    }) {
-                        HStack(spacing: 2) {
-                            Circle()
-                                .fill(Color.textGray)
-                                .frame(width: 4, height: 4)
-                            Circle()
-                                .fill(Color.textGray)
-                                .frame(width: 4, height: 4)
-                            Circle()
-                                .fill(Color.textGray)
-                                .frame(width: 4, height: 4)
-                        }
-                        .frame(width: 44, height: 44)
-                    }
+                    .frame(width: 44, height: 44)
                 }
                 .padding(.trailing, -8)
             } else {
@@ -106,6 +93,12 @@ struct SongRow: View {
         }
         .padding(.vertical, 8)
         .listRowBackground(Color.appDark)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if song.isDownloaded && songListViewModel.downloadProgress[song.id] == nil {
+                playerViewModel.play(song: song)
+            }
+        }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
             // Agregar a playlist (siempre disponible para canciones descargadas)
             Button(action: { showAddToPlaylist = true }) {
