@@ -3,7 +3,7 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 
-class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
     // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
     var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
@@ -13,20 +13,24 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     var onRemoteNext: (@MainActor () -> Void)?
     var onRemotePrevious: (@MainActor () -> Void)?
 
+    // Thread-safe state management
+    private let stateLock = NSLock()
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
     // Audio Engine para ecualizador
-    private var audioEngine: AVAudioEngine
-    private var playerNode: AVAudioPlayerNode
+    private let audioEngine: AVAudioEngine
+    private let playerNode: AVAudioPlayerNode
     private var audioFile: AVAudioFile?
-    private var eq: AVAudioUnitEQ
-    private var useAudioEngine = true // Flag para usar engine con ecualizador
-    private var isFirstConnection = true // Flag para saber si es la primera vez que conectamos
-    private var currentScheduleID = UUID() // ID único para cada scheduleFile, para ignorar completion handlers obsoletos
-    private var wasPlayingBeforeInterruption = false // Flag para saber si estaba reproduciendo antes de una interrupción
-    private var seekOffset: TimeInterval = 0 // Offset de tiempo cuando hacemos seek
+    private let eq: AVAudioUnitEQ
+
+    // State flags con sincronización
+    private var useAudioEngine = true
+    private var isFirstConnection = true
+    private var currentScheduleID = UUID()
+    private var wasPlayingBeforeInterruption = false
+    private var seekOffset: TimeInterval = 0
 
     override init() {
         self.audioEngine = AVAudioEngine()
@@ -342,7 +346,24 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     deinit {
+        // Limpiar recursos de audio
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+
+        // Remover observers
         NotificationCenter.default.removeObserver(self)
+
+        // Limpiar callbacks para evitar retain cycles
+        onPlaybackStateChanged = nil
+        onPlaybackTimeChanged = nil
+        onSongFinished = nil
+        onRemotePlayPause = nil
+        onRemoteNext = nil
+        onRemotePrevious = nil
     }
 
     // MARK: - Now Playing Info & Remote Commands

@@ -60,7 +60,8 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
-    // Usamos un diccionario para mapear tareas a sus continuaciones, IDs y callbacks de progreso
+    // Thread-safe dictionary para descargas activas
+    private let downloadsLock = NSLock()
     private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, progressCallback: ((Double) -> Void)?)] = [:]
 
     private var apiKey: String? {
@@ -161,7 +162,9 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
         return try await withCheckedThrowingContinuation { continuation in
             let downloadTask = urlSession.downloadTask(with: request)
+            downloadsLock.lock()
             activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation, progressCallback)
+            downloadsLock.unlock()
             downloadTask.resume()
         }
     }
@@ -219,7 +222,12 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 extension GoogleDriveService: URLSessionDownloadDelegate {
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let downloadInfo = activeDownloads[downloadTask.taskIdentifier] else { return }
+        downloadsLock.lock()
+        guard let downloadInfo = activeDownloads[downloadTask.taskIdentifier] else {
+            downloadsLock.unlock()
+            return
+        }
+        downloadsLock.unlock()
 
         let progress: Double
         if totalBytesExpectedToWrite > 0 {
@@ -238,7 +246,12 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let downloadInfo = activeDownloads.removeValue(forKey: downloadTask.taskIdentifier) else { return }
+        downloadsLock.lock()
+        guard let downloadInfo = activeDownloads.removeValue(forKey: downloadTask.taskIdentifier) else {
+            downloadsLock.unlock()
+            return
+        }
+        downloadsLock.unlock()
 
         guard let destinationURL = localURL(for: downloadInfo.songID) else {
             let error = NSError(domain: "GoogleDriveService", code: 0, userInfo: [NSLocalizedDescriptionKey: "No se pudo crear la URL de destino."])
@@ -263,7 +276,12 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let downloadInfo = activeDownloads.removeValue(forKey: task.taskIdentifier) else { return }
+        downloadsLock.lock()
+        guard let downloadInfo = activeDownloads.removeValue(forKey: task.taskIdentifier) else {
+            downloadsLock.unlock()
+            return
+        }
+        downloadsLock.unlock()
 
         if let error = error {
             downloadInfo.continuation.resume(throwing: error)
