@@ -6,19 +6,18 @@
 //
 
 import Foundation
-import Combine
 
 /// Protocolo que define las capacidades del reproductor de audio
 /// Cumple con Dependency Inversion Principle (SOLID)
 protocol AudioPlayerProtocol {
-    /// Publisher que emite cambios en el estado de reproducción
-    var onPlaybackStateChanged: PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never> { get }
-    
-    /// Publisher que emite actualizaciones del tiempo de reproducción
-    var onPlaybackTimeChanged: PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never> { get }
-    
-    /// Publisher que emite cuando una canción termina
-    var onSongFinished: PassthroughSubject<UUID, Never> { get }
+    /// Callback que se ejecuta cuando cambia el estado de reproducción
+    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
+
+    /// Callback que se ejecuta cuando se actualiza el tiempo de reproducción
+    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? { get set }
+
+    /// Callback que se ejecuta cuando una canción termina
+    var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
     
     /// Reproduce una canción desde una URL
     /// - Parameters:

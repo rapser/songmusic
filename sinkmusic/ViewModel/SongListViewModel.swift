@@ -1,6 +1,5 @@
 
 import Foundation
-import Combine
 import SwiftData
 
 @MainActor
@@ -10,13 +9,11 @@ class SongListViewModel: ObservableObject {
 
     private let downloadService: DownloadService
     private let metadataService: MetadataService
-    private var cancellables = Set<AnyCancellable>()
     private var downloadAllTask: Task<Void, Never>?
 
     init(downloadService: DownloadService = DownloadService(), metadataService: MetadataService = MetadataService()) {
         self.downloadService = downloadService
         self.metadataService = metadataService
-        setupSubscriptions()
     }
 
     func download(song: Song, modelContext: ModelContext) {
@@ -24,7 +21,9 @@ class SongListViewModel: ObservableObject {
         downloadProgress[song.id] = -1
         Task {
             do {
-                let localURL = try await downloadService.download(song: song)
+                let localURL = try await downloadService.download(song: song) { [weak self] progress in
+                    self?.downloadProgress[song.id] = progress
+                }
                 song.isDownloaded = true
 
                 // Extraer metadatos del archivo descargado
@@ -66,7 +65,9 @@ class SongListViewModel: ObservableObject {
                 downloadProgress[song.id] = -1
 
                 do {
-                    let localURL = try await downloadService.download(song: song)
+                    let localURL = try await downloadService.download(song: song) { [weak self] progress in
+                        self?.downloadProgress[song.id] = progress
+                    }
                     song.isDownloaded = true
 
                     // Extraer metadatos del archivo descargado
@@ -116,14 +117,5 @@ class SongListViewModel: ObservableObject {
             } catch {
             }
         }
-    }
-
-    private func setupSubscriptions() {
-        downloadService.downloadProgressPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (songID, progress) in
-                self?.downloadProgress[songID] = progress
-            }
-            .store(in: &cancellables)
     }
 }

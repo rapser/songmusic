@@ -1,6 +1,5 @@
 
 import Foundation
-import Combine
 import AVFoundation
 import SwiftData
 
@@ -24,9 +23,9 @@ class PlayerViewModel: ObservableObject {
     private let downloadService: DownloadService
     private let metadataService: MetadataService
     private let liveActivityService = LiveActivityService()
-    private var cancellables = Set<AnyCancellable>()
     private var allSongs: [Song] = []
     private var currentSong: Song?
+    private var lastNowPlayingUpdateTime: TimeInterval = 0
 
     weak var scrollResetter: ScrollStateResettable?
 
@@ -38,7 +37,7 @@ class PlayerViewModel: ObservableObject {
         self.audioPlayerService = audioPlayerService
         self.downloadService = downloadService
         self.metadataService = metadataService
-        setupSubscriptions()
+        setupCallbacks()
         setupLiveActivityHandlers()
     }
 
@@ -53,21 +52,20 @@ class PlayerViewModel: ObservableObject {
 
         // Extraer metadata en background sin bloquear la reproducción
         if song.duration == nil || song.artworkData == nil {
-            Task.detached(priority: .utility) {
+            Task { [weak self] in
+                guard let self = self else { return }
                 if let metadata = await self.metadataService.extractMetadata(from: url) {
-                    await MainActor.run {
-                        song.title = metadata.title
-                        song.artist = metadata.artist
-                        song.album = metadata.album
-                        song.author = metadata.author
-                        song.duration = metadata.duration
-                        song.artworkData = metadata.artwork
-                        song.artworkThumbnail = metadata.artworkThumbnail
-                        song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
+                    song.title = metadata.title
+                    song.artist = metadata.artist
+                    song.album = metadata.album
+                    song.author = metadata.author
+                    song.duration = metadata.duration
+                    song.artworkData = metadata.artwork
+                    song.artworkThumbnail = metadata.artworkThumbnail
+                    song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
 
-                        // Actualizar info después de cargar metadata
-                        self.updateNowPlayingInfo()
-                    }
+                    // Actualizar info después de cargar metadata
+                    self.updateNowPlayingInfo()
                 }
             }
         }
@@ -87,12 +85,8 @@ class PlayerViewModel: ObservableObject {
             audioPlayerService.play(songID: song.id, url: url)
         }
 
-        // Actualizar metadata en background thread
-        Task.detached(priority: .utility) {
-            await MainActor.run {
-                self.updateNowPlayingInfo()
-            }
-        }
+        // Actualizar metadata inmediatamente
+        updateNowPlayingInfo()
 
         scrollResetter?.resetScrollState()
     }
@@ -263,64 +257,53 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.applyEqualizerSettings(equalizerBands)
     }
 
-    private func setupSubscriptions() {
-        audioPlayerService.onPlaybackStateChanged
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (isPlaying, songID) in
-                self?.isPlaying = isPlaying
-                self?.updateNowPlayingInfo()
-                self?.updateLiveActivity()
-            }
-            .store(in: &cancellables)
+    private func setupCallbacks() {
+        // Callback para cambios en el estado de reproducción
+        audioPlayerService.onPlaybackStateChanged = { [weak self] isPlaying, songID in
+            guard let self = self else { return }
+            self.isPlaying = isPlaying
+            self.updateNowPlayingInfo()
+            self.updateLiveActivity()
+        }
 
-        audioPlayerService.onPlaybackTimeChanged
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (time, duration) in
-                guard let self = self else { return }
-                self.playbackTime = time
-                self.songDuration = duration
-            }
-            .store(in: &cancellables)
+        // Callback para cambios en el tiempo de reproducción
+        audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
+            guard let self = self else { return }
+            self.playbackTime = time
+            self.songDuration = duration
 
-        audioPlayerService.onPlaybackTimeChanged
-            .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] _ in
-                self?.updateNowPlayingInfo()
+            // Throttle manual: actualizar Now Playing Info solo cada 1 segundo
+            let currentTime = CACurrentMediaTime()
+            if currentTime - self.lastNowPlayingUpdateTime >= 1.0 {
+                self.lastNowPlayingUpdateTime = currentTime
+                self.updateNowPlayingInfo()
             }
-            .store(in: &cancellables)
+        }
 
-        audioPlayerService.onSongFinished
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] finishedSongID in
-                guard let self = self else { return }
-                self.playbackTime = self.songDuration
-                self.playNextAutomatically(finishedSongID: finishedSongID)
-            }
-            .store(in: &cancellables)
+        // Callback para cuando termina una canción
+        audioPlayerService.onSongFinished = { [weak self] finishedSongID in
+            guard let self = self else { return }
+            self.playbackTime = self.songDuration
+            self.playNextAutomatically(finishedSongID: finishedSongID)
+        }
 
-        audioPlayerService.onRemotePlayPause
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.play(song: song)
-            }
-            .store(in: &cancellables)
+        // Callback para play/pause remoto
+        audioPlayerService.onRemotePlayPause = { [weak self] in
+            guard let self = self, let song = self.currentSong else { return }
+            self.play(song: song)
+        }
 
-        audioPlayerService.onRemoteNext
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.playNext(currentSong: song, allSongs: self.allSongs)
-            }
-            .store(in: &cancellables)
+        // Callback para siguiente canción desde control remoto
+        audioPlayerService.onRemoteNext = { [weak self] in
+            guard let self = self, let song = self.currentSong else { return }
+            self.playNext(currentSong: song, allSongs: self.allSongs)
+        }
 
-        audioPlayerService.onRemotePrevious
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.playPrevious(currentSong: song, allSongs: self.allSongs)
-            }
-            .store(in: &cancellables)
+        // Callback para canción anterior desde control remoto
+        audioPlayerService.onRemotePrevious = { [weak self] in
+            guard let self = self, let song = self.currentSong else { return }
+            self.playPrevious(currentSong: song, allSongs: self.allSongs)
+        }
     }
 
     private func updateNowPlayingInfo() {
@@ -364,32 +347,48 @@ class PlayerViewModel: ObservableObject {
     }
 
     private func setupLiveActivityHandlers() {
-        NotificationCenter.default.publisher(for: .playPauseFromLiveActivity)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+        // Observer para play/pause desde Live Activity
+        NotificationCenter.default.addObserver(
+            forName: .playPauseFromLiveActivity,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self = self, let song = self.currentSong else { return }
                 self.play(song: song)
             }
-            .store(in: &cancellables)
+        }
 
-        NotificationCenter.default.publisher(for: .nextTrackFromLiveActivity)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+        // Observer para siguiente canción desde Live Activity
+        NotificationCenter.default.addObserver(
+            forName: .nextTrackFromLiveActivity,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self = self, let song = self.currentSong else { return }
                 self.playNext(currentSong: song, allSongs: self.allSongs)
             }
-            .store(in: &cancellables)
+        }
 
-        NotificationCenter.default.publisher(for: .previousTrackFromLiveActivity)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+        // Observer para canción anterior desde Live Activity
+        NotificationCenter.default.addObserver(
+            forName: .previousTrackFromLiveActivity,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self = self, let song = self.currentSong else { return }
                 self.playPrevious(currentSong: song, allSongs: self.allSongs)
             }
-            .store(in: &cancellables)
+        }
     }
 
     deinit {
+        // Remover observers de NotificationCenter
+        NotificationCenter.default.removeObserver(self)
+
+        // Finalizar Live Activity
         let service = liveActivityService
         Task { @MainActor in
             service.endActivity()

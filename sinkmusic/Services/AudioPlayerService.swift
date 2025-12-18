@@ -1,17 +1,17 @@
 
 import Foundation
 import AVFoundation
-import Combine
 import MediaPlayer
 
 class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
-    var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
-    var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
-    var onSongFinished = PassthroughSubject<UUID, Never>()
-    var onRemotePlayPause = PassthroughSubject<Void, Never>()
-    var onRemoteNext = PassthroughSubject<Void, Never>()
-    var onRemotePrevious = PassthroughSubject<Void, Never>()
+    // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
+    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
+    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)?
+    var onSongFinished: (@MainActor (UUID) -> Void)?
+    var onRemotePlayPause: (@MainActor () -> Void)?
+    var onRemoteNext: (@MainActor () -> Void)?
+    var onRemotePrevious: (@MainActor () -> Void)?
 
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
@@ -79,7 +79,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 startPlaybackTimer()
 
                 // Notificar inmediatamente sin delay para UI responsive
-                self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
+                Task { @MainActor in
+                    self.onPlaybackStateChanged?(true, self.currentlyPlayingID)
+                }
             }
         } else {
             do {
@@ -130,7 +132,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         self.playbackTimer?.invalidate()
                         self.playbackTimer = nil
 
-                        self.onSongFinished.send(currentID)
+                        Task { @MainActor in
+                            self.onSongFinished?(currentID)
+                        }
                     }
                 }
 
@@ -145,9 +149,13 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 startPlaybackTimer()
 
                 // Notificar inmediatamente sin delay para UI responsive
-                self.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                Task { @MainActor in
+                    self.onPlaybackStateChanged?(true, songID)
+                }
             } catch {
-                onPlaybackStateChanged.send((isPlaying: false, songID: nil))
+                Task { @MainActor in
+                    self.onPlaybackStateChanged?(false, nil)
+                }
             }
         }
     }
@@ -155,7 +163,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     func pause() {
         playerNode.pause()
         playbackTimer?.invalidate()
-        onPlaybackStateChanged.send((isPlaying: false, songID: self.currentlyPlayingID))
+        Task { @MainActor in
+            self.onPlaybackStateChanged?(false, self.currentlyPlayingID)
+        }
     }
 
     func stop() {
@@ -165,7 +175,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         let oldID = currentlyPlayingID
         currentlyPlayingID = nil
         audioFile = nil
-        onPlaybackStateChanged.send((isPlaying: false, songID: oldID))
+        Task { @MainActor in
+            self.onPlaybackStateChanged?(false, oldID)
+        }
     }
 
     func seek(to time: TimeInterval) {
@@ -211,13 +223,17 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil
 
-                    self.onSongFinished.send(currentID)
+                    Task { @MainActor in
+                        self.onSongFinished?(currentID)
+                    }
                 }
             }
 
             // Enviar inmediatamente el nuevo tiempo
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-            onPlaybackTimeChanged.send((time: time, duration: duration))
+            Task { @MainActor in
+                self.onPlaybackTimeChanged?(time, duration)
+            }
 
             // Solo reanudar si estaba reproduciendo
             if wasPlaying {
@@ -242,7 +258,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             let currentTime = nodePlaybackTime + self.seekOffset
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
 
-            self.onPlaybackTimeChanged.send((time: currentTime, duration: duration))
+            Task { @MainActor in
+                self.onPlaybackTimeChanged?(currentTime, duration)
+            }
         }
     }
 
@@ -257,8 +275,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         guard let finishedSongID = currentlyPlayingID else { return }
         currentlyPlayingID = nil
-        onPlaybackStateChanged.send((isPlaying: false, songID: finishedSongID))
-        onSongFinished.send(finishedSongID)
+        Task { @MainActor in
+            self.onPlaybackStateChanged?(false, finishedSongID)
+            self.onSongFinished?(finishedSongID)
+        }
     }
 
     // MARK: - Interruption Handling
@@ -307,7 +327,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         try? self.audioEngine.start()
                     }
                     self.startPlaybackTimer()
-                    self.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                    Task { @MainActor in
+                        self.onPlaybackStateChanged?(true, songID)
+                    }
                     self.wasPlayingBeforeInterruption = false
                 }
             } else {
@@ -329,25 +351,33 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [weak self] _ in
-            self?.onRemotePlayPause.send()
+            Task { @MainActor in
+                self?.onRemotePlayPause?()
+            }
             return .success
         }
 
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { [weak self] _ in
-            self?.onRemotePlayPause.send()
+            Task { @MainActor in
+                self?.onRemotePlayPause?()
+            }
             return .success
         }
 
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            self?.onRemoteNext.send()
+            Task { @MainActor in
+                self?.onRemoteNext?()
+            }
             return .success
         }
 
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            self?.onRemotePrevious.send()
+            Task { @MainActor in
+                self?.onRemotePrevious?()
+            }
             return .success
         }
 

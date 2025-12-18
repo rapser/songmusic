@@ -7,7 +7,6 @@
 
 import Foundation
 import AuthenticationServices
-import Combine
 
 @MainActor
 final class AuthenticationManager: NSObject, ObservableObject {

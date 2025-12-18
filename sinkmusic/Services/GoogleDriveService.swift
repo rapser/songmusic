@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Combine
 import AVFoundation
 
 // Typealias para compatibilidad con código existente
@@ -56,16 +55,13 @@ enum GoogleDriveError: Error {
 final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
     private let keychainService = KeychainService.shared
 
-    // Publisher para el progreso de la descarga
-    var downloadProgressPublisher = PassthroughSubject<(songID: UUID, progress: Double), Never>()
-
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
-    // Usamos un diccionario para mapear tareas a sus continuaciones y IDs
-    private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>)] = [:]
+    // Usamos un diccionario para mapear tareas a sus continuaciones, IDs y callbacks de progreso
+    private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, progressCallback: ((Double) -> Void)?)] = [:]
 
     private var apiKey: String? {
         keychainService.googleDriveAPIKey
@@ -150,8 +146,8 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Download
 
-    /// Descarga un archivo de Google Drive
-    func download(song: Song) async throws -> URL {
+    /// Descarga un archivo de Google Drive con callback de progreso
+    func download(song: Song, progressCallback: ((Double) -> Void)? = nil) async throws -> URL {
         // Obtener API Key del Keychain
         guard let apiKey = keychainService.googleDriveAPIKey else {
             throw GoogleDriveError.missingAPIKey
@@ -165,7 +161,7 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
         return try await withCheckedThrowingContinuation { continuation in
             let downloadTask = urlSession.downloadTask(with: request)
-            activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation)
+            activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation, progressCallback)
             downloadTask.resume()
         }
     }
@@ -232,7 +228,13 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
             // Si no conocemos el total, enviamos -1 para indicar progreso indeterminado
             progress = -1
         }
-        downloadProgressPublisher.send((songID: downloadInfo.songID, progress: progress))
+
+        // Llamar al callback de progreso en el main thread
+        if let progressCallback = downloadInfo.progressCallback {
+            Task { @MainActor in
+                progressCallback(progress)
+            }
+        }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
