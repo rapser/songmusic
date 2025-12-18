@@ -132,13 +132,6 @@ struct PlaylistDetailView: View {
                                 .onTapGesture {
                                     playerViewModel.play(song: song)
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        viewModel.removeSong(song, from: playlist)
-                                    } label: {
-                                        Label("Eliminar", systemImage: "trash")
-                                    }
-                                }
 
                                 if index < playlist.songs.count - 1 {
                                     Divider()

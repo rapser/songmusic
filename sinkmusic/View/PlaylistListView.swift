@@ -10,6 +10,7 @@ import SwiftData
 
 struct PlaylistListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: [SortDescriptor(\Playlist.updatedAt, order: .reverse)]) private var playlists: [Playlist]
     @StateObject private var viewModel: PlaylistViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
 
@@ -41,7 +42,7 @@ struct PlaylistListView: View {
                 .padding(.bottom, 16)
 
                 // Playlists Grid
-                if viewModel.playlists.isEmpty {
+                if playlists.isEmpty {
                     EmptyPlaylistsView {
                         viewModel.showCreatePlaylist = true
                     }
@@ -54,7 +55,7 @@ struct PlaylistListView: View {
                             ],
                             spacing: 16
                         ) {
-                            ForEach(viewModel.playlists, id: \.id) { playlist in
+                            ForEach(playlists, id: \.id) { playlist in
                                 NavigationLink(destination: PlaylistDetailView(playlist: playlist, modelContext: modelContext)) {
                                     PlaylistCardView(playlist: playlist)
                                 }
@@ -67,13 +68,8 @@ struct PlaylistListView: View {
             }
         }
         .sheet(isPresented: $viewModel.showCreatePlaylist) {
-            CreatePlaylistView(onPlaylistCreated: {
-                viewModel.fetchPlaylists()
-            })
-            .environment(\.modelContext, modelContext)
-        }
-        .onAppear {
-            viewModel.fetchPlaylists()
+            CreatePlaylistView()
+                .environment(\.modelContext, modelContext)
         }
     }
 }
