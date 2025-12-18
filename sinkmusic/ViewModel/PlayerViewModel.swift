@@ -51,23 +51,30 @@ class PlayerViewModel: ObservableObject {
             return
         }
 
+        // Extraer metadata en background sin bloquear la reproducción
         if song.duration == nil || song.artworkData == nil {
-            Task {
-                if let metadata = await metadataService.extractMetadata(from: url) {
-                    song.title = metadata.title
-                    song.artist = metadata.artist
-                    song.album = metadata.album
-                    song.author = metadata.author
-                    song.duration = metadata.duration
-                    song.artworkData = metadata.artwork
-                    song.artworkThumbnail = metadata.artworkThumbnail
-                    song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
+            Task.detached(priority: .utility) {
+                if let metadata = await self.metadataService.extractMetadata(from: url) {
+                    await MainActor.run {
+                        song.title = metadata.title
+                        song.artist = metadata.artist
+                        song.album = metadata.album
+                        song.author = metadata.author
+                        song.duration = metadata.duration
+                        song.artworkData = metadata.artwork
+                        song.artworkThumbnail = metadata.artworkThumbnail
+                        song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
+
+                        // Actualizar info después de cargar metadata
+                        self.updateNowPlayingInfo()
+                    }
                 }
             }
         }
 
         currentSong = song
 
+        // Reproducir inmediatamente sin esperar metadata
         if currentlyPlayingID == song.id {
             if isPlaying {
                 audioPlayerService.pause()
@@ -80,7 +87,13 @@ class PlayerViewModel: ObservableObject {
             audioPlayerService.play(songID: song.id, url: url)
         }
 
-        updateNowPlayingInfo()
+        // Actualizar metadata en background thread
+        Task.detached(priority: .utility) {
+            await MainActor.run {
+                self.updateNowPlayingInfo()
+            }
+        }
+
         scrollResetter?.resetScrollState()
     }
 
@@ -118,47 +131,47 @@ class PlayerViewModel: ObservableObject {
     }
 
     func playNext(currentSong: Song, allSongs: [Song]) {
-        let downloadedSongs = allSongs.filter { $0.isDownloaded }
-        guard !downloadedSongs.isEmpty else { return }
+        // Usar allSongs cacheado en lugar de filtrar cada vez
+        guard !self.allSongs.isEmpty else { return }
 
         if isShuffleEnabled {
             // Modo aleatorio: selecciona una canción aleatoria DIFERENTE a la actual
-            let otherSongs = downloadedSongs.filter { $0.id != currentSong.id }
+            let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
 
             if !otherSongs.isEmpty {
                 // Hay más canciones disponibles, elige una aleatoria
                 if let randomSong = otherSongs.randomElement() {
                     play(song: randomSong)
                 }
-            } else if downloadedSongs.count == 1 {
+            } else if self.allSongs.count == 1 {
                 // Solo hay una canción, reproducirla de nuevo
                 play(song: currentSong)
             }
         } else {
             // Modo secuencial
-            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
-            let nextIdx = (idx + 1) % downloadedSongs.count
-            play(song: downloadedSongs[nextIdx])
+            guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
+            let nextIdx = (idx + 1) % self.allSongs.count
+            play(song: self.allSongs[nextIdx])
         }
     }
 
     func playPrevious(currentSong: Song, allSongs: [Song]) {
-        let downloadedSongs = allSongs.filter { $0.isDownloaded }
-        guard !downloadedSongs.isEmpty else { return }
+        // Usar allSongs cacheado en lugar de filtrar cada vez
+        guard !self.allSongs.isEmpty else { return }
 
         if isShuffleEnabled {
             // En modo aleatorio, también va a una canción aleatoria
-            let otherSongs = downloadedSongs.filter { $0.id != currentSong.id }
+            let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
             if let randomSong = otherSongs.randomElement() {
                 play(song: randomSong)
-            } else if let firstSong = downloadedSongs.first {
+            } else if let firstSong = self.allSongs.first {
                 play(song: firstSong)
             }
         } else {
             // Modo secuencial
-            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
-            let prevIdx = (idx - 1 + downloadedSongs.count) % downloadedSongs.count
-            play(song: downloadedSongs[prevIdx])
+            guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
+            let prevIdx = (idx - 1 + self.allSongs.count) % self.allSongs.count
+            play(song: self.allSongs[prevIdx])
         }
     }
 

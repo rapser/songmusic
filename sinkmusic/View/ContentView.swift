@@ -3,14 +3,12 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
+    @Query(filter: #Predicate<Song> { $0.isDownloaded }, sort: [SortDescriptor(\Song.title)])
+    private var downloadedSongs: [Song]
+
     @EnvironmentObject var viewModel: MainViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
-
-    var downloadedSongs: [Song] {
-        songs.filter { $0.isDownloaded }
-    }
 
     var body: some View {
         ZStack {
@@ -77,8 +75,13 @@ struct ContentView: View {
                 }
             }
         }
-        .onAppear {
-            viewModel.syncLibraryWithCatalog(modelContext: modelContext)
+        .task {
+            // Ejecutar en background thread
+            await Task.detached(priority: .userInitiated) {
+                await MainActor.run {
+                    viewModel.syncLibraryWithCatalog(modelContext: modelContext)
+                }
+            }.value
         }
     }
 }

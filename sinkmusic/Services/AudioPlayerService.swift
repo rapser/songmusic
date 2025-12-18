@@ -78,10 +78,8 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 }
                 startPlaybackTimer()
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    guard let self = self else { return }
-                    self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
-                }
+                // Notificar inmediatamente sin delay para UI responsive
+                self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
             }
         } else {
             do {
@@ -146,9 +144,8 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 self.seekOffset = 0 // Reset del offset al reproducir una nueva canción
                 startPlaybackTimer()
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    self?.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
-                }
+                // Notificar inmediatamente sin delay para UI responsive
+                self.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
             } catch {
                 onPlaybackStateChanged.send((isPlaying: false, songID: nil))
             }

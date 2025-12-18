@@ -103,8 +103,8 @@ final class AuthenticationManager: NSObject, ObservableObject {
 
         print("📝 Datos recibidos de Apple:")
         print("   UserID: \(userID)")
-        print("   Email: \(email ?? "nil")")
-        print("   FullName: \(fullName?.givenName ?? "nil") \(fullName?.familyName ?? "nil")")
+        print("   Email: \(email ?? "nil (normal en login 2+)")")
+        print("   FullName: \(fullName?.givenName ?? "nil") \(fullName?.familyName ?? "nil (normal en login 2+)")")
 
         // Guardar datos del usuario (solo si vienen datos nuevos)
         saveUserData(userID: userID, email: email, fullName: fullName)
@@ -115,10 +115,14 @@ final class AuthenticationManager: NSObject, ObservableObject {
         // Para email: usar el nuevo si existe, sino recuperar de UserDefaults
         if let email = email {
             self.userEmail = email
-            print("✅ Email actualizado: \(email)")
+            print("✅ Email nuevo de Apple: \(email)")
         } else {
             self.userEmail = UserDefaults.standard.string(forKey: "appleUserEmail")
-            print("ℹ️ Email recuperado de UserDefaults: \(self.userEmail ?? "nil")")
+            if self.userEmail != nil {
+                print("✅ Email recuperado de UserDefaults: \(self.userEmail!)")
+            } else {
+                print("⚠️ No hay email guardado")
+            }
         }
 
         // Para nombre: construir si viene, sino recuperar de UserDefaults
@@ -129,20 +133,28 @@ final class AuthenticationManager: NSObject, ObservableObject {
 
             if !name.isEmpty {
                 self.userFullName = name
-                print("✅ Nombre actualizado: \(name)")
+                print("✅ Nombre nuevo de Apple: \(name)")
             } else {
                 self.userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
-                print("ℹ️ Nombre recuperado de UserDefaults: \(self.userFullName ?? "nil")")
+                if self.userFullName != nil {
+                    print("✅ Nombre recuperado de UserDefaults: \(self.userFullName!)")
+                } else {
+                    print("⚠️ No hay nombre guardado")
+                }
             }
         } else {
             self.userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
-            print("ℹ️ Nombre recuperado de UserDefaults: \(self.userFullName ?? "nil")")
+            if self.userFullName != nil {
+                print("✅ Nombre recuperado de UserDefaults: \(self.userFullName!)")
+            } else {
+                print("⚠️ No hay nombre guardado")
+            }
         }
 
-        print("📊 Estado final:")
-        print("   UserID: \(self.userID ?? "nil")")
-        print("   Email: \(self.userEmail ?? "nil")")
-        print("   FullName: \(self.userFullName ?? "nil")")
+        print("📊 Estado final de autenticación:")
+        print("   ✓ UserID: \(self.userID ?? "nil")")
+        print("   ✓ Email: \(self.userEmail ?? "Sin email")")
+        print("   ✓ Nombre: \(self.userFullName ?? "Sin nombre")")
 
         isAuthenticated = true
         isCheckingAuth = false
@@ -150,7 +162,23 @@ final class AuthenticationManager: NSObject, ObservableObject {
 
     // MARK: - Sign Out
 
+    /// Cierra la sesión actual pero mantiene email y nombre guardados
+    /// para poder recuperarlos en el próximo login (Apple solo los envía la primera vez)
     func signOut() {
+        isAuthenticated = false
+        userID = nil
+        userEmail = nil
+        userFullName = nil
+
+        // Solo borrar el userID para cerrar sesión
+        // MANTENER email y nombre para poder recuperarlos en siguiente login
+        UserDefaults.standard.removeObject(forKey: "appleUserID")
+
+        print("🚪 Sesión cerrada. Email y nombre se mantienen para próximo login.")
+    }
+
+    /// Elimina TODOS los datos de Apple guardados (usar solo si el usuario quiere resetear todo)
+    func clearAllAppleData() {
         isAuthenticated = false
         userID = nil
         userEmail = nil
@@ -159,6 +187,8 @@ final class AuthenticationManager: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: "appleUserID")
         UserDefaults.standard.removeObject(forKey: "appleUserEmail")
         UserDefaults.standard.removeObject(forKey: "appleUserFullName")
+
+        print("🗑️ Todos los datos de Apple han sido eliminados.")
     }
 
     // MARK: - Private Helpers
