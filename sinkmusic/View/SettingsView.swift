@@ -191,25 +191,6 @@ struct SettingsView: View {
                     )
 
                     Button(action: {
-                        clearColorCache()
-                    }) {
-                        HStack {
-                            Image(systemName: "trash.fill")
-                                .foregroundColor(.appPurple)
-                                .frame(width: 24, height: 24)
-
-                            Text("Limpiar caché de colores")
-                                .font(.body)
-                                .foregroundColor(.white)
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.appGray)
-                    }
-
-                    Button(action: {
                         showDeleteAllAlert = true
                     }) {
                         HStack {
@@ -310,20 +291,6 @@ struct SettingsView: View {
         }
     }
 
-    private func clearColorCache() {
-        for song in songs {
-            song.cachedDominantColorRed = nil
-            song.cachedDominantColorGreen = nil
-            song.cachedDominantColorBlue = nil
-        }
-        
-        do {
-            try modelContext.save()
-            print("✅ Caché de colores limpiado exitosamente")
-        } catch {
-            print("❌ Error al limpiar caché: \(error)")
-        }
-    }
 }
 
 // MARK: - Components
