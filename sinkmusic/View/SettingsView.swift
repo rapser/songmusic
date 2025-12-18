@@ -9,6 +9,7 @@ struct SettingsView: View {
     @EnvironmentObject var authManager: AuthenticationManager
 
     @State private var showDeleteAllAlert = false
+    @State private var showSignOutAlert = false
 
     var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
@@ -40,8 +41,11 @@ struct SettingsView: View {
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
+        if bytes == 0 {
+            return "0 KB"
+        }
         let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useGB, .useMB]
+        formatter.allowedUnits = [.useGB, .useMB, .useKB]
         formatter.countStyle = .file
         formatter.includesUnit = true
         formatter.isAdaptive = true
@@ -227,7 +231,7 @@ struct SettingsView: View {
 
                     // Botón Cerrar sesión
                     Button(action: {
-                        authManager.signOut()
+                        showSignOutAlert = true
                     }) {
                         HStack {
                             Image(systemName: "arrow.right.square.fill")
@@ -255,6 +259,14 @@ struct SettingsView: View {
             }
         } message: {
             Text("Se eliminarán \(downloadedSongs.count) canciones descargadas. Esta acción no se puede deshacer.")
+        }
+        .alert("Cerrar sesión", isPresented: $showSignOutAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Cerrar sesión", role: .destructive) {
+                authManager.signOut()
+            }
+        } message: {
+            Text("¿Estás seguro de que quieres cerrar sesión?")
         }
     }
 
