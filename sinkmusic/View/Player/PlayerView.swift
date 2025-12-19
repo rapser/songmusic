@@ -1,0 +1,129 @@
+import SwiftUI
+
+struct PlayerView: View {
+    @EnvironmentObject var playerViewModel: PlayerViewModel
+    var songs: [Song]
+    var currentSong: Song
+    var namespace: Namespace.ID
+
+    @State private var sliderValue: Double = 0
+    @State private var isSeekingManually = false
+    @State private var showEqualizer = false
+    @State private var dragOffset: CGFloat = 0
+
+    private var dominantColor: Color {
+        Color.dominantColor(from: currentSong)
+    }
+
+    var body: some View {
+        ZStack {
+            // Background con color dominante
+            PlayerBackground(color: dominantColor)
+
+            VStack(spacing: 12) {
+                // Header
+                PlayerHeader(
+                    showEqualizer: $showEqualizer,
+                    onClose: {
+                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
+                            playerViewModel.showPlayerView = false
+                        }
+                    }
+                )
+
+                // Artwork de la canción
+                PlayerArtwork(
+                    artworkData: currentSong.artworkData,
+                    cachedImage: playerViewModel.cachedArtwork,
+                    namespace: namespace
+                )
+
+                // Título y artista
+                PlayerSongInfo(
+                    title: currentSong.title,
+                    artist: currentSong.artist
+                )
+
+                // Slider y tiempos
+                PlayerTimeControls(
+                    sliderValue: $sliderValue,
+                    isSeekingManually: $isSeekingManually,
+                    currentTime: playerViewModel.playbackTime,
+                    duration: playerViewModel.songDuration,
+                    formatTime: playerViewModel.formatTime,
+                    onSeek: { time in
+                        playerViewModel.seek(to: time)
+                    }
+                )
+
+                // Controles de reproducción
+                PlayerControls(
+                    isPlaying: playerViewModel.isPlaying,
+                    isShuffleEnabled: playerViewModel.isShuffleEnabled,
+                    repeatMode: playerViewModel.repeatMode,
+                    onToggleShuffle: { playerViewModel.toggleShuffle() },
+                    onPrevious: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) },
+                    onPlayPause: { playerViewModel.togglePlayPause() },
+                    onNext: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) },
+                    onToggleRepeat: { playerViewModel.toggleRepeat() }
+                )
+
+                Spacer()
+            }
+        }
+        .offset(y: dragOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    // Solo permitir deslizar hacia abajo
+                    if value.translation.height > 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    // Si desliza más de 150 puntos, cerrar el player
+                    if value.translation.height > 150 {
+                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
+                            playerViewModel.showPlayerView = false
+                        }
+                    }
+                    // Resetear el offset con animación
+                    withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
+                        dragOffset = 0
+                    }
+                }
+        )
+        .onAppear {
+            sliderValue = playerViewModel.playbackTime
+            if currentSong.cachedDominantColorRed == nil {
+                Task(priority: .utility) {
+                    Color.cacheAndGetDominantColor(for: currentSong)
+                }
+            }
+        }
+        .onChange(of: currentSong.id) { oldValue, newValue in
+            sliderValue = 0
+            isSeekingManually = false
+        }
+        .onChange(of: playerViewModel.playbackTime) { oldValue, newValue in
+            if !isSeekingManually {
+                sliderValue = newValue
+            }
+        }
+        .sheet(isPresented: $showEqualizer) {
+            EqualizerView()
+        }
+    }
+}
+
+#Preview {
+    PreviewWrapper(
+        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.generate().first!.id)
+    ) {
+        PlayerView(
+            songs: PreviewSongs.generate(downloaded: true),
+            currentSong: PreviewSongs.generate(downloaded: true).first!,
+            namespace: Namespace().wrappedValue
+        )
+    }
+}

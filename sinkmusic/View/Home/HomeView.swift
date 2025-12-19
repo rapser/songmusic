@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-struct ContentView: View {
+struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<Song> { $0.isDownloaded }, sort: [SortDescriptor(\Song.title)])
     private var downloadedSongs: [Song]
@@ -87,5 +87,5 @@ struct ContentView: View {
         mainVM: PreviewViewModels.mainVM(),
         songListVM: PreviewViewModels.songListVM(),
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
-    ) { ContentView() }
+    ) { HomeView() }
 }

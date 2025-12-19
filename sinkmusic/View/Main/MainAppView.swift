@@ -33,7 +33,7 @@ struct MainAppView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView {
-                ContentView()
+                HomeView()
                     .tabItem { Label("Inicio", systemImage: "house.fill") }
                 SearchView()
                     .tabItem { Label("Buscar", systemImage: "magnifyingglass") }
