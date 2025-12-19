@@ -68,9 +68,21 @@ private struct MiniPlayerArtwork: View {
     let artworkData: Data?
     let cachedImage: UIImage?
 
+    private var displayImage: UIImage? {
+        // Prioridad 1: Usar imagen cacheada del ViewModel
+        if let cached = cachedImage {
+            return cached
+        }
+        // Fallback: Cargar directamente de artworkData para evitar delay visual
+        if let data = artworkData {
+            return UIImage(data: data)
+        }
+        return nil
+    }
+
     var body: some View {
         Group {
-            if let image = cachedImage {
+            if let image = displayImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
