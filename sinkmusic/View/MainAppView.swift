@@ -57,7 +57,7 @@ struct MainAppView: View {
                 .zIndex(2)
             }
 
-            // Mini Player - Aparición rápida como Spotify
+            // Mini Player - Aparición instantánea como Spotify
             if let currentSong = currentSong,
                playerViewModel.currentlyPlayingID != nil,
                !playerViewModel.showPlayerView {
@@ -65,13 +65,6 @@ struct MainAppView: View {
                 PlayerControlsView(song: currentSong, namespace: animation)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 55)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .bottom).combined(with: .opacity)
-                        )
-                    )
-                    .animation(.spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: playerViewModel.currentlyPlayingID)
                     .zIndex(1)
                     .onTapGesture {
                         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
