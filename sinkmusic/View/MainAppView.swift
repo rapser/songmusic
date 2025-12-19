@@ -46,7 +46,7 @@ struct MainAppView: View {
             }
             .accentColor(.white)
 
-            // PlayerView completo
+            // PlayerView completo - Animación suave como Spotify
             if let currentSong = currentSong, playerViewModel.showPlayerView {
                 PlayerView(
                     songs: songs,
@@ -55,17 +55,15 @@ struct MainAppView: View {
                 )
                 .transition(
                     .asymmetric(
-                        insertion: .move(edge: .bottom)
-                            .combined(with: .opacity),
+                        insertion: .move(edge: .bottom),
                         removal: .move(edge: .bottom)
-                            .combined(with: .opacity)
                     )
                 )
-                .animation(.easeOut(duration: 0.25), value: playerViewModel.showPlayerView)
+                .animation(.spring(response: 0.5, dampingFraction: 0.85), value: playerViewModel.showPlayerView)
                 .zIndex(2)
             }
 
-            // Mini Player
+            // Mini Player - Aparición rápida como Spotify
             if let currentSong = currentSong,
                playerViewModel.currentlyPlayingID != nil,
                !playerViewModel.showPlayerView {
@@ -81,10 +79,10 @@ struct MainAppView: View {
                                 .combined(with: .opacity)
                         )
                     )
-                    .animation(.easeOut(duration: 0.2), value: playerViewModel.currentlyPlayingID)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.85), value: playerViewModel.currentlyPlayingID)
                     .zIndex(1)
                     .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             playerViewModel.showPlayerView = true
                         }
                     }

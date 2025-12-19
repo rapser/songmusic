@@ -50,9 +50,29 @@ class PlayerViewModel: ObservableObject {
             return
         }
 
-        // Extraer metadata en background sin bloquear la reproducción
+        currentSong = song
+
+        // Comportamiento estilo Spotify cuando presionas desde el listado:
+        // Si presionas la canción que ya está tocando, reinicia desde el principio
+        if currentlyPlayingID == song.id && isPlaying {
+            // Reiniciar la canción desde el principio
+            audioPlayerService.seek(to: 0)
+            playbackTime = 0
+        } else {
+            // Nueva canción o canción pausada
+            playbackTime = 0
+            currentlyPlayingID = song.id
+            audioPlayerService.play(songID: song.id, url: url)
+        }
+
+        // Actualizar metadata inmediatamente con los datos actuales
+        updateNowPlayingInfo()
+
+        scrollResetter?.resetScrollState()
+
+        // Extraer metadata en background con baja prioridad (después de iniciar reproducción)
         if song.duration == nil || song.artworkData == nil {
-            Task { [weak self] in
+            Task(priority: .utility) { [weak self] in
                 guard let self = self else { return }
                 if let metadata = await self.metadataService.extractMetadata(from: url) {
                     song.title = metadata.title
@@ -69,26 +89,18 @@ class PlayerViewModel: ObservableObject {
                 }
             }
         }
+    }
 
-        currentSong = song
+    func togglePlayPause() {
+        guard let song = currentSong else { return }
 
-        // Reproducir inmediatamente sin esperar metadata
-        if currentlyPlayingID == song.id {
-            if isPlaying {
-                audioPlayerService.pause()
-            } else {
-                audioPlayerService.play(songID: song.id, url: url)
-            }
+        if isPlaying {
+            pause()
         } else {
-            playbackTime = 0
-            currentlyPlayingID = song.id
+            // Reanudar reproducción sin reiniciar
+            guard let url = downloadService.localURL(for: song.id) else { return }
             audioPlayerService.play(songID: song.id, url: url)
         }
-
-        // Actualizar metadata inmediatamente
-        updateNowPlayingInfo()
-
-        scrollResetter?.resetScrollState()
     }
 
     func pause() {
@@ -289,8 +301,8 @@ class PlayerViewModel: ObservableObject {
 
         // Callback para play/pause remoto
         audioPlayerService.onRemotePlayPause = { [weak self] in
-            guard let self = self, let song = self.currentSong else { return }
-            self.play(song: song)
+            guard let self = self else { return }
+            self.togglePlayPause()
         }
 
         // Callback para siguiente canción desde control remoto
@@ -354,8 +366,8 @@ class PlayerViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.play(song: song)
+                guard let self = self else { return }
+                self.togglePlayPause()
             }
         }
 

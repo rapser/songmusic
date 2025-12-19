@@ -64,7 +64,7 @@ struct ContentView: View {
                     .padding(.horizontal, 40)
                 } else {
                     ScrollView {
-                        VStack(spacing: 10) {
+                        LazyVStack(spacing: 10, pinnedViews: []) {
                             ForEach(downloadedSongs) { song in
                                 SongRow(song: song)
                             }

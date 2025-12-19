@@ -37,6 +37,13 @@ struct sinkmusicApp: App {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
+            .task {
+                // Configurar el ModelContext compartido en el ViewModel
+                // Esto permite que las descargas continúen incluso si cambias de pantalla
+                if let modelContext = try? ModelContext(ModelContainer(for: Song.self, Playlist.self)) {
+                    songListViewModel.configure(with: modelContext)
+                }
+            }
         }
         .modelContainer(for: [Song.self, Playlist.self])
     }

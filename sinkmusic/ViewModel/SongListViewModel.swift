@@ -11,13 +11,29 @@ class SongListViewModel: ObservableObject {
     private let metadataService: MetadataService
     private var downloadAllTask: Task<Void, Never>?
 
+    // ModelContext compartido para todas las operaciones de descarga
+    // Esto asegura que las actualizaciones persistan incluso si la vista se destruye
+    private var sharedModelContext: ModelContext?
+
     init(downloadService: DownloadService = DownloadService(), metadataService: MetadataService = MetadataService()) {
         self.downloadService = downloadService
         self.metadataService = metadataService
     }
 
-    func download(song: Song, modelContext: ModelContext) {
+    /// Configura el ModelContext compartido (se llama una vez desde la app)
+    func configure(with modelContext: ModelContext) {
+        self.sharedModelContext = modelContext
+    }
+
+    func download(song: Song, modelContext: ModelContext? = nil) {
         guard !song.isDownloaded else { return }
+
+        // Usar el contexto proporcionado o el compartido
+        guard let context = modelContext ?? sharedModelContext else {
+            print("❌ Error: No hay ModelContext disponible para guardar la descarga")
+            return
+        }
+
         downloadProgress[song.id] = -1
         Task {
             do {
@@ -38,7 +54,7 @@ class SongListViewModel: ObservableObject {
                     song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
                 }
 
-                try modelContext.save()
+                try context.save()
                 downloadProgress[song.id] = nil
             } catch {
                 downloadProgress[song.id] = nil
@@ -46,21 +62,32 @@ class SongListViewModel: ObservableObject {
         }
     }
 
-    func downloadAll(songs: [Song], modelContext: ModelContext) {
+    func downloadAll(songs: [Song], modelContext: ModelContext? = nil) {
+        // Usar el contexto proporcionado o el compartido
+        guard let context = modelContext ?? sharedModelContext else {
+            print("❌ Error: No hay ModelContext disponible para descargas masivas")
+            return
+        }
+
         // Cancelar cualquier descarga masiva anterior
         cancelDownloadAll()
 
         isDownloadingAll = true
 
         downloadAllTask = Task {
-            for song in songs {
+            // Aleatorizar el orden de descarga (estilo Spotify)
+            // Solo incluir canciones no descargadas
+            let pendingSongs = songs.filter { !$0.isDownloaded }.shuffled()
+
+            print("📥 Iniciando descarga de \(pendingSongs.count) canciones en orden aleatorio")
+
+            // Descargar de 1 en 1 de forma secuencial (evita saturar la red)
+            for song in pendingSongs {
                 // Verificar si la tarea fue cancelada
                 if Task.isCancelled {
+                    print("⏸️ Descarga masiva cancelada por el usuario")
                     break
                 }
-
-                // Solo descargar si no está descargada
-                guard !song.isDownloaded else { continue }
 
                 downloadProgress[song.id] = -1
 
@@ -82,14 +109,18 @@ class SongListViewModel: ObservableObject {
                         song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
                     }
 
-                    try modelContext.save()
+                    try context.save()
                     downloadProgress[song.id] = nil
+                    print("✅ Descargada: \(song.title)")
                 } catch {
                     downloadProgress[song.id] = nil
+                    print("❌ Error descargando \(song.title): \(error.localizedDescription)")
+                    // Continuar con la siguiente canción incluso si esta falló
                 }
             }
 
             isDownloadingAll = false
+            print("✅ Descarga masiva completada")
         }
     }
 
@@ -99,7 +130,13 @@ class SongListViewModel: ObservableObject {
         isDownloadingAll = false
     }
 
-    func deleteDownload(song: Song, modelContext: ModelContext) {
+    func deleteDownload(song: Song, modelContext: ModelContext? = nil) {
+        // Usar el contexto proporcionado o el compartido
+        guard let context = modelContext ?? sharedModelContext else {
+            print("❌ Error: No hay ModelContext disponible para eliminar descarga")
+            return
+        }
+
         Task {
             do {
                 // Eliminar el archivo descargado
@@ -113,8 +150,9 @@ class SongListViewModel: ObservableObject {
                 song.author = nil
 
                 // Guardar cambios
-                try modelContext.save()
+                try context.save()
             } catch {
+                print("❌ Error eliminando descarga: \(error.localizedDescription)")
             }
         }
     }
