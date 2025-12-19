@@ -46,20 +46,14 @@ struct MainAppView: View {
             }
             .accentColor(.white)
 
-            // PlayerView completo - Animación suave como Spotify
+            // PlayerView completo - Transición estilo Spotify
             if let currentSong = currentSong, playerViewModel.showPlayerView {
                 PlayerView(
                     songs: songs,
                     currentSong: currentSong,
                     namespace: animation
                 )
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .bottom),
-                        removal: .move(edge: .bottom)
-                    )
-                )
-                .animation(.spring(response: 0.5, dampingFraction: 0.85), value: playerViewModel.showPlayerView)
+                .transition(.identity)
                 .zIndex(2)
             }
 
@@ -73,16 +67,14 @@ struct MainAppView: View {
                     .padding(.bottom, 55)
                     .transition(
                         .asymmetric(
-                            insertion: .move(edge: .bottom)
-                                .combined(with: .opacity),
-                            removal: .move(edge: .bottom)
-                                .combined(with: .opacity)
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
                         )
                     )
-                    .animation(.spring(response: 0.3, dampingFraction: 0.85), value: playerViewModel.currentlyPlayingID)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: playerViewModel.currentlyPlayingID)
                     .zIndex(1)
                     .onTapGesture {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
                             playerViewModel.showPlayerView = true
                         }
                     }

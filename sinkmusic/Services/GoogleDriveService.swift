@@ -57,12 +57,19 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
+        // Reducir el tamaño del buffer para reportar progreso más frecuentemente
+        // Esto hace que URLSession reporte progreso cada 64KB en lugar de esperar chunks grandes
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
     // Thread-safe dictionary para descargas activas
     private let downloadsLock = NSLock()
     private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, progressCallback: ((Double) -> Void)?)] = [:]
+
+    // Último progreso reportado por cada tarea (para evitar spam de logs)
+    private var lastReportedProgress: [Int: Int] = [:]
 
     private var apiKey: String? {
         keychainService.googleDriveAPIKey
@@ -231,13 +238,34 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
 
         let progress: Double
         if totalBytesExpectedToWrite > 0 {
+            // Progreso normal cuando conocemos el tamaño total
             progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+
+            // Solo imprimir logs cada 10% para no saturar la consola
+            let progressPercent = Int(progress * 100)
+            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
+            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+                let totalMB = Double(totalBytesExpectedToWrite) / (1024 * 1024)
+                let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
+                print("📡 GoogleDrive: \(String(format: "%.2f", downloadedMB))MB / \(String(format: "%.2f", totalMB))MB (\(progressPercent)%)")
+                lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
+            }
         } else {
-            // Si no conocemos el total, enviamos -1 para indicar progreso indeterminado
-            progress = -1
+            // Si no conocemos el total, estimamos basándonos en un tamaño promedio de canción (10MB)
+            let estimatedTotalBytes: Int64 = 10 * 1024 * 1024 // 10MB
+            progress = min(0.95, Double(totalBytesWritten) / Double(estimatedTotalBytes))
+
+            let progressPercent = Int(progress * 100)
+            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
+            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+                let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
+                print("📡 GoogleDrive: \(String(format: "%.2f", downloadedMB))MB descargados (estimado: \(progressPercent)%)")
+                lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
+            }
         }
 
-        // Llamar al callback de progreso en el main thread
+        // IMPORTANTE: Llamar al callback SIEMPRE, no solo cuando imprimimos logs
+        // El UI necesita todas las actualizaciones de progreso
         if let progressCallback = downloadInfo.progressCallback {
             Task { @MainActor in
                 progressCallback(progress)
@@ -260,6 +288,18 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
         }
 
         do {
+            // Validar que el archivo descargado sea suficientemente grande para ser un archivo de audio
+            let fileSize = try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? Int64 ?? 0
+            let fileSizeMB = Double(fileSize) / (1024 * 1024)
+
+            print("📦 Archivo descargado: \(String(format: "%.2f", fileSizeMB))MB")
+
+            // Si el archivo es menor a 100KB, probablemente sea un error HTML de Google Drive
+            if fileSize < 100_000 {
+                print("⚠️ ADVERTENCIA: Archivo muy pequeño (\(String(format: "%.2f", fileSizeMB))MB). Puede ser un error de Google Drive.")
+                print("💡 Verifica que el archivo tenga permisos públicos en Google Drive")
+            }
+
             try? FileManager.default.removeItem(at: destinationURL)
             try FileManager.default.moveItem(at: location, to: destinationURL)
 

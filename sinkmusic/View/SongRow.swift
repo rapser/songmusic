@@ -139,13 +139,8 @@ private struct SongActionView: View {
     var body: some View {
         Group {
             if let progress = downloadProgress {
-                if progress < 0 {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(width: 100)
-                } else {
-                    DownloadProgressView(progress: progress)
-                }
+                // Siempre mostrar la barra de progreso (0% a 100%)
+                DownloadProgressView(progress: progress)
             } else if song.isDownloaded {
                 MenuButton(showMenu: $showMenu)
             } else {

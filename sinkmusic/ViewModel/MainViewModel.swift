@@ -92,7 +92,27 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                         let newSong = Song(title: driveFile.title, artist: driveFile.artist, fileID: driveFile.id)
                         modelContext.insert(newSong)
                         newSongsAdded += 1
+                        print("📝 Nueva canción: \"\(driveFile.title)\" (FileID: \(driveFile.id.prefix(10))...)")
                     }
+                }
+
+                // Detectar posibles duplicados por título similar
+                let allTitles = driveFiles.map { $0.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+                let titleCounts = Dictionary(grouping: allTitles) { $0 }.mapValues { $0.count }
+                let potentialDuplicates = titleCounts.filter { $0.value > 1 }
+
+                if !potentialDuplicates.isEmpty {
+                    print("⚠️ ADVERTENCIA: Se encontraron posibles duplicados en Google Drive:")
+                    for (title, count) in potentialDuplicates {
+                        let matchingSongs = driveFiles.filter {
+                            $0.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == title
+                        }
+                        print("   • \"\(title)\" aparece \(count) veces:")
+                        for song in matchingSongs {
+                            print("     - \"\(song.title)\" (FileID: \(song.id.prefix(10))...)")
+                        }
+                    }
+                    print("💡 Sugerencia: Elimina los archivos duplicados de tu Google Drive para evitar descargas duplicadas")
                 }
 
                 await MainActor.run {

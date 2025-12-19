@@ -10,6 +10,7 @@ struct PlayerView: View {
     @State private var sliderValue: Double = 0
     @State private var isSeekingManually = false
     @State private var showEqualizer = false
+    @State private var dragOffset: CGFloat = 0
 
     private var dominantColor: Color {
         Color.dominantColor(from: currentSong)
@@ -25,7 +26,7 @@ struct PlayerView: View {
                 PlayerHeader(
                     showEqualizer: $showEqualizer,
                     onClose: {
-                        withAnimation(.easeInOut(duration: 0.35)) {
+                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
                             playerViewModel.showPlayerView = false
                         }
                     }
@@ -70,6 +71,28 @@ struct PlayerView: View {
                 Spacer()
             }
         }
+        .offset(y: dragOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    // Solo permitir deslizar hacia abajo
+                    if value.translation.height > 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    // Si desliza más de 150 puntos, cerrar el player
+                    if value.translation.height > 150 {
+                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
+                            playerViewModel.showPlayerView = false
+                        }
+                    }
+                    // Resetear el offset con animación
+                    withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
+                        dragOffset = 0
+                    }
+                }
+        )
         .onAppear {
             sliderValue = playerViewModel.playbackTime
             if currentSong.cachedDominantColorRed == nil {

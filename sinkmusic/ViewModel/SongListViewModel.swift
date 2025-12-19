@@ -11,6 +11,9 @@ class SongListViewModel: ObservableObject {
     private let metadataService: MetadataService
     private var downloadAllTask: Task<Void, Never>?
 
+    // Tareas de animación de progreso para suavizar actualizaciones rápidas
+    private var progressAnimationTasks: [UUID: Task<Void, Never>] = [:]
+
     // ModelContext compartido para todas las operaciones de descarga
     // Esto asegura que las actualizaciones persistan incluso si la vista se destruye
     private var sharedModelContext: ModelContext?
@@ -34,13 +37,33 @@ class SongListViewModel: ObservableObject {
             return
         }
 
-        downloadProgress[song.id] = -1
+        // Iniciar en 0% para mostrar la barra de progreso inmediatamente
+        downloadProgress[song.id] = 0
+        print("📥 Iniciando descarga: \(song.title)")
         Task {
             do {
+                var lastLoggedPercent = -1
+                var lastUpdateTime: Date = Date()
                 let localURL = try await downloadService.download(song: song) { [weak self] progress in
-                    self?.downloadProgress[song.id] = progress
+                    // Si el progreso es válido (0-1), usarlo
+                    if progress >= 0 {
+                        // Actualizar UI solo cada 50ms para suavizar animación
+                        let now = Date()
+                        if now.timeIntervalSince(lastUpdateTime) >= 0.05 || progress >= 0.99 {
+                            self?.downloadProgress[song.id] = progress
+                            lastUpdateTime = now
+                        }
+
+                        // Solo imprimir logs cada 20% para no saturar la consola
+                        let currentPercent = Int(progress * 100)
+                        if currentPercent % 20 == 0 && currentPercent != lastLoggedPercent {
+                            print("📊 Descarga \(song.title): \(currentPercent)%")
+                            lastLoggedPercent = currentPercent
+                        }
+                    }
                 }
-                song.isDownloaded = true
+
+                print("✅ Descarga completada: \(song.title)")
 
                 // Extraer metadatos del archivo descargado
                 if let metadata = await metadataService.extractMetadata(from: localURL) {
@@ -53,6 +76,10 @@ class SongListViewModel: ObservableObject {
                     song.artworkThumbnail = metadata.artworkThumbnail
                     song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
                 }
+
+                // IMPORTANTE: Marcar como descargada AL FINAL, después de extraer metadatos
+                // Esto evita que la canción desaparezca de la lista antes de mostrar el progreso completo
+                song.isDownloaded = true
 
                 try context.save()
                 downloadProgress[song.id] = nil
@@ -89,13 +116,22 @@ class SongListViewModel: ObservableObject {
                     break
                 }
 
-                downloadProgress[song.id] = -1
+                // Verificar nuevamente que la canción no esté descargada (por si se descargó mientras esperaba en la cola)
+                if song.isDownloaded {
+                    print("⏭️ Saltando \(song.title) - ya está descargada")
+                    continue
+                }
+
+                // Iniciar en 0% para mostrar la barra de progreso inmediatamente
+                downloadProgress[song.id] = 0
 
                 do {
                     let localURL = try await downloadService.download(song: song) { [weak self] progress in
-                        self?.downloadProgress[song.id] = progress
+                        // Si el progreso es válido (0-1), usarlo. Si es -1, mantener el último progreso
+                        if progress >= 0 {
+                            self?.downloadProgress[song.id] = progress
+                        }
                     }
-                    song.isDownloaded = true
 
                     // Extraer metadatos del archivo descargado
                     if let metadata = await metadataService.extractMetadata(from: localURL) {
@@ -108,6 +144,10 @@ class SongListViewModel: ObservableObject {
                         song.artworkThumbnail = metadata.artworkThumbnail
                         song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
                     }
+
+                    // IMPORTANTE: Marcar como descargada AL FINAL, después de extraer metadatos
+                    // Esto evita que la canción desaparezca de la lista antes de mostrar el progreso completo
+                    song.isDownloaded = true
 
                     try context.save()
                     downloadProgress[song.id] = nil
