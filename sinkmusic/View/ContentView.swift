@@ -3,14 +3,12 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
+    @Query(filter: #Predicate<Song> { $0.isDownloaded }, sort: [SortDescriptor(\Song.title)])
+    private var downloadedSongs: [Song]
+
     @EnvironmentObject var viewModel: MainViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
-
-    var downloadedSongs: [Song] {
-        songs.filter { $0.isDownloaded }
-    }
 
     var body: some View {
         ZStack {
@@ -66,18 +64,19 @@ struct ContentView: View {
                     .padding(.horizontal, 40)
                 } else {
                     ScrollView {
-                        VStack(spacing: 10) {
+                        LazyVStack(spacing: 10, pinnedViews: []) {
                             ForEach(downloadedSongs) { song in
                                 SongRow(song: song)
                             }
                         }
                         .padding(.bottom, 80) // Espacio para el mini player
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 8)
                 }
             }
         }
-        .onAppear {
+        .task {
+            // Sincronizar automáticamente al cargar la vista
             viewModel.syncLibraryWithCatalog(modelContext: modelContext)
         }
     }

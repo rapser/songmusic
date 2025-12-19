@@ -11,7 +11,6 @@ import SwiftUI
 
 @MainActor
 class PlaylistViewModel: ObservableObject {
-    @Published var playlists: [Playlist] = []
     @Published var showCreatePlaylist = false
     @Published var showAddToPlaylist = false
     @Published var selectedSong: Song?
@@ -20,19 +19,6 @@ class PlaylistViewModel: ObservableObject {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        fetchPlaylists()
-    }
-
-    // MARK: - Fetch Playlists
-    func fetchPlaylists() {
-        let descriptor = FetchDescriptor<Playlist>(
-            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
-        )
-
-        do {
-            playlists = try modelContext.fetch(descriptor)
-        } catch {
-        }
     }
 
     // MARK: - Create Playlist
@@ -47,8 +33,8 @@ class PlaylistViewModel: ObservableObject {
 
         do {
             try modelContext.save()
-            fetchPlaylists()
         } catch {
+            print("❌ Error al crear playlist: \(error)")
         }
     }
 
@@ -58,8 +44,8 @@ class PlaylistViewModel: ObservableObject {
 
         do {
             try modelContext.save()
-            fetchPlaylists()
         } catch {
+            print("❌ Error al eliminar playlist: \(error)")
         }
     }
 
@@ -79,8 +65,8 @@ class PlaylistViewModel: ObservableObject {
 
         do {
             try modelContext.save()
-            fetchPlaylists()
         } catch {
+            print("❌ Error al actualizar playlist: \(error)")
         }
     }
 
@@ -88,6 +74,7 @@ class PlaylistViewModel: ObservableObject {
     func addSong(_ song: Song, to playlist: Playlist) {
         // Verificar que la canción no esté ya en la playlist
         guard !playlist.songs.contains(where: { $0.id == song.id }) else {
+            print("⚠️ La canción ya está en la playlist")
             return
         }
 
@@ -96,8 +83,8 @@ class PlaylistViewModel: ObservableObject {
 
         do {
             try modelContext.save()
-            fetchPlaylists()
         } catch {
+            print("❌ Error al agregar canción a playlist: \(error)")
         }
     }
 
@@ -109,8 +96,8 @@ class PlaylistViewModel: ObservableObject {
 
             do {
                 try modelContext.save()
-                fetchPlaylists()
             } catch {
+                print("❌ Error al eliminar canción de playlist: \(error)")
             }
         }
     }
@@ -122,8 +109,8 @@ class PlaylistViewModel: ObservableObject {
 
         do {
             try modelContext.save()
-            fetchPlaylists()
         } catch {
+            print("❌ Error al reordenar canciones: \(error)")
         }
     }
 

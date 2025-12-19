@@ -25,11 +25,13 @@ final class DownloadSongUseCase {
     }
     
     /// Ejecuta la descarga completa de una canción con extracción de metadatos
-    /// - Parameter song: La canción a descargar
+    /// - Parameters:
+    ///   - song: La canción a descargar
+    ///   - progressCallback: Closure opcional que recibe el progreso de descarga
     /// - Returns: URL local del archivo descargado
-    func execute(song: Song) async throws -> URL {
+    func execute(song: Song, progressCallback: ((Double) -> Void)? = nil) async throws -> URL {
         // Paso 1: Descargar el archivo
-        let localURL = try await googleDriveService.download(song: song)
+        let localURL = try await googleDriveService.download(song: song, progressCallback: progressCallback)
         
         // Paso 2: Marcar como descargada
         song.isDownloaded = true

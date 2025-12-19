@@ -9,7 +9,7 @@ final class Song: Identifiable {
     var artist: String
     var album: String?
     var author: String?
-    var fileID: String
+    @Attribute(.unique) var fileID: String
     var isDownloaded: Bool
     var duration: TimeInterval?
     var artworkData: Data?

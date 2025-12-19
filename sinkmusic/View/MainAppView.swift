@@ -10,6 +10,7 @@ struct MainAppView: View {
     @State private var currentSong: Song? = nil
     @State private var debugMessage = ""
     @State private var showDebugInfo = true
+    @State private var songsLookup: [UUID: Song] = [:]
 
     init() {
         let tabBarAppearance = UITabBarAppearance()
@@ -45,27 +46,18 @@ struct MainAppView: View {
             }
             .accentColor(.white)
 
-            // PlayerView completo
+            // PlayerView completo - Transición estilo Spotify
             if let currentSong = currentSong, playerViewModel.showPlayerView {
                 PlayerView(
                     songs: songs,
                     currentSong: currentSong,
                     namespace: animation
                 )
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.95, anchor: .bottom)
-                            .combined(with: .move(edge: .bottom))
-                            .combined(with: .opacity),
-                        removal: .scale(scale: 0.95, anchor: .bottom)
-                            .combined(with: .move(edge: .bottom))
-                            .combined(with: .opacity)
-                    )
-                )
+                .transition(.identity)
                 .zIndex(2)
             }
 
-            // Mini Player
+            // Mini Player - Aparición rápida como Spotify
             if let currentSong = currentSong,
                playerViewModel.currentlyPlayingID != nil,
                !playerViewModel.showPlayerView {
@@ -75,47 +67,47 @@ struct MainAppView: View {
                     .padding(.bottom, 55)
                     .transition(
                         .asymmetric(
-                            insertion: .scale(scale: 0.95, anchor: .bottom)
-                                .combined(with: .move(edge: .bottom))
-                                .combined(with: .opacity),
-                            removal: .scale(scale: 1.05, anchor: .bottom)
-                                .combined(with: .opacity)
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
                         )
                     )
+                    .animation(.spring(response: 0.35, dampingFraction: 0.86, blendDuration: 0), value: playerViewModel.currentlyPlayingID)
                     .zIndex(1)
                     .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.35)) {
+                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
                             playerViewModel.showPlayerView = true
                         }
                     }
             }
         }
-        .onAppear {
-            updateCurrentSong()
-            updateDebugInfo()
+        .task {
+            // Crear lookup dictionary una vez al inicio
+            updateSongsLookup()
             playerViewModel.updateSongsList(songs)
         }
-        .onChange(of: playerViewModel.currentlyPlayingID) {
-            updateCurrentSong()
+        .onChange(of: playerViewModel.currentlyPlayingID) { oldValue, newValue in
+            // Usar lookup O(1) en lugar de first O(n)
+            if let playingID = newValue {
+                currentSong = songsLookup[playingID]
+            } else {
+                currentSong = nil
+            }
             updateDebugInfo()
         }
-        .onChange(of: playerViewModel.showPlayerView) {
-            updateDebugInfo()
-        }
-        .onChange(of: playerViewModel.isPlaying) {
-            updateDebugInfo()
-        }
-        .onChange(of: songs) {
-            updateCurrentSong()
-            playerViewModel.updateSongsList(songs)
+        .onChange(of: songs) { oldValue, newValue in
+            // Actualizar lookup solo cuando cambian las canciones
+            updateSongsLookup()
+            playerViewModel.updateSongsList(newValue)
         }
     }
-    
-    private func updateCurrentSong() {
+
+    private func updateSongsLookup() {
+        // O(n) solo cuando cambian las canciones, no en cada render
+        songsLookup = Dictionary(uniqueKeysWithValues: songs.map { ($0.id, $0) })
+
+        // Actualizar currentSong con el nuevo lookup
         if let playingID = playerViewModel.currentlyPlayingID {
-            currentSong = songs.first { $0.id == playingID }
-        } else {
-            currentSong = nil
+            currentSong = songsLookup[playingID]
         }
     }
     

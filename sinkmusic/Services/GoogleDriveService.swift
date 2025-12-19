@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Combine
 import AVFoundation
 
 // Typealias para compatibilidad con código existente
@@ -42,6 +41,7 @@ struct GoogleDriveFile: Codable, Identifiable {
 
 struct GoogleDriveResponse: Codable {
     let files: [GoogleDriveFile]
+    let nextPageToken: String?
 }
 
 enum GoogleDriveError: Error {
@@ -55,16 +55,21 @@ enum GoogleDriveError: Error {
 final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
     private let keychainService = KeychainService.shared
 
-    // Publisher para el progreso de la descarga
-    var downloadProgressPublisher = PassthroughSubject<(songID: UUID, progress: Double), Never>()
-
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
+        // Reducir el tamaño del buffer para reportar progreso más frecuentemente
+        // Esto hace que URLSession reporte progreso cada 64KB en lugar de esperar chunks grandes
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
-    // Usamos un diccionario para mapear tareas a sus continuaciones y IDs
-    private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>)] = [:]
+    // Thread-safe dictionary para descargas activas
+    private let downloadsLock = NSLock()
+    private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, progressCallback: ((Double) -> Void)?)] = [:]
+
+    // Último progreso reportado por cada tarea (para evitar spam de logs)
+    private var lastReportedProgress: [Int: Int] = [:]
 
     private var apiKey: String? {
         keychainService.googleDriveAPIKey
@@ -87,39 +92,60 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
             throw GoogleDriveError.missingFolderId
         }
 
-        // URL de la API de Google Drive Files.list
-        // Usando acceso público sin autenticación para carpetas compartidas
-        let urlString = "https://www.googleapis.com/drive/v3/files"
+        var allFiles: [GoogleDriveFile] = []
+        var pageToken: String? = nil
 
-        guard var components = URLComponents(string: urlString) else {
-            throw URLError(.badURL)
-        }
+        // Iterar sobre todas las páginas de resultados
+        repeat {
+            // URL de la API de Google Drive Files.list
+            // Usando acceso público sin autenticación para carpetas compartidas
+            let urlString = "https://www.googleapis.com/drive/v3/files"
 
-        // Parámetros de consulta
-        components.queryItems = [
-            URLQueryItem(name: "q", value: "'\(folderId)' in parents and (mimeType='audio/mpeg' or mimeType='audio/mp4' or mimeType='audio/x-m4a')"),
-            URLQueryItem(name: "fields", value: "files(id,name,mimeType)"),
-            URLQueryItem(name: "key", value: apiKey)
-        ]
+            guard var components = URLComponents(string: urlString) else {
+                throw URLError(.badURL)
+            }
 
-        guard let url = components.url else {
-            throw URLError(.badURL)
-        }
+            // Parámetros de consulta
+            var queryItems = [
+                URLQueryItem(name: "q", value: "'\(folderId)' in parents and (mimeType='audio/mpeg' or mimeType='audio/mp4' or mimeType='audio/x-m4a')"),
+                URLQueryItem(name: "fields", value: "files(id,name,mimeType),nextPageToken"),
+                URLQueryItem(name: "pageSize", value: "1000"),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+            // Agregar pageToken si existe
+            if let pageToken = pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
+            components.queryItems = queryItems
 
-        if httpResponse.statusCode != 200 {
-            throw URLError(.badServerResponse)
-        }
+            guard let url = components.url else {
+                throw URLError(.badURL)
+            }
 
-        let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
+            let (data, response) = try await URLSession.shared.data(from: url)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw URLError(.badServerResponse)
+            }
+
+            if httpResponse.statusCode != 200 {
+                throw URLError(.badServerResponse)
+            }
+
+            let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
+
+            // Agregar archivos de esta página
+            allFiles.append(contentsOf: driveResponse.files)
+
+            // Actualizar pageToken para la siguiente iteración
+            pageToken = driveResponse.nextPageToken
+
+        } while pageToken != nil
 
         // Filtrar solo archivos .m4a
-        let m4aFiles = driveResponse.files.filter { file in
+        let m4aFiles = allFiles.filter { file in
             file.name.hasSuffix(".m4a")
         }
 
@@ -128,8 +154,8 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Download
 
-    /// Descarga un archivo de Google Drive
-    func download(song: Song) async throws -> URL {
+    /// Descarga un archivo de Google Drive con callback de progreso
+    func download(song: Song, progressCallback: ((Double) -> Void)? = nil) async throws -> URL {
         // Obtener API Key del Keychain
         guard let apiKey = keychainService.googleDriveAPIKey else {
             throw GoogleDriveError.missingAPIKey
@@ -143,7 +169,9 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
         return try await withCheckedThrowingContinuation { continuation in
             let downloadTask = urlSession.downloadTask(with: request)
-            activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation)
+            downloadsLock.lock()
+            activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation, progressCallback)
+            downloadsLock.unlock()
             downloadTask.resume()
         }
     }
@@ -201,20 +229,57 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 extension GoogleDriveService: URLSessionDownloadDelegate {
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let downloadInfo = activeDownloads[downloadTask.taskIdentifier] else { return }
+        downloadsLock.lock()
+        guard let downloadInfo = activeDownloads[downloadTask.taskIdentifier] else {
+            downloadsLock.unlock()
+            return
+        }
+        downloadsLock.unlock()
 
         let progress: Double
         if totalBytesExpectedToWrite > 0 {
+            // Progreso normal cuando conocemos el tamaño total
             progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+
+            // Solo imprimir logs cada 10% para no saturar la consola
+            let progressPercent = Int(progress * 100)
+            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
+            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+                let totalMB = Double(totalBytesExpectedToWrite) / (1024 * 1024)
+                let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
+                print("📡 GoogleDrive: \(String(format: "%.2f", downloadedMB))MB / \(String(format: "%.2f", totalMB))MB (\(progressPercent)%)")
+                lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
+            }
         } else {
-            // Si no conocemos el total, enviamos -1 para indicar progreso indeterminado
-            progress = -1
+            // Si no conocemos el total, estimamos basándonos en un tamaño promedio de canción (10MB)
+            let estimatedTotalBytes: Int64 = 10 * 1024 * 1024 // 10MB
+            progress = min(0.95, Double(totalBytesWritten) / Double(estimatedTotalBytes))
+
+            let progressPercent = Int(progress * 100)
+            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
+            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+                let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
+                print("📡 GoogleDrive: \(String(format: "%.2f", downloadedMB))MB descargados (estimado: \(progressPercent)%)")
+                lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
+            }
         }
-        downloadProgressPublisher.send((songID: downloadInfo.songID, progress: progress))
+
+        // IMPORTANTE: Llamar al callback SIEMPRE, no solo cuando imprimimos logs
+        // El UI necesita todas las actualizaciones de progreso
+        if let progressCallback = downloadInfo.progressCallback {
+            Task { @MainActor in
+                progressCallback(progress)
+            }
+        }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let downloadInfo = activeDownloads.removeValue(forKey: downloadTask.taskIdentifier) else { return }
+        downloadsLock.lock()
+        guard let downloadInfo = activeDownloads.removeValue(forKey: downloadTask.taskIdentifier) else {
+            downloadsLock.unlock()
+            return
+        }
+        downloadsLock.unlock()
 
         guard let destinationURL = localURL(for: downloadInfo.songID) else {
             let error = NSError(domain: "GoogleDriveService", code: 0, userInfo: [NSLocalizedDescriptionKey: "No se pudo crear la URL de destino."])
@@ -223,6 +288,18 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
         }
 
         do {
+            // Validar que el archivo descargado sea suficientemente grande para ser un archivo de audio
+            let fileSize = try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? Int64 ?? 0
+            let fileSizeMB = Double(fileSize) / (1024 * 1024)
+
+            print("📦 Archivo descargado: \(String(format: "%.2f", fileSizeMB))MB")
+
+            // Si el archivo es menor a 100KB, probablemente sea un error HTML de Google Drive
+            if fileSize < 100_000 {
+                print("⚠️ ADVERTENCIA: Archivo muy pequeño (\(String(format: "%.2f", fileSizeMB))MB). Puede ser un error de Google Drive.")
+                print("💡 Verifica que el archivo tenga permisos públicos en Google Drive")
+            }
+
             try? FileManager.default.removeItem(at: destinationURL)
             try FileManager.default.moveItem(at: location, to: destinationURL)
 
@@ -239,7 +316,12 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let downloadInfo = activeDownloads.removeValue(forKey: task.taskIdentifier) else { return }
+        downloadsLock.lock()
+        guard let downloadInfo = activeDownloads.removeValue(forKey: task.taskIdentifier) else {
+            downloadsLock.unlock()
+            return
+        }
+        downloadsLock.unlock()
 
         if let error = error {
             downloadInfo.continuation.resume(throwing: error)

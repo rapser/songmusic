@@ -11,17 +11,12 @@ struct GoogleDriveConfigView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var mainViewModel: MainViewModel
-    @State private var apiKey: String = ""
-    @State private var folderId: String = ""
-    @State private var showSaveConfirmation = false
-    @State private var hasExistingCredentials = false
-
-    private let keychainService = KeychainService.shared
-
+    @StateObject private var settingsViewModel = SettingsViewModel()
+    
     var body: some View {
         ZStack {
             Color.appDark.edgesIgnoringSafeArea(.all)
-
+            
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     // Header
@@ -30,17 +25,17 @@ struct GoogleDriveConfigView: View {
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-
+                        
                         Text("Configura tus credenciales para acceder a Google Drive")
                             .font(.subheadline)
                             .foregroundColor(.textGray)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 20)
-
+                    
                     // Instrucciones
                     InstructionsCard()
-
+                    
                     // API Key
                     VStack(alignment: .leading, spacing: 8) {
                         Label {
@@ -51,14 +46,14 @@ struct GoogleDriveConfigView: View {
                             Image(systemName: "key.fill")
                                 .foregroundColor(.appPurple)
                         }
-
-                        TextField("", text: $apiKey, prompt: Text("Ingresa tu API Key").foregroundColor(.textGray))
+                        
+                        TextField("", text: $settingsViewModel.apiKey, prompt: Text("Ingresa tu API Key").foregroundColor(.textGray))
                             .textFieldStyle(CustomTextFieldStyle())
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                     }
                     .padding(.horizontal, 16)
-
+                    
                     // Folder ID
                     VStack(alignment: .leading, spacing: 8) {
                         Label {
@@ -69,16 +64,16 @@ struct GoogleDriveConfigView: View {
                             Image(systemName: "folder.fill")
                                 .foregroundColor(.appPurple)
                         }
-
-                        TextField("", text: $folderId, prompt: Text("Ingresa el ID de la carpeta").foregroundColor(.textGray))
+                        
+                        TextField("", text: $settingsViewModel.folderId, prompt: Text("Ingresa el ID de la carpeta").foregroundColor(.textGray))
                             .textFieldStyle(CustomTextFieldStyle())
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                     }
                     .padding(.horizontal, 16)
-
+                    
                     // Estado actual
-                    if hasExistingCredentials {
+                    if settingsViewModel.hasExistingCredentials {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.appPurple)
@@ -91,11 +86,13 @@ struct GoogleDriveConfigView: View {
                         .cornerRadius(8)
                         .padding(.horizontal, 16)
                     }
-
+                    
                     // Botones
                     VStack(spacing: 12) {
                         // Botón Guardar
-                        Button(action: saveCredentials) {
+                        Button(action: {
+                            settingsViewModel.saveCredentials(modelContext: modelContext, mainViewModel: mainViewModel)
+                        }) {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
                                 Text("Guardar Configuración")
@@ -104,14 +101,14 @@ struct GoogleDriveConfigView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(16)
-                            .background(apiKey.isEmpty || folderId.isEmpty ? Color.gray : Color.appPurple)
+                            .background(settingsViewModel.areCredentialsValid ? Color.appPurple : Color.gray)
                             .cornerRadius(12)
                         }
-                        .disabled(apiKey.isEmpty || folderId.isEmpty)
-
+                        .disabled(!settingsViewModel.areCredentialsValid)
+                        
                         // Botón Eliminar
-                        if hasExistingCredentials {
-                            Button(action: deleteCredentials) {
+                        if settingsViewModel.hasExistingCredentials {
+                            Button(action: { settingsViewModel.showDeleteCredentialsAlert = true }) {
                                 HStack {
                                     Image(systemName: "trash.fill")
                                     Text("Eliminar Credenciales")
@@ -140,53 +137,21 @@ struct GoogleDriveConfigView: View {
             }
         }
         .onAppear {
-            loadCredentials()
+            settingsViewModel.loadCredentials()
         }
-        .alert("Configuración Guardada", isPresented: $showSaveConfirmation) {
+        .alert("Configuración Guardada", isPresented: $settingsViewModel.showSaveConfirmation) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Las credenciales se han guardado de forma segura en Keychain")
         }
-    }
-
-    // MARK: - Actions
-
-    private func loadCredentials() {
-        if let savedAPIKey = keychainService.googleDriveAPIKey {
-            apiKey = savedAPIKey
-            hasExistingCredentials = true
-        } else {
-            apiKey = ""
+        .alert("Eliminar Credenciales", isPresented: $settingsViewModel.showDeleteCredentialsAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar", role: .destructive) {
+                settingsViewModel.deleteCredentials(modelContext: modelContext, mainViewModel: mainViewModel)
+            }
+        } message: {
+            Text("Se eliminarán las credenciales de Google Drive y todas las canciones descargadas. Esta acción no se puede deshacer.")
         }
-
-        if let savedFolderId = keychainService.googleDriveFolderId {
-            folderId = savedFolderId
-        } else {
-            folderId = ""
-        }
-    }
-
-    private func saveCredentials() {
-        let apiKeySaved = keychainService.save(apiKey, for: .googleDriveAPIKey)
-        let folderIdSaved = keychainService.save(folderId, for: .googleDriveFolderId)
-
-        if apiKeySaved && folderIdSaved {
-            hasExistingCredentials = true
-            showSaveConfirmation = true
-            print("✅ Credenciales guardadas en Keychain")
-        } else {
-            print("❌ Error al guardar credenciales")
-        }
-    }
-
-    private func deleteCredentials() {
-        keychainService.delete(for: .googleDriveAPIKey)
-        keychainService.delete(for: .googleDriveFolderId)
-        apiKey = ""
-        folderId = ""
-        hasExistingCredentials = false
-        mainViewModel.clearLibrary(modelContext: modelContext)
-        print("🗑️ Credenciales eliminadas del Keychain y biblioteca local limpiada.")
     }
 }
 

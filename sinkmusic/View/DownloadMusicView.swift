@@ -14,6 +14,7 @@ struct DownloadMusicView: View {
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
+    @EnvironmentObject var mainViewModel: MainViewModel
 
     var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
@@ -44,7 +45,41 @@ struct DownloadMusicView: View {
             Color.appDark.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                if pendingSongs.isEmpty {
+                // Mostrar error si existe
+                if let errorMessage = mainViewModel.syncErrorMessage {
+                    VStack(spacing: 20) {
+                        Spacer()
+
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.red)
+
+                        VStack(spacing: 8) {
+                            Text("Error de sincronización")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+
+                            Text(errorMessage)
+                                .font(.system(size: 14))
+                                .foregroundColor(.textGray)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        NavigationLink(destination: GoogleDriveConfigView()) {
+                            Text("Revisar Configuración")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.appDark)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.appPurple)
+                                .cornerRadius(24)
+                        }
+                        .padding(.top, 10)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 40)
+                } else if pendingSongs.isEmpty && !mainViewModel.isLoadingSongs {
                     // Estado vacío
                     VStack(spacing: 20) {
                         Spacer()
@@ -59,6 +94,29 @@ struct DownloadMusicView: View {
                                 .foregroundColor(.white)
 
                             Text("Todas las canciones están descargadas")
+                                .font(.system(size: 14))
+                                .foregroundColor(.textGray)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 40)
+                } else if mainViewModel.isLoadingSongs {
+                    // Estado de carga
+                    VStack(spacing: 20) {
+                        Spacer()
+
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .appPurple))
+                            .scaleEffect(1.5)
+
+                        VStack(spacing: 8) {
+                            Text("Sincronizando...")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+
+                            Text("Obteniendo canciones de Google Drive")
                                 .font(.system(size: 14))
                                 .foregroundColor(.textGray)
                                 .multilineTextAlignment(.center)

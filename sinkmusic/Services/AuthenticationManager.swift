@@ -7,7 +7,6 @@
 
 import Foundation
 import AuthenticationServices
-import Combine
 
 @MainActor
 final class AuthenticationManager: NSObject, ObservableObject {
@@ -37,30 +36,44 @@ final class AuthenticationManager: NSObject, ObservableObject {
     // MARK: - Authentication State
 
     func checkAuthenticationState() {
-        // En modo desarrollo (simulador), autenticar automáticamente
-        if isDevelopmentMode {
-            print("🔧 Modo Desarrollo: Auto-autenticación en simulador")
-            userID = "dev_user_simulator"
-            userEmail = "dev@simulator.test"
-            userFullName = "Usuario Simulador"
-            isAuthenticated = true
+        // Debug: Verificar el estado de UserDefaults
+        let didUserSignOut = UserDefaults.standard.bool(forKey: "didUserSignOut")
+        let savedUserID = UserDefaults.standard.string(forKey: "appleUserID")
+
+        print("🔍 Estado de autenticación:")
+        print("   - didUserSignOut: \(didUserSignOut)")
+        print("   - appleUserID guardado: \(savedUserID ?? "nil")")
+
+        // Verificar si el usuario cerró sesión intencionalmente
+        if didUserSignOut {
+            // El usuario cerró sesión manualmente, mantener en LoginView
+            print("🚪 Usuario cerró sesión previamente, mostrando LoginView")
             isCheckingAuth = false
             return
         }
 
         // Verificar si el usuario ya está autenticado
-        if let savedUserID = UserDefaults.standard.string(forKey: "appleUserID") {
+        if let savedUserID = savedUserID {
             userID = savedUserID
             userEmail = UserDefaults.standard.string(forKey: "appleUserEmail")
             userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
 
-            // Verificar el estado de la credencial con Apple
+            // En modo desarrollo (simulador), confiar directamente en los datos guardados
+            if isDevelopmentMode {
+                self.isAuthenticated = true
+                self.isCheckingAuth = false
+                print("✅ Sesión restaurada automáticamente (modo desarrollo)")
+                return
+            }
+
+            // En dispositivo real, verificar el estado de la credencial con Apple
             let provider = ASAuthorizationAppleIDProvider()
             provider.getCredentialState(forUserID: savedUserID) { state, error in
                 Task { @MainActor in
                     switch state {
                     case .authorized:
                         self.isAuthenticated = true
+                        print("✅ Sesión restaurada automáticamente")
                     case .revoked, .notFound:
                         self.signOut()
                     default:
@@ -71,6 +84,7 @@ final class AuthenticationManager: NSObject, ObservableObject {
             }
         } else {
             // No hay usuario guardado, finalizar verificación
+            print("ℹ️ No hay usuario guardado, mostrando LoginView")
             isCheckingAuth = false
         }
     }
@@ -78,6 +92,41 @@ final class AuthenticationManager: NSObject, ObservableObject {
     // MARK: - Sign In
 
     func signInWithApple() {
+        // En modo desarrollo (simulador), simular autenticación exitosa
+        if isDevelopmentMode {
+            print("🔧 Modo Desarrollo: Simulando Sign In with Apple en simulador")
+
+            // Simular credenciales de Apple
+            let simulatedUserID = "dev_user_simulator"
+            let simulatedEmail = "dev@simulator.test"
+            let simulatedName = "Usuario Simulador"
+
+            // Guardar en UserDefaults como si fuera un login real
+            UserDefaults.standard.set(simulatedUserID, forKey: "appleUserID")
+            UserDefaults.standard.set(simulatedEmail, forKey: "appleUserEmail")
+            UserDefaults.standard.set(simulatedName, forKey: "appleUserFullName")
+
+            // Limpiar el flag de cierre de sesión (usuario se está logueando)
+            UserDefaults.standard.set(false, forKey: "didUserSignOut")
+
+            // Forzar sincronización inmediata de UserDefaults
+            UserDefaults.standard.synchronize()
+
+            // Actualizar estado
+            self.userID = simulatedUserID
+            self.userEmail = simulatedEmail
+            self.userFullName = simulatedName
+            self.isAuthenticated = true
+            self.isCheckingAuth = false
+
+            print("✅ Login simulado exitoso")
+            print("🔍 Estado después de login:")
+            print("   - didUserSignOut guardado: \(UserDefaults.standard.bool(forKey: "didUserSignOut"))")
+            print("   - appleUserID guardado: \(UserDefaults.standard.string(forKey: "appleUserID") ?? "nil")")
+            return
+        }
+
+        // En dispositivo real, usar Sign In with Apple normal
         let request = ASAuthorizationAppleIDProvider().createRequest()
         request.requestedScopes = [.fullName, .email]
 
@@ -103,8 +152,11 @@ final class AuthenticationManager: NSObject, ObservableObject {
 
         print("📝 Datos recibidos de Apple:")
         print("   UserID: \(userID)")
-        print("   Email: \(email ?? "nil")")
-        print("   FullName: \(fullName?.givenName ?? "nil") \(fullName?.familyName ?? "nil")")
+        print("   Email: \(email ?? "nil (normal en login 2+)")")
+        print("   FullName: \(fullName?.givenName ?? "nil") \(fullName?.familyName ?? "nil (normal en login 2+)")")
+
+        // Limpiar el flag de cierre de sesión (usuario se está logueando)
+        UserDefaults.standard.set(false, forKey: "didUserSignOut")
 
         // Guardar datos del usuario (solo si vienen datos nuevos)
         saveUserData(userID: userID, email: email, fullName: fullName)
@@ -115,10 +167,14 @@ final class AuthenticationManager: NSObject, ObservableObject {
         // Para email: usar el nuevo si existe, sino recuperar de UserDefaults
         if let email = email {
             self.userEmail = email
-            print("✅ Email actualizado: \(email)")
+            print("✅ Email nuevo de Apple: \(email)")
         } else {
             self.userEmail = UserDefaults.standard.string(forKey: "appleUserEmail")
-            print("ℹ️ Email recuperado de UserDefaults: \(self.userEmail ?? "nil")")
+            if self.userEmail != nil {
+                print("✅ Email recuperado de UserDefaults: \(self.userEmail!)")
+            } else {
+                print("⚠️ No hay email guardado")
+            }
         }
 
         // Para nombre: construir si viene, sino recuperar de UserDefaults
@@ -129,20 +185,28 @@ final class AuthenticationManager: NSObject, ObservableObject {
 
             if !name.isEmpty {
                 self.userFullName = name
-                print("✅ Nombre actualizado: \(name)")
+                print("✅ Nombre nuevo de Apple: \(name)")
             } else {
                 self.userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
-                print("ℹ️ Nombre recuperado de UserDefaults: \(self.userFullName ?? "nil")")
+                if self.userFullName != nil {
+                    print("✅ Nombre recuperado de UserDefaults: \(self.userFullName!)")
+                } else {
+                    print("⚠️ No hay nombre guardado")
+                }
             }
         } else {
             self.userFullName = UserDefaults.standard.string(forKey: "appleUserFullName")
-            print("ℹ️ Nombre recuperado de UserDefaults: \(self.userFullName ?? "nil")")
+            if self.userFullName != nil {
+                print("✅ Nombre recuperado de UserDefaults: \(self.userFullName!)")
+            } else {
+                print("⚠️ No hay nombre guardado")
+            }
         }
 
-        print("📊 Estado final:")
-        print("   UserID: \(self.userID ?? "nil")")
-        print("   Email: \(self.userEmail ?? "nil")")
-        print("   FullName: \(self.userFullName ?? "nil")")
+        print("📊 Estado final de autenticación:")
+        print("   ✓ UserID: \(self.userID ?? "nil")")
+        print("   ✓ Email: \(self.userEmail ?? "Sin email")")
+        print("   ✓ Nombre: \(self.userFullName ?? "Sin nombre")")
 
         isAuthenticated = true
         isCheckingAuth = false
@@ -150,7 +214,33 @@ final class AuthenticationManager: NSObject, ObservableObject {
 
     // MARK: - Sign Out
 
+    /// Cierra la sesión actual pero mantiene email y nombre guardados
+    /// para poder recuperarlos en el próximo login (Apple solo los envía la primera vez)
     func signOut() {
+        isAuthenticated = false
+        userID = nil
+        userEmail = nil
+        userFullName = nil
+
+        // Solo borrar el userID para cerrar sesión
+        // MANTENER email y nombre para poder recuperarlos en siguiente login
+        UserDefaults.standard.removeObject(forKey: "appleUserID")
+
+        // Marcar que el usuario cerró sesión intencionalmente
+        // Esto evita el auto-login al volver a abrir el app
+        UserDefaults.standard.set(true, forKey: "didUserSignOut")
+
+        // Forzar sincronización inmediata de UserDefaults
+        UserDefaults.standard.synchronize()
+
+        print("🚪 Sesión cerrada. Email y nombre se mantienen para próximo login.")
+        print("🔍 Estado después de signOut:")
+        print("   - didUserSignOut guardado: \(UserDefaults.standard.bool(forKey: "didUserSignOut"))")
+        print("   - appleUserID guardado: \(UserDefaults.standard.string(forKey: "appleUserID") ?? "nil")")
+    }
+
+    /// Elimina TODOS los datos de Apple guardados (usar solo si el usuario quiere resetear todo)
+    func clearAllAppleData() {
         isAuthenticated = false
         userID = nil
         userEmail = nil
@@ -159,6 +249,9 @@ final class AuthenticationManager: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: "appleUserID")
         UserDefaults.standard.removeObject(forKey: "appleUserEmail")
         UserDefaults.standard.removeObject(forKey: "appleUserFullName")
+        UserDefaults.standard.set(true, forKey: "didUserSignOut")
+
+        print("🗑️ Todos los datos de Apple han sido eliminados.")
     }
 
     // MARK: - Private Helpers
@@ -194,6 +287,9 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
         let userID = credential.user
         let email = credential.email
         let fullName = credential.fullName
+
+        // Limpiar el flag de cierre de sesión (usuario se está logueando)
+        UserDefaults.standard.set(false, forKey: "didUserSignOut")
 
         // Guardar datos del usuario
         saveUserData(userID: userID, email: email, fullName: fullName)

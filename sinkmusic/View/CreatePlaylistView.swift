@@ -11,7 +11,6 @@ import PhotosUI
 struct CreatePlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    let onPlaylistCreated: () -> Void
 
     @State private var playlistName = ""
     @State private var playlistDescription = ""
@@ -142,32 +141,25 @@ struct CreatePlaylistView: View {
     }
 
     private func createPlaylist() {
-        // Crear playlist de forma asíncrona para no bloquear el audio
-        Task {
-            let playlist = Playlist(
-                name: playlistName,
-                description: playlistDescription,
-                coverImageData: coverImageData
-            )
+        let playlist = Playlist(
+            name: playlistName,
+            description: playlistDescription,
+            coverImageData: coverImageData
+        )
 
-            modelContext.insert(playlist)
+        modelContext.insert(playlist)
 
-            do {
-                try modelContext.save()
-                await MainActor.run {
-                    onPlaylistCreated()
-                    dismiss()
-                }
-            } catch {
-                await MainActor.run {
-                    dismiss()
-                }
-            }
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            print("❌ Error al crear playlist: \(error)")
+            dismiss()
         }
     }
 }
 
 #Preview {
-    CreatePlaylistView(onPlaylistCreated: {})
+    CreatePlaylistView()
         .modelContainer(PreviewContainer.shared.container)
 }

@@ -10,6 +10,7 @@ import SwiftData
 
 struct PlaylistListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: [SortDescriptor(\Playlist.updatedAt, order: .reverse)]) private var playlists: [Playlist]
     @StateObject private var viewModel: PlaylistViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
 
@@ -36,12 +37,12 @@ struct PlaylistListView: View {
                             .foregroundColor(.white)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 8)
                 .padding(.top, 20)
                 .padding(.bottom, 16)
 
                 // Playlists Grid
-                if viewModel.playlists.isEmpty {
+                if playlists.isEmpty {
                     EmptyPlaylistsView {
                         viewModel.showCreatePlaylist = true
                     }
@@ -54,26 +55,21 @@ struct PlaylistListView: View {
                             ],
                             spacing: 16
                         ) {
-                            ForEach(viewModel.playlists, id: \.id) { playlist in
+                            ForEach(playlists, id: \.id) { playlist in
                                 NavigationLink(destination: PlaylistDetailView(playlist: playlist, modelContext: modelContext)) {
                                     PlaylistCardView(playlist: playlist)
                                 }
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 8)
                         .padding(.bottom, 100)
                     }
                 }
             }
         }
         .sheet(isPresented: $viewModel.showCreatePlaylist) {
-            CreatePlaylistView(onPlaylistCreated: {
-                viewModel.fetchPlaylists()
-            })
-            .environment(\.modelContext, modelContext)
-        }
-        .onAppear {
-            viewModel.fetchPlaylists()
+            CreatePlaylistView()
+                .environment(\.modelContext, modelContext)
         }
     }
 }

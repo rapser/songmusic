@@ -1,8 +1,8 @@
 
 import Foundation
-import Combine
 import AVFoundation
 import SwiftData
+import UIKit
 
 @MainActor
 class PlayerViewModel: ObservableObject {
@@ -15,6 +15,7 @@ class PlayerViewModel: ObservableObject {
     @Published var repeatMode: RepeatMode = .off
     @Published var equalizerBands: [EqualizerBand] = EqualizerBand.defaultBands
     @Published var selectedPreset: EqualizerPreset = .flat
+    @Published var cachedArtwork: UIImage? = nil
 
     enum RepeatMode {
         case off, repeatAll, repeatOne
@@ -24,9 +25,9 @@ class PlayerViewModel: ObservableObject {
     private let downloadService: DownloadService
     private let metadataService: MetadataService
     private let liveActivityService = LiveActivityService()
-    private var cancellables = Set<AnyCancellable>()
     private var allSongs: [Song] = []
     private var currentSong: Song?
+    private var lastNowPlayingUpdateTime: TimeInterval = 0
 
     weak var scrollResetter: ScrollStateResettable?
 
@@ -38,7 +39,7 @@ class PlayerViewModel: ObservableObject {
         self.audioPlayerService = audioPlayerService
         self.downloadService = downloadService
         self.metadataService = metadataService
-        setupSubscriptions()
+        setupCallbacks()
         setupLiveActivityHandlers()
     }
 
@@ -51,9 +52,34 @@ class PlayerViewModel: ObservableObject {
             return
         }
 
+        currentSong = song
+
+        // Comportamiento estilo Spotify cuando presionas desde el listado:
+        // Si presionas la canción que ya está tocando, reinicia desde el principio
+        if currentlyPlayingID == song.id && isPlaying {
+            // Reiniciar la canción desde el principio
+            audioPlayerService.seek(to: 0)
+            playbackTime = 0
+        } else {
+            // Nueva canción o canción pausada
+            playbackTime = 0
+            currentlyPlayingID = song.id
+            audioPlayerService.play(songID: song.id, url: url)
+        }
+
+        // Pre-cargar artwork inmediatamente para evitar delay en la UI
+        preloadArtwork(from: song)
+
+        // Actualizar metadata inmediatamente con los datos actuales
+        updateNowPlayingInfo()
+
+        scrollResetter?.resetScrollState()
+
+        // Extraer metadata en background con baja prioridad (después de iniciar reproducción)
         if song.duration == nil || song.artworkData == nil {
-            Task {
-                if let metadata = await metadataService.extractMetadata(from: url) {
+            Task(priority: .utility) { [weak self] in
+                guard let self = self else { return }
+                if let metadata = await self.metadataService.extractMetadata(from: url) {
                     song.title = metadata.title
                     song.artist = metadata.artist
                     song.album = metadata.album
@@ -62,26 +88,43 @@ class PlayerViewModel: ObservableObject {
                     song.artworkData = metadata.artwork
                     song.artworkThumbnail = metadata.artworkThumbnail
                     song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
+
+                    // Actualizar info después de cargar metadata
+                    self.updateNowPlayingInfo()
+                    self.preloadArtwork(from: song)
                 }
             }
         }
+    }
 
-        currentSong = song
-
-        if currentlyPlayingID == song.id {
-            if isPlaying {
-                audioPlayerService.pause()
-            } else {
-                audioPlayerService.play(songID: song.id, url: url)
-            }
-        } else {
-            playbackTime = 0
-            currentlyPlayingID = song.id
-            audioPlayerService.play(songID: song.id, url: url)
+    private func preloadArtwork(from song: Song) {
+        guard let artworkData = song.artworkData else {
+            cachedArtwork = nil
+            return
         }
 
-        updateNowPlayingInfo()
-        scrollResetter?.resetScrollState()
+        // Cargar imagen en background con alta prioridad
+        Task(priority: .userInitiated) { [weak self] in
+            let image = await Task.detached(priority: .userInitiated) {
+                UIImage(data: artworkData)
+            }.value
+
+            await MainActor.run {
+                self?.cachedArtwork = image
+            }
+        }
+    }
+
+    func togglePlayPause() {
+        guard let song = currentSong else { return }
+
+        if isPlaying {
+            pause()
+        } else {
+            // Reanudar reproducción sin reiniciar
+            guard let url = downloadService.localURL(for: song.id) else { return }
+            audioPlayerService.play(songID: song.id, url: url)
+        }
     }
 
     func pause() {
@@ -97,7 +140,9 @@ class PlayerViewModel: ObservableObject {
 
 
     func updateSongsList(_ songs: [Song]) {
-        self.allSongs = songs.filter { $0.isDownloaded }
+        let downloadedSongs = songs.filter { $0.isDownloaded }
+        self.allSongs = downloadedSongs
+        print("📋 Lista actualizada: \(downloadedSongs.count) canciones descargadas")
     }
 
     func toggleShuffle() {
@@ -116,81 +161,98 @@ class PlayerViewModel: ObservableObject {
     }
 
     func playNext(currentSong: Song, allSongs: [Song]) {
-        let downloadedSongs = allSongs.filter { $0.isDownloaded }
-        guard !downloadedSongs.isEmpty else { return }
+        // Usar allSongs cacheado en lugar de filtrar cada vez
+        guard !self.allSongs.isEmpty else { return }
 
         if isShuffleEnabled {
             // Modo aleatorio: selecciona una canción aleatoria DIFERENTE a la actual
-            let otherSongs = downloadedSongs.filter { $0.id != currentSong.id }
+            let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
 
             if !otherSongs.isEmpty {
                 // Hay más canciones disponibles, elige una aleatoria
                 if let randomSong = otherSongs.randomElement() {
                     play(song: randomSong)
                 }
-            } else if downloadedSongs.count == 1 {
+            } else if self.allSongs.count == 1 {
                 // Solo hay una canción, reproducirla de nuevo
                 play(song: currentSong)
             }
         } else {
             // Modo secuencial
-            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
-            let nextIdx = (idx + 1) % downloadedSongs.count
-            play(song: downloadedSongs[nextIdx])
+            guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
+            let nextIdx = (idx + 1) % self.allSongs.count
+            play(song: self.allSongs[nextIdx])
         }
     }
 
     func playPrevious(currentSong: Song, allSongs: [Song]) {
-        let downloadedSongs = allSongs.filter { $0.isDownloaded }
-        guard !downloadedSongs.isEmpty else { return }
+        // Usar allSongs cacheado en lugar de filtrar cada vez
+        guard !self.allSongs.isEmpty else { return }
 
         if isShuffleEnabled {
             // En modo aleatorio, también va a una canción aleatoria
-            let otherSongs = downloadedSongs.filter { $0.id != currentSong.id }
+            let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
             if let randomSong = otherSongs.randomElement() {
                 play(song: randomSong)
-            } else if let firstSong = downloadedSongs.first {
+            } else if let firstSong = self.allSongs.first {
                 play(song: firstSong)
             }
         } else {
             // Modo secuencial
-            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
-            let prevIdx = (idx - 1 + downloadedSongs.count) % downloadedSongs.count
-            play(song: downloadedSongs[prevIdx])
+            guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
+            let prevIdx = (idx - 1 + self.allSongs.count) % self.allSongs.count
+            play(song: self.allSongs[prevIdx])
         }
     }
 
     private func playNextAutomatically(finishedSongID: UUID) {
+        // Buscar la canción actual en allSongs
         guard let currentSong = allSongs.first(where: { $0.id == finishedSongID }) else {
+            print("⚠️ Canción terminada no encontrada en allSongs. ID: \(finishedSongID)")
+            print("   allSongs count: \(allSongs.count)")
+            return
+        }
+
+        // Filtrar solo canciones descargadas
+        let downloadedSongs = allSongs.filter { $0.isDownloaded }
+
+        guard !downloadedSongs.isEmpty else {
+            print("⚠️ No hay canciones descargadas disponibles")
             return
         }
 
         switch repeatMode {
         case .repeatOne:
+            // Repetir la misma canción
+            print("🔁 Repeat One: Repitiendo '\(currentSong.title)'")
             play(song: currentSong)
+
         case .repeatAll:
+            // Continuar reproduciendo y volver al inicio si es la última
+            print("🔁 Repeat All: Siguiente canción")
             playNext(currentSong: currentSong, allSongs: allSongs)
+
         case .off:
+            // Comportamiento por defecto: continuar hasta la última canción
+            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else {
+                print("⚠️ No se encontró el índice de la canción actual")
+                return
+            }
 
             if isShuffleEnabled {
-                // En modo shuffle sin repeat, SIEMPRE reproduce una canción aleatoria
-                // No se detiene hasta que el usuario pause manualmente
-                let downloadedSongs = allSongs.filter { $0.isDownloaded }
-                if !downloadedSongs.isEmpty {
-                    playNext(currentSong: currentSong, allSongs: allSongs)
-                }
+                // En shuffle sin repeat: continuar con canciones aleatorias
+                print("🔀 Shuffle: Siguiente canción aleatoria")
+                playNext(currentSong: currentSong, allSongs: allSongs)
             } else {
-                // En modo secuencial sin repeat, solo avanza si no es la última
-                let downloadedSongs = allSongs.filter { $0.isDownloaded }
-                guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else {
-                    return
-                }
+                // En secuencial sin repeat: continuar hasta la última canción
                 if idx < downloadedSongs.count - 1 {
+                    // Hay más canciones, reproducir la siguiente
+                    print("▶️ Modo normal: Siguiente canción (\(idx + 1)/\(downloadedSongs.count))")
                     playNext(currentSong: currentSong, allSongs: allSongs)
                 } else {
-                    // Detener la reproducción y resetear el estado
+                    // Es la última canción, detener la reproducción
+                    print("⏹️ Última canción alcanzada. Deteniendo reproducción.")
                     isPlaying = false
-                    // Mantener el currentlyPlayingID para mostrar qué canción fue la última
                 }
             }
         }
@@ -200,6 +262,12 @@ class PlayerViewModel: ObservableObject {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    // MARK: - Seek
+    func seek(to time: TimeInterval) {
+        audioPlayerService.seek(to: time)
+        playbackTime = time
     }
 
     // MARK: - Equalizer Functions
@@ -225,64 +293,53 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.applyEqualizerSettings(equalizerBands)
     }
 
-    private func setupSubscriptions() {
-        audioPlayerService.onPlaybackStateChanged
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (isPlaying, songID) in
-                self?.isPlaying = isPlaying
-                self?.updateNowPlayingInfo()
-                self?.updateLiveActivity()
-            }
-            .store(in: &cancellables)
+    private func setupCallbacks() {
+        // Callback para cambios en el estado de reproducción
+        audioPlayerService.onPlaybackStateChanged = { [weak self] isPlaying, songID in
+            guard let self = self else { return }
+            self.isPlaying = isPlaying
+            self.updateNowPlayingInfo()
+            self.updateLiveActivity()
+        }
 
-        audioPlayerService.onPlaybackTimeChanged
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (time, duration) in
-                guard let self = self else { return }
-                self.playbackTime = time
-                self.songDuration = duration
-            }
-            .store(in: &cancellables)
+        // Callback para cambios en el tiempo de reproducción
+        audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
+            guard let self = self else { return }
+            self.playbackTime = time
+            self.songDuration = duration
 
-        audioPlayerService.onPlaybackTimeChanged
-            .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] _ in
-                self?.updateNowPlayingInfo()
+            // Throttle manual: actualizar Now Playing Info solo cada 1 segundo
+            let currentTime = CACurrentMediaTime()
+            if currentTime - self.lastNowPlayingUpdateTime >= 1.0 {
+                self.lastNowPlayingUpdateTime = currentTime
+                self.updateNowPlayingInfo()
             }
-            .store(in: &cancellables)
+        }
 
-        audioPlayerService.onSongFinished
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] finishedSongID in
-                guard let self = self else { return }
-                self.playbackTime = self.songDuration
-                self.playNextAutomatically(finishedSongID: finishedSongID)
-            }
-            .store(in: &cancellables)
+        // Callback para cuando termina una canción
+        audioPlayerService.onSongFinished = { [weak self] finishedSongID in
+            guard let self = self else { return }
+            self.playbackTime = self.songDuration
+            self.playNextAutomatically(finishedSongID: finishedSongID)
+        }
 
-        audioPlayerService.onRemotePlayPause
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.play(song: song)
-            }
-            .store(in: &cancellables)
+        // Callback para play/pause remoto
+        audioPlayerService.onRemotePlayPause = { [weak self] in
+            guard let self = self else { return }
+            self.togglePlayPause()
+        }
 
-        audioPlayerService.onRemoteNext
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.playNext(currentSong: song, allSongs: self.allSongs)
-            }
-            .store(in: &cancellables)
+        // Callback para siguiente canción desde control remoto
+        audioPlayerService.onRemoteNext = { [weak self] in
+            guard let self = self, let song = self.currentSong else { return }
+            self.playNext(currentSong: song, allSongs: self.allSongs)
+        }
 
-        audioPlayerService.onRemotePrevious
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
-                self.playPrevious(currentSong: song, allSongs: self.allSongs)
-            }
-            .store(in: &cancellables)
+        // Callback para canción anterior desde control remoto
+        audioPlayerService.onRemotePrevious = { [weak self] in
+            guard let self = self, let song = self.currentSong else { return }
+            self.playPrevious(currentSong: song, allSongs: self.allSongs)
+        }
     }
 
     private func updateNowPlayingInfo() {
@@ -326,32 +383,48 @@ class PlayerViewModel: ObservableObject {
     }
 
     private func setupLiveActivityHandlers() {
-        NotificationCenter.default.publisher(for: .playPauseFromLiveActivity)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self = self, let song = self.currentSong else { return }
-                self.play(song: song)
+        // Observer para play/pause desde Live Activity
+        NotificationCenter.default.addObserver(
+            forName: .playPauseFromLiveActivity,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.togglePlayPause()
             }
-            .store(in: &cancellables)
+        }
 
-        NotificationCenter.default.publisher(for: .nextTrackFromLiveActivity)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+        // Observer para siguiente canción desde Live Activity
+        NotificationCenter.default.addObserver(
+            forName: .nextTrackFromLiveActivity,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self = self, let song = self.currentSong else { return }
                 self.playNext(currentSong: song, allSongs: self.allSongs)
             }
-            .store(in: &cancellables)
+        }
 
-        NotificationCenter.default.publisher(for: .previousTrackFromLiveActivity)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+        // Observer para canción anterior desde Live Activity
+        NotificationCenter.default.addObserver(
+            forName: .previousTrackFromLiveActivity,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self = self, let song = self.currentSong else { return }
                 self.playPrevious(currentSong: song, allSongs: self.allSongs)
             }
-            .store(in: &cancellables)
+        }
     }
 
     deinit {
+        // Remover observers de NotificationCenter
+        NotificationCenter.default.removeObserver(self)
+
+        // Finalizar Live Activity
         let service = liveActivityService
         Task { @MainActor in
             service.endActivity()

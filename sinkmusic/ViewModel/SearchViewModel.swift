@@ -6,13 +6,22 @@
 //
 
 import Foundation
-import Combine
 import SwiftData
 
 @MainActor
 class SearchViewModel: ObservableObject {
-    @Published var searchText: String = ""
-    @Published var selectedFilter: SearchFilter = .all
+    @Published var searchText: String = "" {
+        didSet {
+            scheduleSearch()
+        }
+    }
+
+    @Published var selectedFilter: SearchFilter = .all {
+        didSet {
+            scheduleSearch()
+        }
+    }
+
     @Published var filteredSongs: [Song] = []
 
     enum SearchFilter: String, CaseIterable {
@@ -22,26 +31,27 @@ class SearchViewModel: ObservableObject {
         case album = "Álbum"
     }
 
-    private var cancellables = Set<AnyCancellable>()
     private var allSongs: [Song] = []
-
-    init() {
-        setupSearchSubscription()
-    }
+    private var searchTask: Task<Void, Never>?
 
     func updateSongs(_ songs: [Song]) {
         self.allSongs = songs.filter { $0.isDownloaded }
         performSearch()
     }
 
-    private func setupSearchSubscription() {
-        // Combinar cambios en searchText y selectedFilter
-        Publishers.CombineLatest($searchText, $selectedFilter)
-            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            .sink { [weak self] _, _ in
-                self?.performSearch()
-            }
-            .store(in: &cancellables)
+    private func scheduleSearch() {
+        // Cancelar búsqueda anterior
+        searchTask?.cancel()
+
+        // Programar nueva búsqueda con debounce de 300ms
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+
+            // Verificar si la tarea fue cancelada
+            guard !Task.isCancelled else { return }
+
+            performSearch()
+        }
     }
 
     private func performSearch() {

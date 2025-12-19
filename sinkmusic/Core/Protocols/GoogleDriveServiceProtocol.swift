@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Combine
 
 /// Protocolo consolidado que define las capacidades del servicio de Google Drive
 /// Incluye funcionalidad de descarga y manejo de archivos locales
@@ -25,13 +24,12 @@ protocol GoogleDriveServiceProtocol {
 
     // MARK: - Download
 
-    /// Publisher que emite el progreso de descargas
-    var downloadProgressPublisher: PassthroughSubject<(songID: UUID, progress: Double), Never> { get }
-
-    /// Descarga una canción de Google Drive
-    /// - Parameter song: La canción a descargar
+    /// Descarga una canción de Google Drive con callback de progreso
+    /// - Parameters:
+    ///   - song: La canción a descargar
+    ///   - progressCallback: Closure opcional que recibe el progreso (0.0 a 1.0, o -1 para indeterminado)
     /// - Returns: URL local donde se guardó el archivo
-    func download(song: Song) async throws -> URL
+    func download(song: Song, progressCallback: ((Double) -> Void)?) async throws -> URL
 
     // MARK: - Local File Management
 

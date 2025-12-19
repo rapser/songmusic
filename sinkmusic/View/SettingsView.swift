@@ -7,12 +7,20 @@ struct SettingsView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @EnvironmentObject var authManager: AuthenticationManager
-    @State private var notificationsEnabled = true
-    @State private var offlineMode = false
-    @State private var showExplicitContent = true
+
+    @StateObject private var settingsViewModel = SettingsViewModel()
+    @State private var showSignOutAlert = false
 
     var pendingSongs: [Song] {
-        songs.filter { !$0.isDownloaded }
+        settingsViewModel.filterPendingSongs(songs)
+    }
+
+    var downloadedSongs: [Song] {
+        settingsViewModel.filterDownloadedSongs(songs)
+    }
+
+    var totalStorageUsed: String {
+        settingsViewModel.calculateTotalStorageUsed(for: songs)
     }
 
     var body: some View {
@@ -148,57 +156,42 @@ struct SettingsView: View {
                         .background(Color.appGray)
                     }
 
-                    // Sección: Reproducción
-                    SectionHeaderView(title: "Reproducción")
-
-                    SettingsToggleView(
-                        icon: "bell.fill",
-                        title: "Notificaciones",
-                        subtitle: "Recibe notificaciones de nuevas canciones",
-                        isOn: $notificationsEnabled
-                    )
-
-                    SettingsToggleView(
-                        icon: "arrow.down.circle.fill",
-                        title: "Modo offline",
-                        subtitle: "Solo reproduce música descargada",
-                        isOn: $offlineMode
-                    )
-
-                    SettingsToggleView(
-                        icon: "exclamationmark.triangle.fill",
-                        title: "Contenido explícito",
-                        subtitle: "Permitir canciones con contenido explícito",
-                        isOn: $showExplicitContent
-                    )
-
                     // Sección: Almacenamiento
                     SectionHeaderView(title: "Almacenamiento")
 
                     SettingsRowView(
                         icon: "internaldrive.fill",
                         title: "Espacio usado",
-                        value: "2.4 GB"
+                        value: totalStorageUsed
                     )
 
                     Button(action: {
-                        clearColorCache()
+                        settingsViewModel.showDeleteAllAlert = true
                     }) {
                         HStack {
-                            Image(systemName: "trash.fill")
-                                .foregroundColor(.appPurple)
+                            Image(systemName: "trash.circle.fill")
+                                .foregroundColor(.red)
                                 .frame(width: 24, height: 24)
-                            
-                            Text("Limpiar caché de colores")
-                                .font(.body)
-                                .foregroundColor(.white)
-                            
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Eliminar todas las descargas")
+                                    .font(.body)
+                                    .foregroundColor(.white)
+
+                                if !downloadedSongs.isEmpty {
+                                    Text("\(downloadedSongs.count) canciones descargadas")
+                                        .font(.caption)
+                                        .foregroundColor(.textGray)
+                                }
+                            }
+
                             Spacer()
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(Color.appGray)
                     }
+                    .disabled(downloadedSongs.isEmpty)
 
                     // Sección: Acerca de
                     SectionHeaderView(title: "Acerca de")
@@ -209,7 +202,7 @@ struct SettingsView: View {
 
                     // Botón Cerrar sesión
                     Button(action: {
-                        authManager.signOut()
+                        showSignOutAlert = true
                     }) {
                         HStack {
                             Image(systemName: "arrow.right.square.fill")
@@ -230,22 +223,30 @@ struct SettingsView: View {
                 }
             }
         }
-    }
-    
-    private func clearColorCache() {
-        for song in songs {
-            song.cachedDominantColorRed = nil
-            song.cachedDominantColorGreen = nil
-            song.cachedDominantColorBlue = nil
+        .alert("Eliminar todas las descargas", isPresented: $settingsViewModel.showDeleteAllAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar", role: .destructive) {
+                Task {
+                    await settingsViewModel.deleteAllDownloads(
+                        songs: songs,
+                        modelContext: modelContext,
+                        playerViewModel: playerViewModel
+                    )
+                }
+            }
+        } message: {
+            Text("Se eliminarán \(downloadedSongs.count) canciones descargadas. Esta acción no se puede deshacer.")
         }
-        
-        do {
-            try modelContext.save()
-            print("✅ Caché de colores limpiado exitosamente")
-        } catch {
-            print("❌ Error al limpiar caché: \(error)")
+        .alert("Cerrar sesión", isPresented: $showSignOutAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Cerrar sesión", role: .destructive) {
+                authManager.signOut()
+            }
+        } message: {
+            Text("¿Estás seguro de que quieres cerrar sesión?")
         }
     }
+
 }
 
 // MARK: - Components

@@ -11,6 +11,7 @@ import SwiftData
 struct AddToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: [SortDescriptor(\Playlist.updatedAt, order: .reverse)]) private var playlists: [Playlist]
     @ObservedObject var viewModel: PlaylistViewModel
     let song: Song
 
@@ -18,9 +19,9 @@ struct AddToPlaylistView: View {
 
     var filteredPlaylists: [Playlist] {
         if searchText.isEmpty {
-            return viewModel.playlists
+            return playlists
         } else {
-            return viewModel.playlists.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            return playlists.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
     }
 
@@ -136,10 +137,8 @@ struct AddToPlaylistView: View {
             }
         }
         .sheet(isPresented: $viewModel.showCreatePlaylist) {
-            CreatePlaylistView(onPlaylistCreated: {
-                viewModel.fetchPlaylists()
-            })
-            .environment(\.modelContext, modelContext)
+            CreatePlaylistView()
+                .environment(\.modelContext, modelContext)
         }
     }
 

@@ -1,31 +1,36 @@
 
 import Foundation
 import AVFoundation
-import Combine
 import MediaPlayer
 
-class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
-    var onPlaybackStateChanged = PassthroughSubject<(isPlaying: Bool, songID: UUID?), Never>()
-    var onPlaybackTimeChanged = PassthroughSubject<(time: TimeInterval, duration: TimeInterval), Never>()
-    var onSongFinished = PassthroughSubject<UUID, Never>()
-    var onRemotePlayPause = PassthroughSubject<Void, Never>()
-    var onRemoteNext = PassthroughSubject<Void, Never>()
-    var onRemotePrevious = PassthroughSubject<Void, Never>()
+    // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
+    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
+    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)?
+    var onSongFinished: (@MainActor (UUID) -> Void)?
+    var onRemotePlayPause: (@MainActor () -> Void)?
+    var onRemoteNext: (@MainActor () -> Void)?
+    var onRemotePrevious: (@MainActor () -> Void)?
 
+    // Thread-safe state management
+    private let stateLock = NSLock()
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
     // Audio Engine para ecualizador
-    private var audioEngine: AVAudioEngine
-    private var playerNode: AVAudioPlayerNode
+    private let audioEngine: AVAudioEngine
+    private let playerNode: AVAudioPlayerNode
     private var audioFile: AVAudioFile?
-    private var eq: AVAudioUnitEQ
-    private var useAudioEngine = true // Flag para usar engine con ecualizador
-    private var isFirstConnection = true // Flag para saber si es la primera vez que conectamos
-    private var currentScheduleID = UUID() // ID único para cada scheduleFile, para ignorar completion handlers obsoletos
-    private var wasPlayingBeforeInterruption = false // Flag para saber si estaba reproduciendo antes de una interrupción
+    private let eq: AVAudioUnitEQ
+
+    // State flags con sincronización
+    private var useAudioEngine = true
+    private var isFirstConnection = true
+    private var currentScheduleID = UUID()
+    private var wasPlayingBeforeInterruption = false
+    private var seekOffset: TimeInterval = 0
 
     override init() {
         self.audioEngine = AVAudioEngine()
@@ -77,9 +82,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 }
                 startPlaybackTimer()
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    guard let self = self else { return }
-                    self.onPlaybackStateChanged.send((isPlaying: true, songID: self.currentlyPlayingID))
+                // Notificar inmediatamente sin delay para UI responsive
+                Task { @MainActor in
+                    self.onPlaybackStateChanged?(true, self.currentlyPlayingID)
                 }
             }
         } else {
@@ -131,7 +136,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         self.playbackTimer?.invalidate()
                         self.playbackTimer = nil
 
-                        self.onSongFinished.send(currentID)
+                        Task { @MainActor in
+                            self.onSongFinished?(currentID)
+                        }
                     }
                 }
 
@@ -142,13 +149,17 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 playerNode.play()
 
                 self.currentlyPlayingID = songID
+                self.seekOffset = 0 // Reset del offset al reproducir una nueva canción
                 startPlaybackTimer()
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    self?.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                // Notificar inmediatamente sin delay para UI responsive
+                Task { @MainActor in
+                    self.onPlaybackStateChanged?(true, songID)
                 }
             } catch {
-                onPlaybackStateChanged.send((isPlaying: false, songID: nil))
+                Task { @MainActor in
+                    self.onPlaybackStateChanged?(false, nil)
+                }
             }
         }
     }
@@ -156,7 +167,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     func pause() {
         playerNode.pause()
         playbackTimer?.invalidate()
-        onPlaybackStateChanged.send((isPlaying: false, songID: self.currentlyPlayingID))
+        Task { @MainActor in
+            self.onPlaybackStateChanged?(false, self.currentlyPlayingID)
+        }
     }
 
     func stop() {
@@ -166,7 +179,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
         let oldID = currentlyPlayingID
         currentlyPlayingID = nil
         audioFile = nil
-        onPlaybackStateChanged.send((isPlaying: false, songID: oldID))
+        Task { @MainActor in
+            self.onPlaybackStateChanged?(false, oldID)
+        }
     }
 
     func seek(to time: TimeInterval) {
@@ -174,13 +189,19 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
             return
         }
 
+        let wasPlaying = playerNode.isPlaying
         let sampleRate = audioFile.processingFormat.sampleRate
         let startFrame = AVAudioFramePosition(time * sampleRate)
 
+        // Detener el nodo y el timer actual
         playerNode.stop()
+        playbackTimer?.invalidate()
 
         if startFrame < audioFile.length {
             let frameCount = AVAudioFrameCount(audioFile.length - startFrame)
+
+            // Actualizar el offset de seek
+            self.seekOffset = time
 
             // Generar nuevo scheduleID para este seek
             let scheduleID = UUID()
@@ -206,11 +227,23 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil
 
-                    self.onSongFinished.send(currentID)
+                    Task { @MainActor in
+                        self.onSongFinished?(currentID)
+                    }
                 }
             }
 
-            playerNode.play()
+            // Enviar inmediatamente el nuevo tiempo
+            let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+            Task { @MainActor in
+                self.onPlaybackTimeChanged?(time, duration)
+            }
+
+            // Solo reanudar si estaba reproduciendo
+            if wasPlaying {
+                playerNode.play()
+                startPlaybackTimer()
+            }
         }
     }
 
@@ -224,19 +257,14 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 return
             }
 
-            let currentTime = Double(playerTime.sampleTime) / playerTime.sampleRate
+            // Calcular el tiempo desde que el nodo comenzó a reproducir + el offset del seek
+            let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
+            let currentTime = nodePlaybackTime + self.seekOffset
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
 
-            // Log comentado - solo debe aparecer cuando el usuario mueve el slider
-            // let currentMinutes = Int(currentTime) / 60
-            // let currentSeconds = Int(currentTime) % 60
-            // let currentFormatted = String(format: "%02d:%02d", currentMinutes, currentSeconds)
-            // let durationMinutes = Int(duration) / 60
-            // let durationSeconds = Int(duration) % 60
-            // let durationFormatted = String(format: "%02d:%02d", durationMinutes, durationSeconds)
-            // print("⏱️ TIMER: Enviando playbackTime=\(currentTime)s [\(currentFormatted)], duration=\(duration)s [\(durationFormatted)]")
-
-            self.onPlaybackTimeChanged.send((time: currentTime, duration: duration))
+            Task { @MainActor in
+                self.onPlaybackTimeChanged?(currentTime, duration)
+            }
         }
     }
 
@@ -251,8 +279,10 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         guard let finishedSongID = currentlyPlayingID else { return }
         currentlyPlayingID = nil
-        onPlaybackStateChanged.send((isPlaying: false, songID: finishedSongID))
-        onSongFinished.send(finishedSongID)
+        Task { @MainActor in
+            self.onPlaybackStateChanged?(false, finishedSongID)
+            self.onSongFinished?(finishedSongID)
+        }
     }
 
     // MARK: - Interruption Handling
@@ -301,7 +331,9 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         try? self.audioEngine.start()
                     }
                     self.startPlaybackTimer()
-                    self.onPlaybackStateChanged.send((isPlaying: true, songID: songID))
+                    Task { @MainActor in
+                        self.onPlaybackStateChanged?(true, songID)
+                    }
                     self.wasPlayingBeforeInterruption = false
                 }
             } else {
@@ -314,7 +346,24 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     deinit {
+        // Limpiar recursos de audio
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+
+        // Remover observers
         NotificationCenter.default.removeObserver(self)
+
+        // Limpiar callbacks para evitar retain cycles
+        onPlaybackStateChanged = nil
+        onPlaybackTimeChanged = nil
+        onSongFinished = nil
+        onRemotePlayPause = nil
+        onRemoteNext = nil
+        onRemotePrevious = nil
     }
 
     // MARK: - Now Playing Info & Remote Commands
@@ -323,25 +372,33 @@ class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [weak self] _ in
-            self?.onRemotePlayPause.send()
+            Task { @MainActor in
+                self?.onRemotePlayPause?()
+            }
             return .success
         }
 
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { [weak self] _ in
-            self?.onRemotePlayPause.send()
+            Task { @MainActor in
+                self?.onRemotePlayPause?()
+            }
             return .success
         }
 
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            self?.onRemoteNext.send()
+            Task { @MainActor in
+                self?.onRemoteNext?()
+            }
             return .success
         }
 
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            self?.onRemotePrevious.send()
+            Task { @MainActor in
+                self?.onRemotePrevious?()
+            }
             return .success
         }
 
