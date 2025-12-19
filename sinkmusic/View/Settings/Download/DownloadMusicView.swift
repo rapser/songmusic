@@ -14,7 +14,7 @@ struct DownloadMusicView: View {
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
-    @EnvironmentObject var mainViewModel: MainViewModel
+    @EnvironmentObject var libraryViewModel: LibraryViewModel
 
     var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
@@ -46,7 +46,7 @@ struct DownloadMusicView: View {
 
             VStack(spacing: 0) {
                 // Mostrar error si existe
-                if let errorMessage = mainViewModel.syncErrorMessage {
+                if let errorMessage = libraryViewModel.syncErrorMessage {
                     VStack(spacing: 20) {
                         Spacer()
 
@@ -79,7 +79,7 @@ struct DownloadMusicView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 40)
-                } else if pendingSongs.isEmpty && !mainViewModel.isLoadingSongs {
+                } else if pendingSongs.isEmpty && !libraryViewModel.isLoadingSongs {
                     // Estado vacío
                     VStack(spacing: 20) {
                         Spacer()
@@ -102,7 +102,7 @@ struct DownloadMusicView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 40)
-                } else if mainViewModel.isLoadingSongs {
+                } else if libraryViewModel.isLoadingSongs {
                     // Estado de carga
                     VStack(spacing: 20) {
                         Spacer()
@@ -208,10 +208,14 @@ struct DownloadMusicView: View {
 }
 
 #Preview {
-    NavigationStack {
-        DownloadMusicView()
-            .modelContainer(PreviewContainer.shared.container)
-            .environmentObject(PreviewViewModels.playerVM())
-            .environmentObject(PreviewViewModels.songListVM())
+    PreviewWrapper(
+        libraryVM: PreviewViewModels.libraryVM(),
+        songListVM: PreviewViewModels.songListVM(),
+        playerVM: PreviewViewModels.playerVM(),
+        modelContainer: PreviewContainer.shared.container
+    ) {
+        NavigationStack {
+            DownloadMusicView()
+        }
     }
 }

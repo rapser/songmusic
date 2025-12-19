@@ -91,7 +91,7 @@ struct PreviewContainer {
 // MARK: - ViewModels de prueba
 @MainActor
 struct PreviewViewModels {
-    static func mainVM() -> MainViewModel { MainViewModel() }
+    static func libraryVM() -> LibraryViewModel { LibraryViewModel() }
     static func songListVM() -> SongListViewModel { SongListViewModel() }
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
         let vm = PlayerViewModel()
@@ -108,19 +108,19 @@ struct PreviewViewModels {
 // MARK: - Wrapper genérico
 struct PreviewWrapper<Content: View>: View {
     private let content: () -> Content
-    private let mainVM: MainViewModel?
+    private let libraryVM: LibraryViewModel?
     private let songListVM: SongListViewModel?
     private let playerVM: PlayerViewModel?
     private let modelContainer: ModelContainer?
 
     init(
-        mainVM: MainViewModel? = nil,
+        libraryVM: LibraryViewModel? = nil,
         songListVM: SongListViewModel? = nil,
         playerVM: PlayerViewModel? = nil,
         modelContainer: ModelContainer? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        self.mainVM = mainVM
+        self.libraryVM = libraryVM
         self.songListVM = songListVM
         self.playerVM = playerVM
         self.modelContainer = modelContainer
@@ -129,7 +129,7 @@ struct PreviewWrapper<Content: View>: View {
 
     var body: some View {
         content()
-            .environmentObject(mainVM ?? PreviewViewModels.mainVM())
+            .environmentObject(libraryVM ?? PreviewViewModels.libraryVM())
             .environmentObject(songListVM ?? PreviewViewModels.songListVM())
             .environmentObject(playerVM ?? PreviewViewModels.playerVM())
             .ifLet(modelContainer) { view, container in

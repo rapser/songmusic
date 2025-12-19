@@ -6,7 +6,7 @@ struct HomeView: View {
     @Query(filter: #Predicate<Song> { $0.isDownloaded }, sort: [SortDescriptor(\Song.title)])
     private var downloadedSongs: [Song]
 
-    @EnvironmentObject var viewModel: MainViewModel
+    @EnvironmentObject var libraryViewModel: LibraryViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
 
@@ -77,14 +77,14 @@ struct HomeView: View {
         }
         .task {
             // Sincronizar automáticamente al cargar la vista
-            viewModel.syncLibraryWithCatalog(modelContext: modelContext)
+            libraryViewModel.syncLibraryWithCatalog(modelContext: modelContext)
         }
     }
 }
 
 #Preview {
     PreviewWrapper(
-        mainVM: PreviewViewModels.mainVM(),
+        libraryVM: PreviewViewModels.libraryVM(),
         songListVM: PreviewViewModels.songListVM(),
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
     ) { HomeView() }

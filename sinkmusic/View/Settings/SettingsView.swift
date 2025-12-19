@@ -250,9 +250,7 @@ struct SettingsView: View {
 }
 
 #Preview {
-    PreviewWrapper(
-        mainVM: PreviewViewModels.mainVM()
-    ) {
+    PreviewWrapper {
         SettingsView()
             .environmentObject(AuthenticationManager.shared)
     }

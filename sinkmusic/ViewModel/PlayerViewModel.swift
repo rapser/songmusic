@@ -29,8 +29,6 @@ class PlayerViewModel: ObservableObject {
     private var currentSong: Song?
     private var lastNowPlayingUpdateTime: TimeInterval = 0
 
-    weak var scrollResetter: ScrollStateResettable?
-
     init(
         audioPlayerService: AudioPlayerService = AudioPlayerService(),
         downloadService: DownloadService = DownloadService(),
@@ -72,8 +70,6 @@ class PlayerViewModel: ObservableObject {
 
         // Actualizar metadata inmediatamente con los datos actuales
         updateNowPlayingInfo()
-
-        scrollResetter?.resetScrollState()
 
         // Extraer metadata en background con baja prioridad (después de iniciar reproducción)
         if song.duration == nil || song.artworkData == nil {

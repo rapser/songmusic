@@ -3,24 +3,14 @@ import Foundation
 import SwiftData
 
 @MainActor
-class MainViewModel: ObservableObject, ScrollStateResettable {
-    @Published var isScrolling: Bool = false
+class LibraryViewModel: ObservableObject {
     @Published var isLoadingSongs: Bool = false
     @Published var syncError: SyncError?
     @Published var syncErrorMessage: String?
-    var playerViewModel: PlayerViewModel
+
     private let googleDriveService = GoogleDriveService()
     private let keychainService = KeychainService.shared
 
-    init() {
-        self.playerViewModel = PlayerViewModel()
-        self.playerViewModel.scrollResetter = self
-    }
-    
-    func resetScrollState() {
-        isScrolling = false
-    }
-    
     func syncLibraryWithCatalog(modelContext: ModelContext) {
         guard keychainService.hasGoogleDriveCredentials else {
             syncError = nil

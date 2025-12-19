@@ -100,7 +100,6 @@ struct SongRow: View {
 
 #Preview(traits: .sizeThatFitsLayout) {
     PreviewWrapper(
-        mainVM: PreviewViewModels.mainVM(),
         songListVM: PreviewViewModels.songListVM(),
         modelContainer: PreviewData.container(with: [PreviewSongs.single()])
     ) {

@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct MainAppView: View {
-    @EnvironmentObject private var viewModel: MainViewModel
     @EnvironmentObject private var playerViewModel: PlayerViewModel
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @Namespace private var animation
@@ -116,7 +115,7 @@ struct MainAppView: View {
 
 #Preview {
     PreviewWrapper(
-        mainVM: PreviewViewModels.mainVM(),
+        playerVM: PreviewViewModels.playerVM(),
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
     ) { MainAppView() }
 }

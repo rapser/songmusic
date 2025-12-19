@@ -56,7 +56,6 @@ struct SearchView: View {
 
 #Preview {
     PreviewWrapper(
-        mainVM: PreviewViewModels.mainVM(),
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
     ) { SearchView() }
 }

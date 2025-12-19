@@ -10,7 +10,7 @@ import SwiftUI
 struct GoogleDriveConfigView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var mainViewModel: MainViewModel
+    @EnvironmentObject var libraryViewModel: LibraryViewModel
     @StateObject private var settingsViewModel = SettingsViewModel()
     
     var body: some View {
@@ -91,7 +91,7 @@ struct GoogleDriveConfigView: View {
                     VStack(spacing: 12) {
                         // Botón Guardar
                         Button(action: {
-                            settingsViewModel.saveCredentials(modelContext: modelContext, mainViewModel: mainViewModel)
+                            settingsViewModel.saveCredentials(modelContext: modelContext, libraryViewModel: libraryViewModel)
                         }) {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
@@ -147,7 +147,7 @@ struct GoogleDriveConfigView: View {
         .alert("Eliminar Credenciales", isPresented: $settingsViewModel.showDeleteCredentialsAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
-                settingsViewModel.deleteCredentials(modelContext: modelContext, mainViewModel: mainViewModel)
+                settingsViewModel.deleteCredentials(modelContext: modelContext, libraryViewModel: libraryViewModel)
             }
         } message: {
             Text("Se eliminarán las credenciales de Google Drive y todas las canciones descargadas. Esta acción no se puede deshacer.")
@@ -156,7 +156,11 @@ struct GoogleDriveConfigView: View {
 }
 
 #Preview {
-    NavigationStack {
-        GoogleDriveConfigView()
+    PreviewWrapper(
+        libraryVM: PreviewViewModels.libraryVM()
+    ) {
+        NavigationStack {
+            GoogleDriveConfigView()
+        }
     }
 }

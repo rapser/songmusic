@@ -188,7 +188,6 @@ private struct MiniPlayerBackground: View {
 
 #Preview {
     PreviewWrapper(
-        mainVM: PreviewViewModels.mainVM(),
         playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.single().id)
     ) {
         PlayerControlsView(song: PreviewSongs.single(), namespace: Namespace().wrappedValue)
