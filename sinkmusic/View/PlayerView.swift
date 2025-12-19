@@ -35,6 +35,7 @@ struct PlayerView: View {
                 // Artwork de la canción
                 PlayerArtwork(
                     artworkData: currentSong.artworkData,
+                    cachedImage: playerViewModel.cachedArtwork,
                     namespace: namespace
                 )
 
@@ -167,13 +168,13 @@ private struct PlayerHeader: View {
 /// Artwork grande del player
 private struct PlayerArtwork: View {
     let artworkData: Data?
+    let cachedImage: UIImage?
     var namespace: Namespace.ID
 
     var body: some View {
         Group {
-            if let artworkData = artworkData,
-               let uiImage = UIImage(data: artworkData) {
-                Image(uiImage: uiImage)
+            if let image = cachedImage {
+                Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
@@ -195,7 +196,6 @@ private struct PlayerArtwork: View {
             }
         }
         .padding(.horizontal, 16)
-        .matchedGeometryEffect(id: "player", in: namespace)
         .padding(.bottom, 30)
     }
 }

@@ -2,6 +2,7 @@
 import Foundation
 import AVFoundation
 import SwiftData
+import UIKit
 
 @MainActor
 class PlayerViewModel: ObservableObject {
@@ -14,6 +15,7 @@ class PlayerViewModel: ObservableObject {
     @Published var repeatMode: RepeatMode = .off
     @Published var equalizerBands: [EqualizerBand] = EqualizerBand.defaultBands
     @Published var selectedPreset: EqualizerPreset = .flat
+    @Published var cachedArtwork: UIImage? = nil
 
     enum RepeatMode {
         case off, repeatAll, repeatOne
@@ -65,6 +67,9 @@ class PlayerViewModel: ObservableObject {
             audioPlayerService.play(songID: song.id, url: url)
         }
 
+        // Pre-cargar artwork inmediatamente para evitar delay en la UI
+        preloadArtwork(from: song)
+
         // Actualizar metadata inmediatamente con los datos actuales
         updateNowPlayingInfo()
 
@@ -86,7 +91,26 @@ class PlayerViewModel: ObservableObject {
 
                     // Actualizar info después de cargar metadata
                     self.updateNowPlayingInfo()
+                    self.preloadArtwork(from: song)
                 }
+            }
+        }
+    }
+
+    private func preloadArtwork(from song: Song) {
+        guard let artworkData = song.artworkData else {
+            cachedArtwork = nil
+            return
+        }
+
+        // Cargar imagen en background con alta prioridad
+        Task(priority: .userInitiated) { [weak self] in
+            let image = await Task.detached(priority: .userInitiated) {
+                UIImage(data: artworkData)
+            }.value
+
+            await MainActor.run {
+                self?.cachedArtwork = image
             }
         }
     }

@@ -25,7 +25,10 @@ struct PlayerControlsView: View {
         ZStack(alignment: .bottom) {
             // Contenido principal del mini player
             HStack(spacing: 4) {
-                MiniPlayerArtwork(artworkData: song.artworkData)
+                MiniPlayerArtwork(
+                    artworkData: song.artworkData,
+                    cachedImage: playerViewModel.cachedArtwork
+                )
 
                 MiniPlayerInfo(title: song.title, artist: song.artist)
 
@@ -63,12 +66,12 @@ struct PlayerControlsView: View {
 /// Artwork del miniplayer (42x42)
 private struct MiniPlayerArtwork: View {
     let artworkData: Data?
+    let cachedImage: UIImage?
 
     var body: some View {
         Group {
-            if let artworkData = artworkData,
-               let uiImage = UIImage(data: artworkData) {
-                Image(uiImage: uiImage)
+            if let image = cachedImage {
+                Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 42, height: 42)
