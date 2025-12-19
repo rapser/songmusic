@@ -46,7 +46,7 @@ struct SongRow: View {
             )
         }
         .padding(.vertical, 8)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(isPressed ? Color(white: 0.2) : (playerViewModel.currentlyPlayingID == song.id ? Color.appGray.opacity(0.3) : Color.clear))

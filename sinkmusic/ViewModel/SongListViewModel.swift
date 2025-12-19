@@ -43,19 +43,20 @@ class SongListViewModel: ObservableObject {
         Task {
             do {
                 var lastLoggedPercent = -1
-                var lastUpdateTime: Date = Date()
+                var lastUIUpdatePercent = -1
                 let localURL = try await downloadService.download(song: song) { [weak self] progress in
                     // Si el progreso es válido (0-1), usarlo
                     if progress >= 0 {
-                        // Actualizar UI solo cada 50ms para suavizar animación
-                        let now = Date()
-                        if now.timeIntervalSince(lastUpdateTime) >= 0.05 || progress >= 0.99 {
+                        let currentPercent = Int(progress * 100)
+
+                        // Actualizar UI solo cada 10% o al final (99%+)
+                        // Esto hace que el progreso sea más visible y no tan rápido
+                        if currentPercent % 10 == 0 && currentPercent != lastUIUpdatePercent || progress >= 0.99 {
                             self?.downloadProgress[song.id] = progress
-                            lastUpdateTime = now
+                            lastUIUpdatePercent = currentPercent
                         }
 
                         // Solo imprimir logs cada 20% para no saturar la consola
-                        let currentPercent = Int(progress * 100)
                         if currentPercent % 20 == 0 && currentPercent != lastLoggedPercent {
                             print("📊 Descarga \(song.title): \(currentPercent)%")
                             lastLoggedPercent = currentPercent

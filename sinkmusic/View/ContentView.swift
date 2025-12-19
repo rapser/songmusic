@@ -71,7 +71,7 @@ struct ContentView: View {
                         }
                         .padding(.bottom, 80) // Espacio para el mini player
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 8)
                 }
             }
         }
