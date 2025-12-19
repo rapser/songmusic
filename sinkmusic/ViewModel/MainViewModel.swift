@@ -154,44 +154,13 @@ class MainViewModel: ObservableObject, ScrollStateResettable {
                     } catch {
                         print("No se pudo borrar el archivo para la canción \(song.title): \(error.localizedDescription)")
                     }
-                    
+
                     // Borrar el registro de la base de datos
                     modelContext.delete(song)
                 }
-                
+
                 try? modelContext.save()
                 print("🗑️ Biblioteca local y archivos descargados limpiados.")
-            }
-        }
-    }
-
-    private func syncWithLocalCatalog(modelContext: ModelContext) {
-        let descriptor = FetchDescriptor<Song>()
-
-        guard let existingSongs = try? modelContext.fetch(descriptor) else {
-            return
-        }
-
-        let existingSongsMap = Dictionary(uniqueKeysWithValues: existingSongs.map { ($0.fileID, $0) })
-        let catalogSongs = SongCatalog.allSongs
-
-        var newSongsAdded = 0
-        var songsUpdated = 0
-
-        for catalogSong in catalogSongs {
-            if let existingSong = existingSongsMap[catalogSong.id] {
-                // Solo actualizar título y artista si NO tiene metadatos extraídos
-                let hasMetadata = existingSong.duration != nil || existingSong.artworkData != nil
-
-                if !hasMetadata && (existingSong.title != catalogSong.title || existingSong.artist != catalogSong.artist) {
-                    existingSong.title = catalogSong.title
-                    existingSong.artist = catalogSong.artist
-                    songsUpdated += 1
-                }
-            } else {
-                let newSong = Song(title: catalogSong.title, artist: catalogSong.artist, fileID: catalogSong.id)
-                modelContext.insert(newSong)
-                newSongsAdded += 1
             }
         }
     }
