@@ -3,17 +3,6 @@ import Foundation
 import SwiftData
 
 @MainActor
-protocol ScrollStateResettable: AnyObject {
-    func resetScrollState()
-}
-
-enum SyncError: Error {
-    case invalidCredentials
-    case emptyFolder
-    case networkError(String)
-}
-
-@MainActor
 class MainViewModel: ObservableObject, ScrollStateResettable {
     @Published var isScrolling: Bool = false
     @Published var isLoadingSongs: Bool = false
