@@ -7,8 +7,9 @@ class SongListViewModel: ObservableObject {
     @Published var downloadProgress: [UUID: Double] = [:]
     @Published var isDownloadingAll: Bool = false
 
-    private let downloadService: DownloadService
-    private let metadataService: MetadataService
+    // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
+    private let downloadService: GoogleDriveServiceProtocol
+    private let metadataService: MetadataServiceProtocol
     private var downloadAllTask: Task<Void, Never>?
 
     // Tareas de animación de progreso para suavizar actualizaciones rápidas
@@ -18,7 +19,10 @@ class SongListViewModel: ObservableObject {
     // Esto asegura que las actualizaciones persistan incluso si la vista se destruye
     private var sharedModelContext: ModelContext?
 
-    init(downloadService: DownloadService = DownloadService(), metadataService: MetadataService = MetadataService()) {
+    init(
+        downloadService: GoogleDriveServiceProtocol = GoogleDriveService(),
+        metadataService: MetadataServiceProtocol = MetadataService()
+    ) {
         self.downloadService = downloadService
         self.metadataService = metadataService
     }

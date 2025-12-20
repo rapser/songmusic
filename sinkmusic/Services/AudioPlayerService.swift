@@ -3,7 +3,7 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 
-final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDelegate {
 
     // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
     var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
@@ -269,6 +269,15 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     // MARK: - Equalizer
+
+    /// Implementación del protocolo AudioPlayerProtocol
+    func updateEqualizer(bands: [Float]) {
+        for (index, gain) in bands.enumerated() where index < eq.bands.count {
+            eq.bands[index].gain = gain
+        }
+    }
+
+    /// Método legacy para compatibilidad con código existente
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
         for (index, band) in bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = Float(band.gain)

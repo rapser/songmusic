@@ -34,18 +34,20 @@ class PlayerViewModel: ObservableObject {
         case off, repeatAll, repeatOne
     }
 
-    private let audioPlayerService: AudioPlayerService
-    private let downloadService: DownloadService
-    private let metadataService: MetadataService
+    // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
+    // Nota: audioPlayerService es 'var' porque necesitamos asignar sus callbacks en setupCallbacks()
+    private var audioPlayerService: AudioPlayerProtocol
+    private let downloadService: GoogleDriveServiceProtocol
+    private let metadataService: MetadataServiceProtocol
     private let liveActivityService = LiveActivityService()
     private var allSongs: [Song] = []
     private var currentSongInfo: PlayingSongInfo?
     private var lastNowPlayingUpdateTime: TimeInterval = 0
 
     init(
-        audioPlayerService: AudioPlayerService = AudioPlayerService(),
-        downloadService: DownloadService = DownloadService(),
-        metadataService: MetadataService = MetadataService()
+        audioPlayerService: AudioPlayerProtocol = AudioPlayerService(),
+        downloadService: GoogleDriveServiceProtocol = GoogleDriveService(),
+        metadataService: MetadataServiceProtocol = MetadataService()
     ) {
         self.audioPlayerService = audioPlayerService
         self.downloadService = downloadService
@@ -303,7 +305,10 @@ class PlayerViewModel: ObservableObject {
         guard index < equalizerBands.count else { return }
         equalizerBands[index].gain = gain
         selectedPreset = .flat // Reset preset when manually adjusting
-        audioPlayerService.applyEqualizerSettings(equalizerBands)
+
+        // Convertir EqualizerBand a Float para el protocolo
+        let gains = equalizerBands.map { Float($0.gain) }
+        audioPlayerService.updateEqualizer(bands: gains)
     }
 
     func applyPreset(_ preset: EqualizerPreset) {
@@ -312,13 +317,19 @@ class PlayerViewModel: ObservableObject {
         for (index, gain) in gains.enumerated() where index < equalizerBands.count {
             equalizerBands[index].gain = gain
         }
-        audioPlayerService.applyEqualizerSettings(equalizerBands)
+
+        // Convertir EqualizerBand a Float para el protocolo
+        let floatGains = equalizerBands.map { Float($0.gain) }
+        audioPlayerService.updateEqualizer(bands: floatGains)
     }
 
     func resetEqualizer() {
         equalizerBands = EqualizerBand.defaultBands
         selectedPreset = .flat
-        audioPlayerService.applyEqualizerSettings(equalizerBands)
+
+        // Convertir EqualizerBand a Float para el protocolo
+        let gains = equalizerBands.map { Float($0.gain) }
+        audioPlayerService.updateEqualizer(bands: gains)
     }
 
     private func setupCallbacks() {

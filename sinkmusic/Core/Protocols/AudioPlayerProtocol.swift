@@ -18,6 +18,15 @@ protocol AudioPlayerProtocol {
 
     /// Callback que se ejecuta cuando una canción termina
     var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
+
+    /// Callback para play/pause desde controles remotos
+    var onRemotePlayPause: (@MainActor () -> Void)? { get set }
+
+    /// Callback para siguiente canción desde controles remotos
+    var onRemoteNext: (@MainActor () -> Void)? { get set }
+
+    /// Callback para canción anterior desde controles remotos
+    var onRemotePrevious: (@MainActor () -> Void)? { get set }
     
     /// Reproduce una canción desde una URL
     /// - Parameters:
@@ -43,6 +52,16 @@ protocol AudioPlayerProtocol {
 // MARK: - Extensión con métodos avanzados de audio (opcionales)
 
 extension AudioPlayerProtocol {
+    /// Actualiza la información de Now Playing en el sistema
+    /// - Parameters:
+    ///   - title: Título de la canción
+    ///   - artist: Artista
+    ///   - album: Álbum (opcional)
+    ///   - duration: Duración total
+    ///   - currentTime: Tiempo actual de reproducción
+    ///   - artwork: Datos de la imagen del artwork (opcional)
+    func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) { }
+
     /// Ajusta la amplitud del estéreo (0.0 = mono, 1.0 = muy ancho)
     /// - Parameter width: Valor entre 0.0 y 1.5 (recomendado: 0.5-0.8)
     func setStereoWidth(_ width: Float) { }

@@ -8,8 +8,17 @@ class LibraryViewModel: ObservableObject {
     @Published var syncError: SyncError?
     @Published var syncErrorMessage: String?
 
-    private let googleDriveService = GoogleDriveService()
-    private let keychainService = KeychainService.shared
+    // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
+    private let googleDriveService: GoogleDriveServiceProtocol
+    private let keychainService: KeychainService
+
+    init(
+        googleDriveService: GoogleDriveServiceProtocol = GoogleDriveService(),
+        keychainService: KeychainService = KeychainService.shared
+    ) {
+        self.googleDriveService = googleDriveService
+        self.keychainService = keychainService
+    }
 
     func syncLibraryWithCatalog(modelContext: ModelContext) {
         guard keychainService.hasGoogleDriveCredentials else {
