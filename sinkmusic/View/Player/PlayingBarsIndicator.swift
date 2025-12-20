@@ -2,7 +2,7 @@
 //  PlayingBarsIndicator.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by Miguel Tomairo on 19/12/25.
 //
 
 import SwiftUI

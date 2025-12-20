@@ -2,7 +2,7 @@
 //  MetadataCacheViewModel.swift
 //  sinkmusic
 //
-//  Created by Claude Code on 19/12/25.
+//  Created by Miguel Tomairo on 19/12/25.
 //
 
 import Foundation

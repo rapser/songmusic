@@ -7,9 +7,32 @@
 
 import Foundation
 
-/// Protocolo que define las capacidades del reproductor de audio
-/// Cumple con Dependency Inversion Principle (SOLID)
-protocol AudioPlayerProtocol {
+// MARK: - ISP: Interface Segregation Principle
+// Los protocolos están segregados por responsabilidad específica
+
+/// Protocolo básico de reproducción de audio
+/// SOLID: Interface Segregation - Solo métodos de playback básico
+protocol AudioPlaybackProtocol {
+    /// Reproduce una canción desde una URL
+    /// - Parameters:
+    ///   - songID: Identificador único de la canción
+    ///   - url: URL local del archivo de audio
+    func play(songID: UUID, url: URL)
+
+    /// Pausa la reproducción actual
+    func pause()
+
+    /// Detiene completamente la reproducción
+    func stop()
+
+    /// Busca una posición específica en la canción
+    /// - Parameter time: Tiempo en segundos
+    func seek(to time: TimeInterval)
+}
+
+/// Protocolo para callbacks de estado de reproducción
+/// SOLID: Interface Segregation - Solo callbacks de estado
+protocol AudioPlaybackStateProtocol {
     /// Callback que se ejecuta cuando cambia el estado de reproducción
     var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
 
@@ -18,7 +41,11 @@ protocol AudioPlayerProtocol {
 
     /// Callback que se ejecuta cuando una canción termina
     var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
+}
 
+/// Protocolo para controles remotos (CarPlay, Lock Screen, etc.)
+/// SOLID: Interface Segregation - Solo callbacks remotos
+protocol RemoteControlsProtocol {
     /// Callback para play/pause desde controles remotos
     var onRemotePlayPause: (@MainActor () -> Void)? { get set }
 
@@ -27,26 +54,22 @@ protocol AudioPlayerProtocol {
 
     /// Callback para canción anterior desde controles remotos
     var onRemotePrevious: (@MainActor () -> Void)? { get set }
-    
-    /// Reproduce una canción desde una URL
-    /// - Parameters:
-    ///   - songID: Identificador único de la canción
-    ///   - url: URL local del archivo de audio
-    func play(songID: UUID, url: URL)
-    
-    /// Pausa la reproducción actual
-    func pause()
-    
-    /// Detiene completamente la reproducción
-    func stop()
-    
-    /// Busca una posición específica en la canción
-    /// - Parameter time: Tiempo en segundos
-    func seek(to time: TimeInterval)
-    
+}
+
+/// Protocolo para control del ecualizador
+/// SOLID: Interface Segregation - Solo funciones de ecualizador
+protocol AudioEqualizerProtocol {
     /// Actualiza las bandas del ecualizador
     /// - Parameter bands: Array con los valores de ganancia de cada banda
     func updateEqualizer(bands: [Float])
+}
+
+/// Protocolo completo del reproductor de audio
+/// SOLID: Interface Segregation - Composición de protocolos específicos
+/// Cumple con Dependency Inversion Principle (SOLID)
+protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioPlaybackStateProtocol, RemoteControlsProtocol, AudioEqualizerProtocol {
+    // Este protocolo hereda todos los métodos y propiedades de los protocolos base
+    // Los clientes pueden depender solo del protocolo específico que necesiten
 }
 
 // MARK: - Extensión con métodos avanzados de audio (opcionales)

@@ -2,22 +2,24 @@
 //  EqualizerViewModel.swift
 //  sinkmusic
 //
-//  Created by Claude Code on 19/12/25.
+//  Created by Miguel Tomairo on 19/12/25.
 //
 
 import Foundation
 
 /// ViewModel responsable ÚNICAMENTE de la gestión del ecualizador
-/// Cumple con Single Responsibility Principle
+/// SOLID: Single Responsibility Principle + Interface Segregation Principle
+/// Solo depende de AudioEqualizerProtocol, no del protocolo completo
 @MainActor
 class EqualizerViewModel: ObservableObject {
     @Published var equalizerBands: [EqualizerBand] = EqualizerBand.defaultBands
     @Published var selectedPreset: EqualizerPreset = .flat
 
-    private var audioPlayerService: AudioPlayerProtocol
+    // ISP: Solo depende del protocolo específico que necesita
+    private var audioEqualizer: AudioEqualizerProtocol
 
-    init(audioPlayerService: AudioPlayerProtocol = AudioPlayerService()) {
-        self.audioPlayerService = audioPlayerService
+    init(audioEqualizer: AudioEqualizerProtocol = AudioPlayerService()) {
+        self.audioEqualizer = audioEqualizer
     }
 
     /// Actualiza la ganancia de una banda específica
@@ -32,7 +34,7 @@ class EqualizerViewModel: ObservableObject {
 
         // Convertir EqualizerBand a Float para el protocolo
         let gains = equalizerBands.map { Float($0.gain) }
-        audioPlayerService.updateEqualizer(bands: gains)
+        audioEqualizer.updateEqualizer(bands: gains)
     }
 
     /// Aplica un preset predefinido de ecualizador
@@ -47,7 +49,7 @@ class EqualizerViewModel: ObservableObject {
 
         // Convertir EqualizerBand a Float para el protocolo
         let floatGains = equalizerBands.map { Float($0.gain) }
-        audioPlayerService.updateEqualizer(bands: floatGains)
+        audioEqualizer.updateEqualizer(bands: floatGains)
     }
 
     /// Resetea el ecualizador a valores planos (0 dB)
@@ -57,6 +59,6 @@ class EqualizerViewModel: ObservableObject {
 
         // Convertir EqualizerBand a Float para el protocolo
         let gains = equalizerBands.map { Float($0.gain) }
-        audioPlayerService.updateEqualizer(bands: gains)
+        audioEqualizer.updateEqualizer(bands: gains)
     }
 }
