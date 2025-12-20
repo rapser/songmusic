@@ -77,8 +77,9 @@ struct SongRow: View {
                 }
         )
         .onTapGesture {
-            if songIsDownloaded && songListViewModel.downloadProgress[songId] == nil {
-                playerViewModel.play(song: song)
+            if songIsDownloaded && songListViewModel.downloadProgress[songId] == nil,
+               let url = song.localURL {
+                playerViewModel.play(song: song, from: url)
             }
         }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
@@ -90,8 +91,8 @@ struct SongRow: View {
             Button(action: {
                 if playerViewModel.currentlyPlayingID == songId {
                     playerViewModel.pause()
-                } else {
-                    playerViewModel.play(song: song)
+                } else if let url = song.localURL {
+                    playerViewModel.play(song: song, from: url)
                 }
             }) {
                 Label(

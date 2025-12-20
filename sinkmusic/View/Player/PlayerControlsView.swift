@@ -14,6 +14,7 @@ struct PlayerControlsView: View {
     let dominantColor: Color
     var namespace: Namespace.ID
     @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var metadataViewModel: MetadataCacheViewModel
 
     private var progress: Double {
         guard playerViewModel.songDuration > 0 else { return 0 }
@@ -25,7 +26,7 @@ struct PlayerControlsView: View {
             // Contenido principal del mini player
             HStack(spacing: 4) {
                 MiniPlayerArtwork(
-                    cachedImage: playerViewModel.cachedArtwork
+                    cachedImage: metadataViewModel.cachedArtwork
                 )
 
                 MiniPlayerInfo(title: title, artist: artist)

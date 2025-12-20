@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlayerView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var metadataViewModel: MetadataCacheViewModel
     var songs: [Song]
     var currentSong: Song
     var namespace: Namespace.ID
@@ -34,7 +35,7 @@ struct PlayerView: View {
                 // Artwork de la canción
                 PlayerArtwork(
                     artworkData: currentSong.artworkData,
-                    cachedImage: playerViewModel.cachedArtwork,
+                    cachedImage: metadataViewModel.cachedArtwork,
                     namespace: namespace
                 )
 

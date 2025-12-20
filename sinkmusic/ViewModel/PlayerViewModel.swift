@@ -17,6 +17,8 @@ private struct PlayingSongInfo {
     let artworkThumbnail: Data?
 }
 
+/// ViewModel responsable ÚNICAMENTE de la reproducción de audio
+/// SOLID: Single Responsibility Principle - Solo maneja reproducción, no metadatos ni ecualizador
 @MainActor
 class PlayerViewModel: ObservableObject {
     @Published var isPlaying = false
@@ -26,9 +28,6 @@ class PlayerViewModel: ObservableObject {
     @Published var showPlayerView: Bool = false
     @Published var isShuffleEnabled = false
     @Published var repeatMode: RepeatMode = .off
-    @Published var equalizerBands: [EqualizerBand] = EqualizerBand.defaultBands
-    @Published var selectedPreset: EqualizerPreset = .flat
-    @Published var cachedArtwork: UIImage? = nil
 
     enum RepeatMode {
         case off, repeatAll, repeatOne
@@ -37,41 +36,29 @@ class PlayerViewModel: ObservableObject {
     // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
     // Nota: audioPlayerService es 'var' porque necesitamos asignar sus callbacks en setupCallbacks()
     private var audioPlayerService: AudioPlayerProtocol
-    private let downloadService: GoogleDriveServiceProtocol
-    private let metadataService: MetadataServiceProtocol
     private let liveActivityService = LiveActivityService()
     private var allSongs: [Song] = []
     private var currentSongInfo: PlayingSongInfo?
+    private var currentSongURL: URL? // Almacena la URL para reanudar reproducción
     private var lastNowPlayingUpdateTime: TimeInterval = 0
 
     init(
-        audioPlayerService: AudioPlayerProtocol = AudioPlayerService(),
-        downloadService: GoogleDriveServiceProtocol = GoogleDriveService(),
-        metadataService: MetadataServiceProtocol = MetadataService()
+        audioPlayerService: AudioPlayerProtocol = AudioPlayerService()
     ) {
         self.audioPlayerService = audioPlayerService
-        self.downloadService = downloadService
-        self.metadataService = metadataService
         setupCallbacks()
         setupLiveActivityHandlers()
     }
 
-    func play(song: Song) {
+    /// Reproduce una canción
+    /// NOTA: El artwork debe ser cacheado externamente por MetadataCacheViewModel
+    func play(song: Song, from url: URL) {
         guard song.isDownloaded else {
             return
         }
 
-        guard let url = downloadService.localURL(for: song.id) else {
-            return
-        }
-
-        // CRÍTICO: Pre-cargar artwork SÍNCRONAMENTE antes que nada
-        // Esto asegura que la imagen esté lista cuando aparezca el mini player
-        if let artworkData = song.artworkData {
-            cachedArtwork = UIImage(data: artworkData)
-        } else {
-            cachedArtwork = nil
-        }
+        // Guardar URL para poder reanudar reproducción
+        currentSongURL = url
 
         // Crear snapshot de datos desacoplado de SwiftData
         currentSongInfo = PlayingSongInfo(
@@ -98,57 +85,18 @@ class PlayerViewModel: ObservableObject {
             audioPlayerService.play(songID: song.id, url: url)
         }
 
-        // Actualizar metadata inmediatamente con los datos actuales
+        // Actualizar Now Playing Info con los datos actuales
         updateNowPlayingInfo()
-
-        // Extraer metadata en background con baja prioridad (después de iniciar reproducción)
-        if song.duration == nil || song.artworkData == nil {
-            Task(priority: .utility) { [weak self] in
-                guard let self = self else { return }
-                if let metadata = await self.metadataService.extractMetadata(from: url) {
-                    song.title = metadata.title
-                    song.artist = metadata.artist
-                    song.album = metadata.album
-                    song.author = metadata.author
-                    song.duration = metadata.duration
-                    song.artworkData = metadata.artwork
-                    song.artworkThumbnail = metadata.artworkThumbnail
-                    song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
-
-                    // Actualizar snapshot con nueva metadata
-                    self.currentSongInfo = PlayingSongInfo(
-                        id: song.id,
-                        title: metadata.title,
-                        artist: metadata.artist,
-                        album: metadata.album,
-                        author: metadata.author,
-                        duration: metadata.duration,
-                        artworkData: metadata.artwork,
-                        artworkThumbnail: metadata.artworkThumbnail
-                    )
-
-                    // Actualizar cached artwork con la nueva metadata
-                    if let artworkData = metadata.artwork {
-                        await MainActor.run {
-                            self.cachedArtwork = UIImage(data: artworkData)
-                        }
-                    }
-
-                    // Actualizar info después de cargar metadata
-                    self.updateNowPlayingInfo()
-                }
-            }
-        }
     }
 
     func togglePlayPause() {
-        guard let songInfo = currentSongInfo else { return }
+        guard let songInfo = currentSongInfo,
+              let url = currentSongURL else { return }
 
         if isPlaying {
             pause()
         } else {
             // Reanudar reproducción sin reiniciar
-            guard let url = downloadService.localURL(for: songInfo.id) else { return }
             audioPlayerService.play(songID: songInfo.id, url: url)
         }
     }
@@ -200,18 +148,22 @@ class PlayerViewModel: ObservableObject {
 
             if !otherSongs.isEmpty {
                 // Hay más canciones disponibles, elige una aleatoria
-                if let randomSong = otherSongs.randomElement() {
-                    play(song: randomSong)
+                if let randomSong = otherSongs.randomElement(),
+                   let url = randomSong.localURL {
+                    play(song: randomSong, from: url)
                 }
-            } else if self.allSongs.count == 1 {
+            } else if self.allSongs.count == 1, let url = currentSong.localURL {
                 // Solo hay una canción, reproducirla de nuevo
-                play(song: currentSong)
+                play(song: currentSong, from: url)
             }
         } else {
             // Modo secuencial
             guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
             let nextIdx = (idx + 1) % self.allSongs.count
-            play(song: self.allSongs[nextIdx])
+            let nextSong = self.allSongs[nextIdx]
+            if let url = nextSong.localURL {
+                play(song: nextSong, from: url)
+            }
         }
     }
 
@@ -222,16 +174,21 @@ class PlayerViewModel: ObservableObject {
         if isShuffleEnabled {
             // En modo aleatorio, también va a una canción aleatoria
             let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
-            if let randomSong = otherSongs.randomElement() {
-                play(song: randomSong)
-            } else if let firstSong = self.allSongs.first {
-                play(song: firstSong)
+            if let randomSong = otherSongs.randomElement(),
+               let url = randomSong.localURL {
+                play(song: randomSong, from: url)
+            } else if let firstSong = self.allSongs.first,
+                      let url = firstSong.localURL {
+                play(song: firstSong, from: url)
             }
         } else {
             // Modo secuencial
             guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
             let prevIdx = (idx - 1 + self.allSongs.count) % self.allSongs.count
-            play(song: self.allSongs[prevIdx])
+            let prevSong = self.allSongs[prevIdx]
+            if let url = prevSong.localURL {
+                play(song: prevSong, from: url)
+            }
         }
     }
 
@@ -255,7 +212,9 @@ class PlayerViewModel: ObservableObject {
         case .repeatOne:
             // Repetir la misma canción
             print("🔁 Repeat One: Repitiendo '\(currentSong.title)'")
-            play(song: currentSong)
+            if let url = currentSong.localURL {
+                play(song: currentSong, from: url)
+            }
 
         case .repeatAll:
             // Continuar reproduciendo y volver al inicio si es la última
@@ -298,38 +257,6 @@ class PlayerViewModel: ObservableObject {
     func seek(to time: TimeInterval) {
         audioPlayerService.seek(to: time)
         playbackTime = time
-    }
-
-    // MARK: - Equalizer Functions
-    func updateBandGain(index: Int, gain: Double) {
-        guard index < equalizerBands.count else { return }
-        equalizerBands[index].gain = gain
-        selectedPreset = .flat // Reset preset when manually adjusting
-
-        // Convertir EqualizerBand a Float para el protocolo
-        let gains = equalizerBands.map { Float($0.gain) }
-        audioPlayerService.updateEqualizer(bands: gains)
-    }
-
-    func applyPreset(_ preset: EqualizerPreset) {
-        selectedPreset = preset
-        let gains = preset.gains
-        for (index, gain) in gains.enumerated() where index < equalizerBands.count {
-            equalizerBands[index].gain = gain
-        }
-
-        // Convertir EqualizerBand a Float para el protocolo
-        let floatGains = equalizerBands.map { Float($0.gain) }
-        audioPlayerService.updateEqualizer(bands: floatGains)
-    }
-
-    func resetEqualizer() {
-        equalizerBands = EqualizerBand.defaultBands
-        selectedPreset = .flat
-
-        // Convertir EqualizerBand a Float para el protocolo
-        let gains = equalizerBands.map { Float($0.gain) }
-        audioPlayerService.updateEqualizer(bands: gains)
     }
 
     private func setupCallbacks() {

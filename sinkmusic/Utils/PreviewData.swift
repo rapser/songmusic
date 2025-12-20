@@ -103,6 +103,8 @@ struct PreviewViewModels {
         }
         return vm
     }
+    static func equalizerVM() -> EqualizerViewModel { EqualizerViewModel() }
+    static func metadataVM() -> MetadataCacheViewModel { MetadataCacheViewModel() }
 }
 
 // MARK: - Wrapper genérico
@@ -111,18 +113,24 @@ struct PreviewWrapper<Content: View>: View {
     private let libraryVM: LibraryViewModel?
     private let songListVM: SongListViewModel?
     private let playerVM: PlayerViewModel?
+    private let equalizerVM: EqualizerViewModel?
+    private let metadataVM: MetadataCacheViewModel?
     private let modelContainer: ModelContainer?
 
     init(
         libraryVM: LibraryViewModel? = nil,
         songListVM: SongListViewModel? = nil,
         playerVM: PlayerViewModel? = nil,
+        equalizerVM: EqualizerViewModel? = nil,
+        metadataVM: MetadataCacheViewModel? = nil,
         modelContainer: ModelContainer? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.libraryVM = libraryVM
         self.songListVM = songListVM
         self.playerVM = playerVM
+        self.equalizerVM = equalizerVM
+        self.metadataVM = metadataVM
         self.modelContainer = modelContainer
         self.content = content
     }
@@ -132,6 +140,8 @@ struct PreviewWrapper<Content: View>: View {
             .environmentObject(libraryVM ?? PreviewViewModels.libraryVM())
             .environmentObject(songListVM ?? PreviewViewModels.songListVM())
             .environmentObject(playerVM ?? PreviewViewModels.playerVM())
+            .environmentObject(equalizerVM ?? PreviewViewModels.equalizerVM())
+            .environmentObject(metadataVM ?? PreviewViewModels.metadataVM())
             .ifLet(modelContainer) { view, container in
                 view.modelContainer(container)
             }

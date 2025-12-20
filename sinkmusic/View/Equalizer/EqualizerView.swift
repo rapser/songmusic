@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct EqualizerView: View {
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var equalizerViewModel: EqualizerViewModel
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -32,7 +32,7 @@ struct EqualizerView: View {
 
                     Spacer()
 
-                    Button(action: { playerViewModel.resetEqualizer() }) {
+                    Button(action: { equalizerViewModel.resetEqualizer() }) {
                         Text("Restaurar")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.textGray)
@@ -46,15 +46,15 @@ struct EqualizerView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(EqualizerPreset.allCases, id: \.self) { preset in
-                            Button(action: { playerViewModel.applyPreset(preset) }) {
+                            Button(action: { equalizerViewModel.applyPreset(preset) }) {
                                 Text(preset.rawValue)
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(playerViewModel.selectedPreset == preset ? .black : .white)
+                                    .foregroundColor(equalizerViewModel.selectedPreset == preset ? .black : .white)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 7)
                                     .background(
                                         Capsule()
-                                            .fill(playerViewModel.selectedPreset == preset ? Color.appPurple : Color.appGray.opacity(0.3))
+                                            .fill(equalizerViewModel.selectedPreset == preset ? Color.appPurple : Color.appGray.opacity(0.3))
                                     )
                             }
                         }
@@ -66,7 +66,7 @@ struct EqualizerView: View {
                 // Frequency Bands
                 VStack(spacing: 0) {
                     HStack(alignment: .center, spacing: 0) {
-                        ForEach(Array(playerViewModel.equalizerBands.enumerated()), id: \.offset) { index, band in
+                        ForEach(Array(equalizerViewModel.equalizerBands.enumerated()), id: \.offset) { index, band in
                             VStack(spacing: 6) {
                                 // Valor actual
                                 Text(String(format: "%.0f", band.gain))
@@ -148,7 +148,7 @@ struct EqualizerView: View {
                                                 let normalizedValue = 1 - (newY / geometry.size.height)
                                                 let newGain = (normalizedValue * 24) - 12
                                                 let clampedGain = max(-12, min(12, newGain))
-                                                playerViewModel.updateBandGain(index: index, gain: clampedGain)
+                                                equalizerViewModel.updateBandGain(index: index, gain: clampedGain)
                                             }
                                     )
                                 }
@@ -173,7 +173,7 @@ struct EqualizerView: View {
 
 #Preview {
     PreviewWrapper(
-        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.single().id)
+        equalizerVM: PreviewViewModels.equalizerVM()
     ) {
         EqualizerView()
     }

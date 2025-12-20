@@ -13,6 +13,8 @@ struct sinkmusicApp: App {
     @StateObject private var libraryViewModel = LibraryViewModel()
     @StateObject private var playerViewModel = PlayerViewModel()
     @StateObject private var songListViewModel = SongListViewModel()
+    @StateObject private var metadataViewModel = MetadataCacheViewModel()
+    @StateObject private var equalizerViewModel = EqualizerViewModel()
     @StateObject private var authManager = AuthenticationManager.shared
 
     var body: some Scene {
@@ -27,6 +29,8 @@ struct sinkmusicApp: App {
                         .environmentObject(libraryViewModel)
                         .environmentObject(playerViewModel)
                         .environmentObject(songListViewModel)
+                        .environmentObject(metadataViewModel)
+                        .environmentObject(equalizerViewModel)
                         .environmentObject(authManager)
                         .onAppear {
                             // Configurar CarPlay cuando la app aparece

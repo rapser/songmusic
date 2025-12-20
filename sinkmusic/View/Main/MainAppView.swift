@@ -3,6 +3,7 @@ import SwiftData
 
 struct MainAppView: View {
     @EnvironmentObject private var playerViewModel: PlayerViewModel
+    @EnvironmentObject private var metadataViewModel: MetadataCacheViewModel
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
     @Namespace private var animation
 
@@ -87,6 +88,10 @@ struct MainAppView: View {
             // Usar lookup O(1) en lugar de first O(n)
             if let playingID = newValue {
                 currentSong = songsLookup[playingID]
+                // Cachear artwork de la canción actual
+                if let song = currentSong {
+                    metadataViewModel.cacheArtwork(from: song.artworkData)
+                }
             } else {
                 currentSong = nil
             }

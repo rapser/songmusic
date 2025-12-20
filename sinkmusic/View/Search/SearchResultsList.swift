@@ -20,7 +20,11 @@ struct SearchResultsList: View {
                         song: song,
                         currentlyPlayingID: playerViewModel.currentlyPlayingID,
                         isPlaying: playerViewModel.isPlaying,
-                        onTap: { playerViewModel.play(song: song) }
+                        onTap: {
+                            if let url = song.localURL {
+                                playerViewModel.play(song: song, from: url)
+                            }
+                        }
                     )
                     .equatable() // Usar Equatable para evitar re-renderizados innecesarios
                     .id(song.id)

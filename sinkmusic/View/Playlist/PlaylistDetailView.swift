@@ -130,7 +130,9 @@ struct PlaylistDetailView: View {
                                 )
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    playerViewModel.play(song: song)
+                                    if let url = song.localURL {
+                                        playerViewModel.play(song: song, from: url)
+                                    }
                                 }
 
                                 if index < playlist.songs.count - 1 {
@@ -184,9 +186,10 @@ struct PlaylistDetailView: View {
     }
 
     private func playAll() {
-        guard let firstSong = playlist.songs.first else { return }
+        guard let firstSong = playlist.songs.first,
+              let url = firstSong.localURL else { return }
         playerViewModel.updateSongsList(playlist.songs)
-        playerViewModel.play(song: firstSong)
+        playerViewModel.play(song: firstSong, from: url)
     }
 }
 
