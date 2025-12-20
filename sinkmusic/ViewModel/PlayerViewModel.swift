@@ -4,6 +4,19 @@ import AVFoundation
 import SwiftData
 import UIKit
 
+/// Información de la canción actualmente reproduciéndose
+/// Desacoplada de SwiftData para evitar re-renders innecesarios
+private struct PlayingSongInfo {
+    let id: UUID
+    let title: String
+    let artist: String
+    let album: String?
+    let author: String?
+    let duration: TimeInterval?
+    let artworkData: Data?
+    let artworkThumbnail: Data?
+}
+
 @MainActor
 class PlayerViewModel: ObservableObject {
     @Published var isPlaying = false
@@ -26,7 +39,7 @@ class PlayerViewModel: ObservableObject {
     private let metadataService: MetadataService
     private let liveActivityService = LiveActivityService()
     private var allSongs: [Song] = []
-    private var currentSong: Song?
+    private var currentSongInfo: PlayingSongInfo?
     private var lastNowPlayingUpdateTime: TimeInterval = 0
 
     init(
@@ -50,7 +63,25 @@ class PlayerViewModel: ObservableObject {
             return
         }
 
-        currentSong = song
+        // CRÍTICO: Pre-cargar artwork SÍNCRONAMENTE antes que nada
+        // Esto asegura que la imagen esté lista cuando aparezca el mini player
+        if let artworkData = song.artworkData {
+            cachedArtwork = UIImage(data: artworkData)
+        } else {
+            cachedArtwork = nil
+        }
+
+        // Crear snapshot de datos desacoplado de SwiftData
+        currentSongInfo = PlayingSongInfo(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            author: song.author,
+            duration: song.duration,
+            artworkData: song.artworkData,
+            artworkThumbnail: song.artworkThumbnail
+        )
 
         // Comportamiento estilo Spotify cuando presionas desde el listado:
         // Si presionas la canción que ya está tocando, reinicia desde el principio
@@ -64,9 +95,6 @@ class PlayerViewModel: ObservableObject {
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
-
-        // Pre-cargar artwork inmediatamente para evitar delay en la UI
-        preloadArtwork(from: song)
 
         // Actualizar metadata inmediatamente con los datos actuales
         updateNowPlayingInfo()
@@ -85,41 +113,41 @@ class PlayerViewModel: ObservableObject {
                     song.artworkThumbnail = metadata.artworkThumbnail
                     song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
 
+                    // Actualizar snapshot con nueva metadata
+                    self.currentSongInfo = PlayingSongInfo(
+                        id: song.id,
+                        title: metadata.title,
+                        artist: metadata.artist,
+                        album: metadata.album,
+                        author: metadata.author,
+                        duration: metadata.duration,
+                        artworkData: metadata.artwork,
+                        artworkThumbnail: metadata.artworkThumbnail
+                    )
+
+                    // Actualizar cached artwork con la nueva metadata
+                    if let artworkData = metadata.artwork {
+                        await MainActor.run {
+                            self.cachedArtwork = UIImage(data: artworkData)
+                        }
+                    }
+
                     // Actualizar info después de cargar metadata
                     self.updateNowPlayingInfo()
-                    self.preloadArtwork(from: song)
                 }
             }
         }
     }
 
-    private func preloadArtwork(from song: Song) {
-        guard let artworkData = song.artworkData else {
-            cachedArtwork = nil
-            return
-        }
-
-        // Cargar imagen en background con alta prioridad
-        Task(priority: .userInitiated) { [weak self] in
-            let image = await Task.detached(priority: .userInitiated) {
-                UIImage(data: artworkData)
-            }.value
-
-            await MainActor.run {
-                self?.cachedArtwork = image
-            }
-        }
-    }
-
     func togglePlayPause() {
-        guard let song = currentSong else { return }
+        guard let songInfo = currentSongInfo else { return }
 
         if isPlaying {
             pause()
         } else {
             // Reanudar reproducción sin reiniciar
-            guard let url = downloadService.localURL(for: song.id) else { return }
-            audioPlayerService.play(songID: song.id, url: url)
+            guard let url = downloadService.localURL(for: songInfo.id) else { return }
+            audioPlayerService.play(songID: songInfo.id, url: url)
         }
     }
 
@@ -138,6 +166,10 @@ class PlayerViewModel: ObservableObject {
     func updateSongsList(_ songs: [Song]) {
         let downloadedSongs = songs.filter { $0.isDownloaded }
         self.allSongs = downloadedSongs
+
+        // NO actualizar currentSong aquí para evitar disparar re-renders
+        // La búsqueda se hace dinámicamente cuando se necesita
+
         print("📋 Lista actualizada: \(downloadedSongs.count) canciones descargadas")
     }
 
@@ -327,53 +359,57 @@ class PlayerViewModel: ObservableObject {
 
         // Callback para siguiente canción desde control remoto
         audioPlayerService.onRemoteNext = { [weak self] in
-            guard let self = self, let song = self.currentSong else { return }
+            guard let self = self,
+                  let playingID = self.currentlyPlayingID,
+                  let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
             self.playNext(currentSong: song, allSongs: self.allSongs)
         }
 
         // Callback para canción anterior desde control remoto
         audioPlayerService.onRemotePrevious = { [weak self] in
-            guard let self = self, let song = self.currentSong else { return }
+            guard let self = self,
+                  let playingID = self.currentlyPlayingID,
+                  let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
             self.playPrevious(currentSong: song, allSongs: self.allSongs)
         }
     }
 
     private func updateNowPlayingInfo() {
-        guard let song = currentSong else { return }
-        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+        guard let songInfo = currentSongInfo else { return }
+        let duration = songDuration > 0 ? songDuration : (songInfo.duration ?? 0)
 
         audioPlayerService.updateNowPlayingInfo(
-            title: song.title,
-            artist: song.artist,
-            album: song.album,
+            title: songInfo.title,
+            artist: songInfo.artist,
+            album: songInfo.album,
             duration: duration,
             currentTime: playbackTime,
-            artwork: song.artworkData
+            artwork: songInfo.artworkData
         )
     }
 
     private func updateLiveActivity() {
-        guard let song = currentSong else { return }
-        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+        guard let songInfo = currentSongInfo else { return }
+        let duration = songDuration > 0 ? songDuration : (songInfo.duration ?? 0)
 
         if isPlaying {
             liveActivityService.startActivity(
-                songID: song.id,
-                songTitle: song.title,
-                artistName: song.artist,
+                songID: songInfo.id,
+                songTitle: songInfo.title,
+                artistName: songInfo.artist,
                 isPlaying: isPlaying,
                 currentTime: playbackTime,
                 duration: duration,
-                artworkThumbnail: song.artworkThumbnail
+                artworkThumbnail: songInfo.artworkThumbnail
             )
         } else if !isPlaying && liveActivityService.hasActiveActivity {
             liveActivityService.updateActivity(
-                songTitle: song.title,
-                artistName: song.artist,
+                songTitle: songInfo.title,
+                artistName: songInfo.artist,
                 isPlaying: false,
                 currentTime: playbackTime,
                 duration: duration,
-                artworkThumbnail: song.artworkThumbnail
+                artworkThumbnail: songInfo.artworkThumbnail
             )
         }
     }
@@ -398,7 +434,9 @@ class PlayerViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
+                guard let self = self,
+                      let playingID = self.currentlyPlayingID,
+                      let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
                 self.playNext(currentSong: song, allSongs: self.allSongs)
             }
         }
@@ -410,7 +448,9 @@ class PlayerViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
+                guard let self = self,
+                      let playingID = self.currentlyPlayingID,
+                      let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
                 self.playPrevious(currentSong: song, allSongs: self.allSongs)
             }
         }

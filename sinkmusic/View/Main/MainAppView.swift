@@ -61,15 +61,21 @@ struct MainAppView: View {
                playerViewModel.currentlyPlayingID != nil,
                !playerViewModel.showPlayerView {
 
-                PlayerControlsView(song: currentSong, namespace: animation)
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 55)
-                    .zIndex(1)
-                    .onTapGesture {
-                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
-                            playerViewModel.showPlayerView = true
-                        }
+                PlayerControlsView(
+                    songID: currentSong.id,
+                    title: currentSong.title,
+                    artist: currentSong.artist,
+                    dominantColor: Color.dominantColor(from: currentSong),
+                    namespace: animation
+                )
+                .padding(.horizontal, 8)
+                .padding(.bottom, 55)
+                .zIndex(1)
+                .onTapGesture {
+                    withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
+                        playerViewModel.showPlayerView = true
                     }
+                }
             }
         }
         .task {

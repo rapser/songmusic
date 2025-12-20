@@ -197,4 +197,18 @@ class SongListViewModel: ObservableObject {
             }
         }
     }
+
+    deinit {
+        // Cancelar descarga masiva si está en progreso
+        downloadAllTask?.cancel()
+        downloadAllTask = nil
+
+        // Cancelar todas las tareas de animación de progreso
+        for (_, task) in progressAnimationTasks {
+            task.cancel()
+        }
+        progressAnimationTasks.removeAll()
+
+        print("🗑️ SongListViewModel deinicializado - recursos liberados")
+    }
 }

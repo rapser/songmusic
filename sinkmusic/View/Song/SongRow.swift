@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SongRow: View {
-    @Bindable var song: Song
+    let song: Song  // Sin @Bindable - solo lectura
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
@@ -18,8 +18,18 @@ struct SongRow: View {
     @State private var showSongMenu = false
     @State private var isPressed = false
 
+    // Snapshot de propiedades para comparación
+    private let songId: UUID
+    private let songTitle: String
+    private let songArtist: String
+    private let songIsDownloaded: Bool
+
     init(song: Song) {
-        self._song = Bindable(wrappedValue: song)
+        self.song = song
+        self.songId = song.id
+        self.songTitle = song.title
+        self.songArtist = song.artist
+        self.songIsDownloaded = song.isDownloaded
         self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: song.modelContext!))
     }
 
@@ -27,9 +37,9 @@ struct SongRow: View {
         HStack(spacing: 12) {
             // Componente de información de la canción
             SongInfoView(
-                title: song.title,
-                artist: song.artist,
-                isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
+                title: songTitle,
+                artist: songArtist,
+                isCurrentlyPlaying: playerViewModel.currentlyPlayingID == songId,
                 isPlaying: playerViewModel.isPlaying
             )
 
@@ -37,8 +47,8 @@ struct SongRow: View {
 
             // Componente de acción (descarga, menú, progreso)
             SongActionView(
-                song: song,
-                downloadProgress: songListViewModel.downloadProgress[song.id],
+                isDownloaded: songIsDownloaded,
+                downloadProgress: songListViewModel.downloadProgress[songId],
                 showMenu: $showSongMenu,
                 onDownload: {
                     songListViewModel.download(song: song, modelContext: modelContext)
@@ -49,7 +59,7 @@ struct SongRow: View {
         .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isPressed ? Color(white: 0.2) : (playerViewModel.currentlyPlayingID == song.id ? Color.appGray.opacity(0.3) : Color.clear))
+                .fill(isPressed ? Color(white: 0.2) : (playerViewModel.currentlyPlayingID == songId ? Color.appGray.opacity(0.3) : Color.clear))
         )
         .listRowBackground(Color.appDark)
         .contentShape(Rectangle())
@@ -67,7 +77,7 @@ struct SongRow: View {
                 }
         )
         .onTapGesture {
-            if song.isDownloaded && songListViewModel.downloadProgress[song.id] == nil {
+            if songIsDownloaded && songListViewModel.downloadProgress[songId] == nil {
                 playerViewModel.play(song: song)
             }
         }
@@ -78,15 +88,15 @@ struct SongRow: View {
             }
 
             Button(action: {
-                if playerViewModel.currentlyPlayingID == song.id {
+                if playerViewModel.currentlyPlayingID == songId {
                     playerViewModel.pause()
                 } else {
                     playerViewModel.play(song: song)
                 }
             }) {
                 Label(
-                    playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "Pausar" : "Reproducir",
-                    systemImage: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying ? "pause.fill" : "play.fill"
+                    playerViewModel.currentlyPlayingID == songId && playerViewModel.isPlaying ? "Pausar" : "Reproducir",
+                    systemImage: playerViewModel.currentlyPlayingID == songId && playerViewModel.isPlaying ? "pause.fill" : "play.fill"
                 )
             }
 

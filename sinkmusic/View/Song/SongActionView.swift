@@ -10,7 +10,7 @@ import SwiftUI
 
 /// Componente optimizado para las acciones de la canción (descarga, menú, progreso)
 struct SongActionView: View {
-    let song: Song
+    let isDownloaded: Bool  // Solo el estado, no el objeto completo
     let downloadProgress: Double?
     @Binding var showMenu: Bool
     let onDownload: () -> Void
@@ -20,7 +20,7 @@ struct SongActionView: View {
             if let progress = downloadProgress {
                 // Siempre mostrar la barra de progreso (0% a 100%)
                 DownloadProgressView(progress: progress)
-            } else if song.isDownloaded {
+            } else if isDownloaded {
                 MenuButton(showMenu: $showMenu)
             } else {
                 DownloadButton(action: onDownload)
