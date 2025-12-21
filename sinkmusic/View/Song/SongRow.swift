@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct SongRow: View {
-    let song: Song  // Sin @Bindable - solo lectura
+    let song: Song
+    let songQueue: [Song] // La cola de reproducción a la que pertenece esta canción
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
@@ -24,13 +25,24 @@ struct SongRow: View {
     private let songArtist: String
     private let songIsDownloaded: Bool
 
-    init(song: Song) {
+    init(song: Song, songQueue: [Song]) {
         self.song = song
+        self.songQueue = songQueue
         self.songId = song.id
         self.songTitle = song.title
         self.songArtist = song.artist
         self.songIsDownloaded = song.isDownloaded
-        self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: song.modelContext!))
+        
+        // Comprobar si modelContext existe antes de usarlo
+        if let context = song.modelContext {
+            self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: context))
+        } else {
+            // Fallback si no hay contexto (ej. en previews con datos mockeados)
+            // Aquí podrías decidir lanzar un error o usar un contexto temporal
+            // Por simplicidad, usamos un initializer que podría fallar en un caso real sin contexto
+            // pero para previews funciona.
+            self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: .init(try! .init(for: Song.self, Playlist.self))))
+        }
     }
 
     var body: some View {
@@ -79,7 +91,7 @@ struct SongRow: View {
         .onTapGesture {
             if songIsDownloaded && songListViewModel.downloadProgress[songId] == nil,
                let url = song.localURL {
-                playerViewModel.play(song: song, from: url)
+                playerViewModel.play(song: song, from: url, in: songQueue)
             }
         }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
@@ -92,7 +104,7 @@ struct SongRow: View {
                 if playerViewModel.currentlyPlayingID == songId {
                     playerViewModel.pause()
                 } else if let url = song.localURL {
-                    playerViewModel.play(song: song, from: url)
+                    playerViewModel.play(song: song, from: url, in: songQueue)
                 }
             }) {
                 Label(
@@ -114,7 +126,7 @@ struct SongRow: View {
         songListVM: PreviewViewModels.songListVM(),
         modelContainer: PreviewData.container(with: [PreviewSongs.single()])
     ) {
-        SongRow(song: PreviewSongs.single())
+        SongRow(song: PreviewSongs.single(), songQueue: [PreviewSongs.single()])
             .padding()
             .background(Color.black)
     }

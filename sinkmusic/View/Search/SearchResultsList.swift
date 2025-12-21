@@ -22,7 +22,7 @@ struct SearchResultsList: View {
                         isPlaying: playerViewModel.isPlaying,
                         onTap: {
                             if let url = song.localURL {
-                                playerViewModel.play(song: song, from: url)
+                                playerViewModel.play(song: song, from: url, in: songs)
                             }
                         }
                     )

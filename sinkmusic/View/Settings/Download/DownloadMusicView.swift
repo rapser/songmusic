@@ -186,7 +186,7 @@ struct DownloadMusicView: View {
                         ScrollView {
                             VStack(spacing: 0) {
                                 ForEach(pendingSongs) { song in
-                                    SongRow(song: song)
+                                    SongRow(song: song, songQueue: pendingSongs)
 
                                     if song.id != pendingSongs.last?.id {
                                         Divider()

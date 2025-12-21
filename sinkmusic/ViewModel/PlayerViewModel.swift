@@ -50,12 +50,15 @@ class PlayerViewModel: ObservableObject {
         setupLiveActivityHandlers()
     }
 
-    /// Reproduce una canción
+    /// Reproduce una canción y establece la cola de reproducción actual
     /// NOTA: El artwork debe ser cacheado externamente por MetadataCacheViewModel
-    func play(song: Song, from url: URL) {
+    func play(song: Song, from url: URL, in queue: [Song]) {
         guard song.isDownloaded else {
             return
         }
+
+        // Establecer la nueva cola de reproducción, filtrando solo las descargadas
+        self.allSongs = queue.filter { $0.isDownloaded }
 
         // Guardar URL para poder reanudar reproducción
         currentSongURL = url
@@ -112,17 +115,6 @@ class PlayerViewModel: ObservableObject {
         currentlyPlayingID = nil
     }
 
-
-    func updateSongsList(_ songs: [Song]) {
-        let downloadedSongs = songs.filter { $0.isDownloaded }
-        self.allSongs = downloadedSongs
-
-        // NO actualizar currentSong aquí para evitar disparar re-renders
-        // La búsqueda se hace dinámicamente cuando se necesita
-
-        print("📋 Lista actualizada: \(downloadedSongs.count) canciones descargadas")
-    }
-
     func toggleShuffle() {
         isShuffleEnabled.toggle()
     }
@@ -142,28 +134,22 @@ class PlayerViewModel: ObservableObject {
         // Usar allSongs cacheado en lugar de filtrar cada vez
         guard !self.allSongs.isEmpty else { return }
 
+        var nextSong: Song?
+
         if isShuffleEnabled {
             // Modo aleatorio: selecciona una canción aleatoria DIFERENTE a la actual
             let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
-
-            if !otherSongs.isEmpty {
-                // Hay más canciones disponibles, elige una aleatoria
-                if let randomSong = otherSongs.randomElement(),
-                   let url = randomSong.localURL {
-                    play(song: randomSong, from: url)
-                }
-            } else if self.allSongs.count == 1, let url = currentSong.localURL {
-                // Solo hay una canción, reproducirla de nuevo
-                play(song: currentSong, from: url)
-            }
+            nextSong = otherSongs.randomElement() ?? self.allSongs.first
         } else {
             // Modo secuencial
             guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
             let nextIdx = (idx + 1) % self.allSongs.count
-            let nextSong = self.allSongs[nextIdx]
-            if let url = nextSong.localURL {
-                play(song: nextSong, from: url)
-            }
+            nextSong = self.allSongs[nextIdx]
+        }
+        
+        if let songToPlay = nextSong, let url = songToPlay.localURL {
+            // La cola no cambia, se mantiene la actual
+            play(song: songToPlay, from: url, in: self.allSongs)
         }
     }
 
@@ -171,24 +157,22 @@ class PlayerViewModel: ObservableObject {
         // Usar allSongs cacheado en lugar de filtrar cada vez
         guard !self.allSongs.isEmpty else { return }
 
+        var prevSong: Song?
+
         if isShuffleEnabled {
             // En modo aleatorio, también va a una canción aleatoria
             let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
-            if let randomSong = otherSongs.randomElement(),
-               let url = randomSong.localURL {
-                play(song: randomSong, from: url)
-            } else if let firstSong = self.allSongs.first,
-                      let url = firstSong.localURL {
-                play(song: firstSong, from: url)
-            }
+            prevSong = otherSongs.randomElement() ?? self.allSongs.first
         } else {
             // Modo secuencial
             guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
             let prevIdx = (idx - 1 + self.allSongs.count) % self.allSongs.count
-            let prevSong = self.allSongs[prevIdx]
-            if let url = prevSong.localURL {
-                play(song: prevSong, from: url)
-            }
+            prevSong = self.allSongs[prevIdx]
+        }
+        
+        if let songToPlay = prevSong, let url = songToPlay.localURL {
+            // La cola no cambia, se mantiene la actual
+            play(song: songToPlay, from: url, in: self.allSongs)
         }
     }
 
@@ -213,7 +197,8 @@ class PlayerViewModel: ObservableObject {
             // Repetir la misma canción
             print("🔁 Repeat One: Repitiendo '\(currentSong.title)'")
             if let url = currentSong.localURL {
-                play(song: currentSong, from: url)
+                // La cola no cambia
+                play(song: currentSong, from: url, in: self.allSongs)
             }
 
         case .repeatAll:

@@ -66,7 +66,7 @@ struct HomeView: View {
                     ScrollView {
                         LazyVStack(spacing: 10, pinnedViews: []) {
                             ForEach(downloadedSongs) { song in
-                                SongRow(song: song)
+                                SongRow(song: song, songQueue: downloadedSongs)
                             }
                         }
                         .padding(.bottom, 80) // Espacio para el mini player

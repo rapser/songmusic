@@ -80,7 +80,6 @@ struct MainAppView: View {
         .task {
             // Crear lookup dictionary una vez al inicio
             updateSongsLookup()
-            playerViewModel.updateSongsList(songs)
         }
         .onChange(of: playerViewModel.currentlyPlayingID) { oldValue, newValue in
             // Usar lookup O(1) en lugar de first O(n)
@@ -102,7 +101,6 @@ struct MainAppView: View {
         .onChange(of: songs) { oldValue, newValue in
             // Actualizar lookup solo cuando cambian las canciones
             updateSongsLookup()
-            playerViewModel.updateSongsList(newValue)
         }
     }
 
