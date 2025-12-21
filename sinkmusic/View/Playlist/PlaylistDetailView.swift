@@ -17,6 +17,7 @@ struct PlaylistDetailView: View {
     let playlist: Playlist
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
+    @State private var showAddSongsSheet = false
     @State private var editMode: EditMode = .inactive
 
     init(playlist: Playlist, modelContext: ModelContext) {
@@ -104,6 +105,21 @@ struct PlaylistDetailView: View {
                             }
                         }
 
+                        // Add Songs Button
+                        Button(action: { showAddSongsSheet = true }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 16))
+                                Text("Agregar")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(24)
+                        }
+
                         // Edit Button
                         Button(action: { showEditSheet = true }) {
                             Image(systemName: "ellipsis")
@@ -119,7 +135,7 @@ struct PlaylistDetailView: View {
 
                     // Songs List
                     if playlist.songs.isEmpty {
-                        EmptyPlaylistSongsView()
+                        EmptyPlaylistSongsView(onAddSongs: { showAddSongsSheet = true })
                     } else {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(playlist.songs.enumerated()), id: \.element.id) { index, song in
@@ -151,6 +167,9 @@ struct PlaylistDetailView: View {
                     Spacer(minLength: 100)
                 }
             }
+        }
+        .sheet(isPresented: $showAddSongsSheet) {
+            AddSongsToPlaylistView(viewModel: viewModel, playlist: playlist)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -251,6 +270,8 @@ struct PlaylistSongRow: View {
 
 // MARK: - Empty Playlist Songs View
 struct EmptyPlaylistSongsView: View {
+    var onAddSongs: (() -> Void)? = nil
+    
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "music.note")
@@ -266,6 +287,18 @@ struct EmptyPlaylistSongsView: View {
                     .font(.system(size: 13))
                     .foregroundColor(.textGray)
             }
+            
+            Button(action: { onAddSongs?() }) {
+                Text("Agregar canciones")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.appDark)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color.appPurple)
+                    .cornerRadius(24)
+            }
+            .padding(.top, 10)
+
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -281,3 +314,4 @@ struct EmptyPlaylistSongsView: View {
         .environmentObject(PreviewViewModels.playerVM(songID: UUID()))
     }
 }
+

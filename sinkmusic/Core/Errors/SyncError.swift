@@ -12,4 +12,5 @@ enum SyncError: Error {
     case invalidCredentials
     case emptyFolder
     case networkError(String)
+    case invalidAudioFile
 }

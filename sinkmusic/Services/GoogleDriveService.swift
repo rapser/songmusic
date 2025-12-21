@@ -303,6 +303,19 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
             try? FileManager.default.removeItem(at: destinationURL)
             try FileManager.default.moveItem(at: location, to: destinationURL)
 
+            // --- INICIO: Nueva Verificación de Integridad del Archivo ---
+            do {
+                // Intenta abrir el archivo para verificar que es un archivo de audio válido
+                _ = try AVAudioFile(forReading: destinationURL)
+                print("✅ Verificación de audio exitosa para \(destinationURL.lastPathComponent)")
+            } catch {
+                // Si falla, el archivo está corrupto o no es un formato de audio válido
+                print("⛔️ ERROR: El archivo descargado no es un archivo de audio válido. Eliminando archivo.")
+                try? FileManager.default.removeItem(at: destinationURL) // Intenta limpiar
+                throw SyncError.invalidAudioFile // Notifica al sistema que la descarga falló
+            }
+            // --- FIN: Nueva Verificación de Integridad del Archivo ---
+
             // Evitar backup en iCloud
             var mutableURL = destinationURL
             var resourceValues = URLResourceValues()
