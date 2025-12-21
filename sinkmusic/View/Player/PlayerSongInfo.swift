@@ -16,7 +16,11 @@ struct PlayerSongInfo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             MarqueeText(text: title, font: .system(size: 24, weight: .bold), color: .white)
-            MarqueeText(text: artist, font: .system(size: 18), color: .textGray)
+
+            Text(artist)
+                .font(.system(size: 18))
+                .foregroundColor(.textGray)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)

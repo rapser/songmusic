@@ -8,78 +8,105 @@
 
 import SwiftUI
 
-/// Componente de texto con efecto marquee (scroll automático para textos largos)
+/// Componente de texto con efecto marquee usando animación lineal nativa
+/// Movimiento fluido sin saltos usando Core Animation
 struct MarqueeText: View {
     let text: String
     let font: Font
     let color: Color
 
-    @State private var offset: CGFloat = 0
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
-    @State private var shouldAnimate = false
+    @State private var offset: CGFloat = 0
+    @State private var isAnimating = false
+
+    private var needsScrolling: Bool {
+        textWidth > containerWidth && textWidth > 0 && containerWidth > 0
+    }
+
+    private let spacing: CGFloat = 40
+    private let speed: CGFloat = 30.0 // píxeles por segundo
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                // Texto para medir el ancho
+                // Texto principal
                 Text(text)
                     .font(font)
                     .foregroundColor(color)
                     .fixedSize()
                     .background(
                         GeometryReader { textGeometry in
-                            Color.clear.onAppear {
-                                textWidth = textGeometry.size.width
-                                containerWidth = geometry.size.width
-                                shouldAnimate = textWidth > containerWidth
-                            }
+                            Color.clear
+                                .preference(key: WidthPreferenceKey.self, value: textGeometry.size.width)
                         }
                     )
-                    .offset(x: shouldAnimate ? offset : 0)
+                    .offset(x: offset)
 
-                // Texto duplicado para efecto continuo (solo si es necesario)
-                if shouldAnimate {
+                // Texto duplicado para loop continuo
+                if needsScrolling {
                     Text(text)
                         .font(font)
                         .foregroundColor(color)
                         .fixedSize()
-                        .offset(x: offset + textWidth + 30) // 30px de espacio entre repeticiones
+                        .offset(x: offset + textWidth + spacing)
                 }
             }
             .clipped()
-            .onAppear {
-                if shouldAnimate {
-                    startAnimation()
+            .drawingGroup() // GPU rendering para máxima fluidez
+            .onPreferenceChange(WidthPreferenceKey.self) { width in
+                textWidth = width
+                containerWidth = geometry.size.width
+
+                // Reiniciar animación si cambia el tamaño
+                if needsScrolling && !isAnimating {
+                    startScrolling()
                 }
             }
-            .onChange(of: text) { oldValue, newValue in
-                // Reiniciar animación cuando cambia el texto
+            .onChange(of: text) { _, _ in
+                // Reset completo cuando cambia el texto
+                isAnimating = false
                 offset = 0
-                shouldAnimate = false
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if textWidth > containerWidth {
-                        shouldAnimate = true
-                        startAnimation()
-                    }
+            }
+            .onAppear {
+                if needsScrolling {
+                    startScrolling()
                 }
+            }
+            .onDisappear {
+                isAnimating = false
             }
         }
         .frame(height: font == .system(size: 24, weight: .bold) ? 30 : 24)
     }
 
-    private func startAnimation() {
-        guard shouldAnimate else { return }
+    private func startScrolling() {
+        guard needsScrolling, !isAnimating else { return }
 
-        // Pausar 2 segundos antes de empezar
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation(
-                .linear(duration: Double(textWidth) / 30) // Velocidad constante
-                    .repeatForever(autoreverses: false)
-            ) {
-                offset = -(textWidth + 30)
-            }
+        isAnimating = true
+        offset = 0
+
+        // Delay mínimo para dar tiempo a leer el inicio
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard isAnimating else { return }
+            animateScroll()
         }
+    }
+
+    private func animateScroll() {
+        let totalDistance = textWidth + spacing
+        let duration = Double(totalDistance / speed)
+
+        withAnimation(.linear(duration: duration).repeatForever(autoreverses: false)) {
+            offset = -totalDistance
+        }
+    }
+}
+
+// PreferenceKey para obtener el ancho del texto
+private struct WidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
