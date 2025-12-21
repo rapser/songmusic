@@ -26,9 +26,8 @@ struct PlayerView: View {
                 PlayerHeader(
                     showEqualizer: $showEqualizer,
                     onClose: {
-                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
-                            playerViewModel.showPlayerView = false
-                        }
+                        // Sin animación - cerrar instantáneamente
+                        playerViewModel.showPlayerView = false
                     }
                 )
 
@@ -82,16 +81,12 @@ struct PlayerView: View {
                     }
                 }
                 .onEnded { value in
-                    // Si desliza más de 150 puntos, cerrar el player
+                    // Si desliza más de 150 puntos, cerrar el player instantáneamente
                     if value.translation.height > 150 {
-                        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
-                            playerViewModel.showPlayerView = false
-                        }
+                        playerViewModel.showPlayerView = false
                     }
-                    // Resetear el offset con animación
-                    withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
-                        dragOffset = 0
-                    }
+                    // Resetear el offset instantáneamente
+                    dragOffset = 0
                 }
         )
         .onAppear {

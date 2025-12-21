@@ -46,14 +46,13 @@ struct MainAppView: View {
             }
             .accentColor(.white)
 
-            // PlayerView completo - Transición estilo Spotify
+            // PlayerView completo - Aparición instantánea
             if let currentSong = currentSong, playerViewModel.showPlayerView {
                 PlayerView(
                     songs: songs,
                     currentSong: currentSong,
                     namespace: animation
                 )
-                .transition(.identity)
                 .zIndex(2)
             }
 
@@ -73,9 +72,8 @@ struct MainAppView: View {
                 .padding(.bottom, 55)
                 .zIndex(1)
                 .onTapGesture {
-                    withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.86, blendDuration: 0)) {
-                        playerViewModel.showPlayerView = true
-                    }
+                    // Sin animación - mostrar instantáneamente
+                    playerViewModel.showPlayerView = true
                 }
             }
         }
@@ -86,13 +84,13 @@ struct MainAppView: View {
         }
         .onChange(of: playerViewModel.currentlyPlayingID) { oldValue, newValue in
             // Usar lookup O(1) en lugar de first O(n)
-            if let playingID = newValue {
-                currentSong = songsLookup[playingID]
-                // Cachear artwork de la canción actual
-                if let song = currentSong {
-                    metadataViewModel.cacheArtwork(from: song.artworkData)
-                }
+            if let playingID = newValue, let song = songsLookup[playingID] {
+                // CRÍTICO: Cachear artwork ANTES de asignar currentSong
+                // Esto garantiza que el mini player tenga la imagen lista instantáneamente
+                metadataViewModel.cacheArtwork(from: song.artworkData)
+                currentSong = song
             } else {
+                metadataViewModel.clearCache()
                 currentSong = nil
             }
             updateDebugInfo()
