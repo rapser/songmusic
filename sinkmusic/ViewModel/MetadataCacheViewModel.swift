@@ -13,7 +13,8 @@ import UIKit
 /// Cumple con Single Responsibility Principle
 @MainActor
 class MetadataCacheViewModel: ObservableObject {
-    @Published var cachedArtwork: UIImage?
+    @Published var cachedArtwork: UIImage?        // Imagen completa para PlayerView
+    @Published var cachedThumbnail: UIImage?      // Thumbnail para MiniPlayer (42x42)
 
     private let metadataService: MetadataServiceProtocol
 
@@ -21,16 +22,28 @@ class MetadataCacheViewModel: ObservableObject {
         self.metadataService = metadataService
     }
 
-    /// Carga y cachea el artwork de una canción de forma síncrona
-    /// - Parameter artworkData: Datos de la imagen
-    func cacheArtwork(from artworkData: Data?) {
-        guard let artworkData = artworkData else {
-            cachedArtwork = nil
-            return
+    /// Carga y cachea el artwork de una canción de forma optimizada
+    /// - Parameters:
+    ///   - artworkData: Datos de la imagen completa
+    ///   - thumbnailData: Datos del thumbnail (opcional, más eficiente)
+    /// - Note: Usa thumbnail para mini player (42x42) y artwork completo para player grande
+    func cacheArtwork(from artworkData: Data?, thumbnail thumbnailData: Data?) {
+        // OPTIMIZACIÓN: Cachear thumbnail pequeño para mini player (42x42)
+        if let thumbnailData = thumbnailData {
+            cachedThumbnail = UIImage(data: thumbnailData)
+        } else if let artworkData = artworkData {
+            // Fallback: si no hay thumbnail, usar artwork completo
+            cachedThumbnail = UIImage(data: artworkData)
+        } else {
+            cachedThumbnail = nil
         }
 
-        // Decodificación síncrona para que esté lista inmediatamente
-        cachedArtwork = UIImage(data: artworkData)
+        // Cachear imagen completa para PlayerView grande
+        if let artworkData = artworkData {
+            cachedArtwork = UIImage(data: artworkData)
+        } else {
+            cachedArtwork = nil
+        }
     }
 
     /// Extrae metadatos de un archivo de audio en background
@@ -63,5 +76,6 @@ class MetadataCacheViewModel: ObservableObject {
     /// Limpia el cache de artwork
     func clearCache() {
         cachedArtwork = nil
+        cachedThumbnail = nil
     }
 }

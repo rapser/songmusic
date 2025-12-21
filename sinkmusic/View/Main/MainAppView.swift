@@ -86,8 +86,12 @@ struct MainAppView: View {
             // Usar lookup O(1) en lugar de first O(n)
             if let playingID = newValue, let song = songsLookup[playingID] {
                 // CRÍTICO: Cachear artwork ANTES de asignar currentSong
-                // Esto garantiza que el mini player tenga la imagen lista instantáneamente
-                metadataViewModel.cacheArtwork(from: song.artworkData)
+                // Usa thumbnail (pequeño) para mini player y artwork completo para player grande
+                // Esto garantiza rendimiento óptimo con 100+ canciones
+                metadataViewModel.cacheArtwork(
+                    from: song.artworkData,
+                    thumbnail: song.artworkThumbnail
+                )
                 currentSong = song
             } else {
                 metadataViewModel.clearCache()

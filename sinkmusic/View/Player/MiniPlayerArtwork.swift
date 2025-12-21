@@ -8,13 +8,13 @@
 
 import SwiftUI
 
-/// Artwork del miniplayer (42x42) - Solo usa imagen cacheada para máximo rendimiento
+/// Artwork del miniplayer (42x42) - Usa thumbnail optimizado para máximo rendimiento
 struct MiniPlayerArtwork: View {
-    let cachedImage: UIImage?
+    let cachedThumbnail: UIImage?
 
     var body: some View {
         Group {
-            if let image = cachedImage {
+            if let image = cachedThumbnail {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()

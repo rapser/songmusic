@@ -26,7 +26,7 @@ struct PlayerControlsView: View {
             // Contenido principal del mini player
             HStack(spacing: 4) {
                 MiniPlayerArtwork(
-                    cachedImage: metadataViewModel.cachedArtwork
+                    cachedThumbnail: metadataViewModel.cachedThumbnail
                 )
 
                 MiniPlayerInfo(title: title, artist: artist)
