@@ -59,3 +59,14 @@ extension Song {
     }
 }
 
+// MARK: - Hashable
+extension Song: Hashable {
+    static func == (lhs: Song, rhs: Song) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+

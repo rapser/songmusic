@@ -10,24 +10,25 @@ import SwiftUI
 
 struct BarView: View {
     let isPlaying: Bool
-    let speed: Double
     let minHeight: CGFloat
     let maxHeight: CGFloat
+    let delay: Double
 
-    @State private var height: CGFloat
+    @State private var targetHeight: CGFloat
+    @State private var animationTimer: Timer?
 
-    init(isPlaying: Bool, speed: Double, minHeight: CGFloat, maxHeight: CGFloat) {
+    init(isPlaying: Bool, minHeight: CGFloat, maxHeight: CGFloat, delay: Double = 0) {
         self.isPlaying = isPlaying
-        self.speed = speed
         self.minHeight = minHeight
         self.maxHeight = maxHeight
-        _height = State(initialValue: minHeight)
+        self.delay = delay
+        _targetHeight = State(initialValue: minHeight)
     }
 
     var body: some View {
         RoundedRectangle(cornerRadius: 1.5)
             .fill(Color.appPurple)
-            .frame(width: 3, height: height)
+            .frame(width: 3, height: targetHeight)
             .onAppear {
                 if isPlaying {
                     startAnimation()
@@ -40,20 +41,37 @@ struct BarView: View {
                     stopAnimation()
                 }
             }
+            .onDisappear {
+                animationTimer?.invalidate()
+                animationTimer = nil
+            }
     }
 
     private func startAnimation() {
-        withAnimation(
-            Animation.easeInOut(duration: speed)
-                .repeatForever(autoreverses: true)
-        ) {
-            height = maxHeight
+        // Iniciar con un delay si se especifica
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard self.isPlaying else { return }
+            self.animateToRandomHeight()
+            // Configurar timer para cambiar alturas periódicamente
+            self.animationTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { _ in
+                guard self.isPlaying else { return }
+                self.animateToRandomHeight()
+            }
         }
     }
 
     private func stopAnimation() {
+        animationTimer?.invalidate()
+        animationTimer = nil
         withAnimation(.easeOut(duration: 0.2)) {
-            height = minHeight
+            targetHeight = minHeight
+        }
+    }
+
+    private func animateToRandomHeight() {
+        let randomHeight = CGFloat.random(in: minHeight...maxHeight)
+        withAnimation(.easeInOut(duration: 0.15)) {
+            targetHeight = randomHeight
         }
     }
 }

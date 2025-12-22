@@ -12,11 +12,11 @@ struct PlayingBarsIndicator: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 2) {
-            BarView(isPlaying: isPlaying, speed: 0.35, minHeight: 3, maxHeight: 14)
-            BarView(isPlaying: isPlaying, speed: 0.55, minHeight: 2, maxHeight: 12)
-            BarView(isPlaying: isPlaying, speed: 0.45, minHeight: 4, maxHeight: 13)
+            BarView(isPlaying: isPlaying, minHeight: 2, maxHeight: 16, delay: 0)
+            BarView(isPlaying: isPlaying, minHeight: 2, maxHeight: 16, delay: 0.05)
+            BarView(isPlaying: isPlaying, minHeight: 2, maxHeight: 16, delay: 0.1)
         }
-        .frame(width: 14, height: 14, alignment: .bottom)
+        .frame(width: 14, height: 16, alignment: .bottom)
     }
 }
 
