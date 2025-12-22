@@ -170,7 +170,21 @@ struct DownloadMusicView: View {
                         ScrollView {
                             VStack(spacing: 0) {
                                 ForEach(pendingSongs) { song in
-                                    SongRow(song: song, songQueue: pendingSongs, showAddToPlaylistForSong: $songForPlaylistSheet)
+                                    SongRow(
+                                        song: song,
+                                        songQueue: pendingSongs,
+                                        isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
+                                        isPlaying: playerViewModel.isPlaying,
+                                        onPlay: {
+                                            if let url = song.localURL {
+                                                playerViewModel.play(song: song, from: url, in: pendingSongs)
+                                            }
+                                        },
+                                        onPause: {
+                                            playerViewModel.pause()
+                                        },
+                                        showAddToPlaylistForSong: $songForPlaylistSheet
+                                    )
 
                                     if song.id != pendingSongs.last?.id {
                                         Divider()

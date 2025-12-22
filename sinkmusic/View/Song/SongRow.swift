@@ -9,47 +9,35 @@ import SwiftUI
 
 struct SongRow: View {
     let song: Song
-    let songQueue: [Song] // La cola de reproducción a la que pertenece esta canción
+    let songQueue: [Song]
+    let isCurrentlyPlaying: Bool
+    let isPlaying: Bool
+    let onPlay: () -> Void
+    let onPause: () -> Void
+    
     @Binding var showAddToPlaylistForSong: Song?
-    @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
 
     @State private var showSongMenu = false
     @State private var isPressed = false
 
-    // Snapshot de propiedades para comparación
-    private let songId: UUID
-    private let songTitle: String
-    private let songArtist: String
-    private let songIsDownloaded: Bool
-
-    init(song: Song, songQueue: [Song], showAddToPlaylistForSong: Binding<Song?>) {
-        self.song = song
-        self.songQueue = songQueue
-        self._showAddToPlaylistForSong = showAddToPlaylistForSong
-        self.songId = song.id
-        self.songTitle = song.title
-        self.songArtist = song.artist
-        self.songIsDownloaded = song.isDownloaded
-    }
-
     var body: some View {
         HStack(spacing: 12) {
             // Componente de información de la canción
             SongInfoView(
-                title: songTitle,
-                artist: songArtist,
-                isCurrentlyPlaying: playerViewModel.currentlyPlayingID == songId,
-                isPlaying: playerViewModel.isPlaying
+                title: song.title,
+                artist: song.artist,
+                isCurrentlyPlaying: isCurrentlyPlaying,
+                isPlaying: isPlaying
             )
 
             Spacer(minLength: 0)
 
             // Componente de acción (descarga, menú, progreso)
             SongActionView(
-                isDownloaded: songIsDownloaded,
-                downloadProgress: songListViewModel.downloadProgress[songId],
+                isDownloaded: song.isDownloaded,
+                downloadProgress: songListViewModel.downloadProgress[song.id],
                 showMenu: $showSongMenu,
                 onDownload: {
                     songListViewModel.download(song: song, modelContext: modelContext)
@@ -61,7 +49,7 @@ struct SongRow: View {
         .padding(.horizontal, 20)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isPressed ? Color(white: 0.2) : (playerViewModel.currentlyPlayingID == songId ? Color.appGray.opacity(0.3) : Color.clear))
+                .fill(isPressed ? Color(white: 0.2) : (isCurrentlyPlaying ? Color.appGray.opacity(0.3) : Color.clear))
         )
         .listRowBackground(Color.appDark)
         .contentShape(Rectangle())
@@ -79,27 +67,23 @@ struct SongRow: View {
                 }
         )
         .onTapGesture {
-            if songIsDownloaded && songListViewModel.downloadProgress[songId] == nil,
-               let url = song.localURL {
-                playerViewModel.play(song: song, from: url, in: songQueue)
-            }
+            onPlay()
         }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
-            // Agregar a playlist (siempre disponible para canciones descargadas)
             Button(action: { showAddToPlaylistForSong = song }) {
                 Label("Agregar a playlist", systemImage: "plus")
             }
 
             Button(action: {
-                if playerViewModel.currentlyPlayingID == songId {
-                    playerViewModel.pause()
-                } else if let url = song.localURL {
-                    playerViewModel.play(song: song, from: url, in: songQueue)
+                if isCurrentlyPlaying && isPlaying {
+                    onPause()
+                } else {
+                    onPlay()
                 }
             }) {
                 Label(
-                    playerViewModel.currentlyPlayingID == songId && playerViewModel.isPlaying ? "Pausar" : "Reproducir",
-                    systemImage: playerViewModel.currentlyPlayingID == songId && playerViewModel.isPlaying ? "pause.fill" : "play.fill"
+                    isCurrentlyPlaying && isPlaying ? "Pausar" : "Reproducir",
+                    systemImage: isCurrentlyPlaying && isPlaying ? "pause.fill" : "play.fill"
                 )
             }
 
@@ -121,6 +105,10 @@ struct SongRow: View {
                 SongRow(
                     song: PreviewSongs.single(),
                     songQueue: [PreviewSongs.single()],
+                    isCurrentlyPlaying: true,
+                    isPlaying: true,
+                    onPlay: { print("Play tapped") },
+                    onPause: { print("Pause tapped") },
                     showAddToPlaylistForSong: $songForPlaylistSheet
                 )
                 .padding()

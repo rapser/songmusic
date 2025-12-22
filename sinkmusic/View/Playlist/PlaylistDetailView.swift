@@ -141,7 +141,21 @@ struct PlaylistDetailView: View {
                     } else {
                         LazyVStack(spacing: 0) {
                             ForEach(playlist.songs) { song in
-                                SongRow(song: song, songQueue: playlist.songs, showAddToPlaylistForSong: $songForPlaylistSheet)
+                                SongRow(
+                                    song: song,
+                                    songQueue: playlist.songs,
+                                    isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
+                                    isPlaying: playerViewModel.isPlaying,
+                                    onPlay: {
+                                        if let url = song.localURL {
+                                            playerViewModel.play(song: song, from: url, in: playlist.songs)
+                                        }
+                                    },
+                                    onPause: {
+                                        playerViewModel.pause()
+                                    },
+                                    showAddToPlaylistForSong: $songForPlaylistSheet
+                                )
 
                                 if song.id != playlist.songs.last?.id {
                                     Divider()

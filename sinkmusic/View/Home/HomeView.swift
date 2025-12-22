@@ -23,6 +23,7 @@ struct HomeView: View {
                 
                 // Lista de playlists en 2 columnas
                 
+                Spacer()
                 
             }
         }
