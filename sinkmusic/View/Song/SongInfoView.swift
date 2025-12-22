@@ -33,6 +33,6 @@ struct SongInfoView: View {
                 .foregroundColor(.textGray)
                 .lineLimit(1)
         }
-        .drawingGroup()
+        
     }
 }
