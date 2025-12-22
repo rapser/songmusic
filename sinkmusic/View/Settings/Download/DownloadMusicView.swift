@@ -22,26 +22,6 @@ struct DownloadMusicView: View {
         songs.filter { !$0.isDownloaded }
     }
 
-    init() {
-        // Configurar apariencia del NavigationBar
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(Color.appDark)
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
-
-        // Botón de back en blanco
-        appearance.setBackIndicatorImage(
-            UIImage(systemName: "chevron.left")?.withTintColor(.white, renderingMode: .alwaysOriginal),
-            transitionMaskImage: UIImage(systemName: "chevron.left")
-        )
-
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-        UINavigationBar.appearance().compactAppearance = appearance
-        UINavigationBar.appearance().tintColor = .white
-    }
-
     var body: some View {
         let playlistViewModel = PlaylistViewModel(modelContext: modelContext)
         

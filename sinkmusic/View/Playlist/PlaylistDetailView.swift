@@ -140,10 +140,10 @@ struct PlaylistDetailView: View {
                         EmptyPlaylistSongsView(onAddSongs: { showAddSongsSheet = true })
                     } else {
                         LazyVStack(spacing: 0) {
-                            ForEach(Array(playlist.songs.enumerated()), id: \.element.id) { index, song in
+                            ForEach(playlist.songs) { song in
                                 SongRow(song: song, songQueue: playlist.songs, showAddToPlaylistForSong: $songForPlaylistSheet)
 
-                                if index < playlist.songs.count - 1 {
+                                if song.id != playlist.songs.last?.id {
                                     Divider()
                                         .background(Color.white.opacity(0.1))
                                         .padding(.leading, 20)
