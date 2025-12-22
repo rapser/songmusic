@@ -8,6 +8,7 @@ class SongListViewModel: ObservableObject {
     @Published var isDownloadingAll: Bool = false
     @Published var isDownloadPaused = false
     @Published var currentDownloadIndex = 0
+    @Published var downloadError: String? = nil
     private var pendingDownloadSongs: [Song] = []
 
     // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
@@ -120,7 +121,8 @@ class SongListViewModel: ObservableObject {
 
         } catch {
             downloadProgress[song.id] = nil
-            print("❌ Error descargando \(song.title): \(error.localizedDescription)")
+            downloadError = "Error descargando \(song.title): \(error.localizedDescription)"
+            print("❌ \(downloadError!)")
             // La función termina aquí, y el bucle en `downloadAll` continuará
         }
     }
@@ -141,6 +143,10 @@ class SongListViewModel: ObservableObject {
 
     func resumeDownloadAll() {
         isDownloadPaused = false
+    }
+
+    func clearDownloadError() {
+        downloadError = nil
     }
 
     func deleteDownload(song: Song, modelContext: ModelContext? = nil) {
@@ -165,7 +171,8 @@ class SongListViewModel: ObservableObject {
                 // Guardar cambios
                 try context.save()
             } catch {
-                print("❌ Error eliminando descarga: \(error.localizedDescription)")
+                downloadError = "Error eliminando descarga: \(error.localizedDescription)"
+                print("❌ \(downloadError!)")
             }
         }
     }

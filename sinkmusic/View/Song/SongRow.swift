@@ -21,6 +21,7 @@ struct SongRow: View {
 
     @State private var showSongMenu = false
     @State private var isPressed = false
+    @State private var showErrorAlert = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -40,6 +41,7 @@ struct SongRow: View {
                 downloadProgress: songListViewModel.downloadProgress[song.id],
                 showMenu: $showSongMenu,
                 onDownload: {
+                    print("Download button pressed for \(song.title)")
                     songListViewModel.download(song: song, modelContext: modelContext)
                 }
             )
@@ -53,19 +55,19 @@ struct SongRow: View {
         )
         .listRowBackground(Color.appDark)
         .contentShape(Rectangle())
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    withAnimation(.linear(duration: 0.05)) {
-                        isPressed = true
-                    }
-                }
-                .onEnded { _ in
-                    withAnimation(.linear(duration: 0.05)) {
-                        isPressed = false
-                    }
-                }
-        )
+        // .simultaneousGesture(
+        //     DragGesture(minimumDistance: 0)
+        //         .onChanged { _ in
+        //             withAnimation(.linear(duration: 0.05)) {
+        //                 isPressed = true
+        //             }
+        //         }
+        //         .onEnded { _ in
+        //             withAnimation(.linear(duration: 0.05)) {
+        //                 isPressed = false
+        //             }
+        //         }
+        // )
         .onTapGesture {
             onPlay()
         }
@@ -88,6 +90,18 @@ struct SongRow: View {
             }
 
             Button("Cancelar", role: .cancel) {}
+        }
+        .onChange(of: songListViewModel.downloadError) { _, newValue in
+            showErrorAlert = newValue != nil
+        }
+        .alert("Error de descarga", isPresented: $showErrorAlert) {
+            Button("OK") {
+                songListViewModel.clearDownloadError()
+            }
+        } message: {
+            if let error = songListViewModel.downloadError {
+                Text(error)
+            }
         }
     }
 }

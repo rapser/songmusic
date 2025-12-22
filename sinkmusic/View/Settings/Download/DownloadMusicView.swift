@@ -202,30 +202,28 @@ struct DownloadMusicView: View {
                         .padding(.vertical, 12)
 
                         // Lista
-                        List {
-                            ForEach(pendingSongs) { song in
-                                SongRow(
-                                    song: song,
-                                    songQueue: pendingSongs,
-                                    isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
-                                    isPlaying: playerViewModel.isPlaying,
-                                    onPlay: {
-                                        if let url = song.localURL {
-                                            playerViewModel.play(song: song, from: url, in: pendingSongs)
-                                        }
-                                    },
-                                    onPause: {
-                                        playerViewModel.pause()
-                                    },
-                                    showAddToPlaylistForSong: $songForPlaylistSheet
-                                )
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(pendingSongs) { song in
+                                    SongRow(
+                                        song: song,
+                                        songQueue: pendingSongs,
+                                        isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
+                                        isPlaying: playerViewModel.isPlaying,
+                                        onPlay: {
+                                            if let url = song.localURL {
+                                                playerViewModel.play(song: song, from: url, in: pendingSongs)
+                                            }
+                                        },
+                                        onPause: {
+                                            playerViewModel.pause()
+                                        },
+                                        showAddToPlaylistForSong: $songForPlaylistSheet
+                                    )
+                                }
                             }
+                            .padding(.bottom, 16)
                         }
-                        .listStyle(.plain)
-                        .padding(.bottom, 16)
                     }
                 }
             }
