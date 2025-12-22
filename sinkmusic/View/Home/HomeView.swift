@@ -9,8 +9,12 @@ struct HomeView: View {
     @EnvironmentObject var libraryViewModel: LibraryViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
+    
+    @State private var songForPlaylistSheet: Song?
 
     var body: some View {
+        let playlistViewModel = PlaylistViewModel(modelContext: modelContext)
+        
         ZStack {
             Color.appDark.edgesIgnoringSafeArea(.all)
 
@@ -66,7 +70,7 @@ struct HomeView: View {
                     ScrollView {
                         LazyVStack(spacing: 10, pinnedViews: []) {
                             ForEach(downloadedSongs) { song in
-                                SongRow(song: song, songQueue: downloadedSongs)
+                                SongRow(song: song, songQueue: downloadedSongs, showAddToPlaylistForSong: $songForPlaylistSheet)
                             }
                         }
                         .padding(.bottom, 80) // Espacio para el mini player
@@ -74,6 +78,9 @@ struct HomeView: View {
                     .padding(.horizontal, 8)
                 }
             }
+        }
+        .sheet(item: $songForPlaylistSheet) { song in
+            AddToPlaylistView(viewModel: playlistViewModel, song: song)
         }
         .task {
             // Sincronizar automáticamente al cargar la vista

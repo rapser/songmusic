@@ -13,11 +13,13 @@ struct PlaylistDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: PlaylistViewModel
     @EnvironmentObject var playerViewModel: PlayerViewModel
+    @EnvironmentObject var songListViewModel: SongListViewModel
 
     let playlist: Playlist
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddSongsSheet = false
+    @State private var songForPlaylistSheet: Song?
     @State private var editMode: EditMode = .inactive
 
     init(playlist: Playlist, modelContext: ModelContext) {
@@ -139,22 +141,12 @@ struct PlaylistDetailView: View {
                     } else {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(playlist.songs.enumerated()), id: \.element.id) { index, song in
-                                PlaylistSongRow(
-                                    song: song,
-                                    index: index + 1,
-                                    isPlaying: playerViewModel.currentlyPlayingID == song.id && playerViewModel.isPlaying
-                                )
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if let url = song.localURL {
-                                        playerViewModel.play(song: song, from: url, in: playlist.songs)
-                                    }
-                                }
+                                SongRow(song: song, songQueue: playlist.songs, showAddToPlaylistForSong: $songForPlaylistSheet)
 
                                 if index < playlist.songs.count - 1 {
                                     Divider()
                                         .background(Color.white.opacity(0.1))
-                                        .padding(.leading, 60)
+                                        .padding(.leading, 20)
                                 }
                             }
                             .onMove { source, destination in
@@ -170,6 +162,9 @@ struct PlaylistDetailView: View {
         }
         .sheet(isPresented: $showAddSongsSheet) {
             AddSongsToPlaylistView(viewModel: viewModel, playlist: playlist)
+        }
+        .sheet(item: $songForPlaylistSheet) { song in
+            AddToPlaylistView(viewModel: viewModel, song: song)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -208,62 +203,6 @@ struct PlaylistDetailView: View {
         guard let firstSong = playlist.songs.first,
               let url = firstSong.localURL else { return }
         playerViewModel.play(song: firstSong, from: url, in: playlist.songs)
-    }
-}
-
-// MARK: - Playlist Song Row
-struct PlaylistSongRow: View {
-    let song: Song
-    let index: Int
-    let isPlaying: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Index or Playing Indicator
-            ZStack {
-                if isPlaying {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.appPurple)
-                } else {
-                    Text("\(index)")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.textGray)
-                }
-            }
-            .frame(width: 30)
-
-            // Song Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(isPlaying ? .appPurple : .white)
-                    .lineLimit(1)
-
-                Text(song.artist)
-                    .font(.system(size: 13))
-                    .foregroundColor(.textGray)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            // Duration
-            if let duration = song.duration {
-                Text(formatDuration(duration))
-                    .font(.system(size: 13))
-                    .foregroundColor(.textGray)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(Color.clear)
-    }
-
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
@@ -311,6 +250,7 @@ struct EmptyPlaylistSongsView: View {
             modelContext: PreviewContainer.shared.mainContext
         )
         .environmentObject(PreviewViewModels.playerVM(songID: UUID()))
+        .environmentObject(PreviewViewModels.songListVM())
     }
 }
 

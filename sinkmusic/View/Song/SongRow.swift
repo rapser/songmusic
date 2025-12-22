@@ -10,12 +10,11 @@ import SwiftUI
 struct SongRow: View {
     let song: Song
     let songQueue: [Song] // La cola de reproducción a la que pertenece esta canción
+    @Binding var showAddToPlaylistForSong: Song?
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
 
-    @StateObject private var playlistViewModel: PlaylistViewModel
-    @State private var showAddToPlaylist = false
     @State private var showSongMenu = false
     @State private var isPressed = false
 
@@ -25,24 +24,14 @@ struct SongRow: View {
     private let songArtist: String
     private let songIsDownloaded: Bool
 
-    init(song: Song, songQueue: [Song]) {
+    init(song: Song, songQueue: [Song], showAddToPlaylistForSong: Binding<Song?>) {
         self.song = song
         self.songQueue = songQueue
+        self._showAddToPlaylistForSong = showAddToPlaylistForSong
         self.songId = song.id
         self.songTitle = song.title
         self.songArtist = song.artist
         self.songIsDownloaded = song.isDownloaded
-        
-        // Comprobar si modelContext existe antes de usarlo
-        if let context = song.modelContext {
-            self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: context))
-        } else {
-            // Fallback si no hay contexto (ej. en previews con datos mockeados)
-            // Aquí podrías decidir lanzar un error o usar un contexto temporal
-            // Por simplicidad, usamos un initializer que podría fallar en un caso real sin contexto
-            // pero para previews funciona.
-            self._playlistViewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: .init(try! .init(for: Song.self, Playlist.self))))
-        }
     }
 
     var body: some View {
@@ -67,8 +56,9 @@ struct SongRow: View {
                 }
             )
         }
+        .drawingGroup()
         .padding(.vertical, 8)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 20)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(isPressed ? Color(white: 0.2) : (playerViewModel.currentlyPlayingID == songId ? Color.appGray.opacity(0.3) : Color.clear))
@@ -96,7 +86,7 @@ struct SongRow: View {
         }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
             // Agregar a playlist (siempre disponible para canciones descargadas)
-            Button(action: { showAddToPlaylist = true }) {
+            Button(action: { showAddToPlaylistForSong = song }) {
                 Label("Agregar a playlist", systemImage: "plus")
             }
 
@@ -115,19 +105,29 @@ struct SongRow: View {
 
             Button("Cancelar", role: .cancel) {}
         }
-        .sheet(isPresented: $showAddToPlaylist) {
-            AddToPlaylistView(viewModel: playlistViewModel, song: song)
-        }
     }
 }
 
 #Preview(traits: .sizeThatFitsLayout) {
-    PreviewWrapper(
-        songListVM: PreviewViewModels.songListVM(),
-        modelContainer: PreviewData.container(with: [PreviewSongs.single()])
-    ) {
-        SongRow(song: PreviewSongs.single(), songQueue: [PreviewSongs.single()])
-            .padding()
-            .background(Color.black)
+    struct SongRowPreview: View {
+        @State private var songForPlaylistSheet: Song?
+        
+        var body: some View {
+            PreviewWrapper(
+                songListVM: PreviewViewModels.songListVM(),
+                playerVM: PreviewViewModels.playerVM(),
+                modelContainer: PreviewData.container(with: [PreviewSongs.single()])
+            ) {
+                SongRow(
+                    song: PreviewSongs.single(),
+                    songQueue: [PreviewSongs.single()],
+                    showAddToPlaylistForSong: $songForPlaylistSheet
+                )
+                .padding()
+                .background(Color.appDark)
+            }
+        }
     }
+    
+    return SongRowPreview()
 }

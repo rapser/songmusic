@@ -15,6 +15,8 @@ struct DownloadMusicView: View {
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
     @EnvironmentObject var libraryViewModel: LibraryViewModel
+    
+    @State private var songForPlaylistSheet: Song?
 
     var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
@@ -41,6 +43,8 @@ struct DownloadMusicView: View {
     }
 
     var body: some View {
+        let playlistViewModel = PlaylistViewModel(modelContext: modelContext)
+        
         ZStack {
             Color.appDark.ignoresSafeArea()
 
@@ -186,7 +190,7 @@ struct DownloadMusicView: View {
                         ScrollView {
                             VStack(spacing: 0) {
                                 ForEach(pendingSongs) { song in
-                                    SongRow(song: song, songQueue: pendingSongs)
+                                    SongRow(song: song, songQueue: pendingSongs, showAddToPlaylistForSong: $songForPlaylistSheet)
 
                                     if song.id != pendingSongs.last?.id {
                                         Divider()
@@ -201,6 +205,9 @@ struct DownloadMusicView: View {
                     }
                 }
             }
+        }
+        .sheet(item: $songForPlaylistSheet) { song in
+            AddToPlaylistView(viewModel: playlistViewModel, song: song)
         }
         .navigationTitle("Descargar música")
         .navigationBarTitleDisplayMode(.large)
