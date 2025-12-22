@@ -6,6 +6,9 @@ import SwiftData
 class SongListViewModel: ObservableObject {
     @Published var downloadProgress: [UUID: Double] = [:]
     @Published var isDownloadingAll: Bool = false
+    @Published var isDownloadPaused = false
+    @Published var currentDownloadIndex = 0
+    private var pendingDownloadSongs: [Song] = []
 
     // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
     private let downloadService: GoogleDriveServiceProtocol
@@ -51,22 +54,26 @@ class SongListViewModel: ObservableObject {
 
         cancelDownloadAll()
         isDownloadingAll = true
+        isDownloadPaused = false
+        pendingDownloadSongs = songs.filter { !$0.isDownloaded }
+        currentDownloadIndex = 0
 
         downloadAllTask = Task {
-            let pendingSongs = songs.filter { !$0.isDownloaded }
-            print("📥 Iniciando descarga de \(pendingSongs.count) canciones en orden secuencial")
-
-            for song in pendingSongs {
+            while currentDownloadIndex < pendingDownloadSongs.count {
                 if Task.isCancelled {
                     print("⏸️ Descarga masiva cancelada por el usuario")
                     break
                 }
-                
-                // Llamada a la función centralizada, esperando a que termine
+                if isDownloadPaused {
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                    continue
+                }
+                let song = pendingDownloadSongs[currentDownloadIndex]
                 await performDownload(for: song, context: context)
+                currentDownloadIndex += 1
             }
-
             isDownloadingAll = false
+            isDownloadPaused = false
             print("✅ Descarga masiva completada")
         }
     }
@@ -104,8 +111,12 @@ class SongListViewModel: ObservableObject {
 
             song.isDownloaded = true
             try context.save()
-            downloadProgress[song.id] = nil
+            downloadProgress[song.id] = 1.0 // Mostrar 100% completado
             print("💾 Guardada: \(song.title)")
+
+            // Mantener barra en 100% por 0.5 segundos para feedback visual
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            downloadProgress[song.id] = nil
 
         } catch {
             downloadProgress[song.id] = nil
@@ -118,6 +129,18 @@ class SongListViewModel: ObservableObject {
         downloadAllTask?.cancel()
         downloadAllTask = nil
         isDownloadingAll = false
+        isDownloadPaused = false
+        currentDownloadIndex = 0
+        pendingDownloadSongs = []
+        downloadProgress.removeAll()
+    }
+
+    func pauseDownloadAll() {
+        isDownloadPaused = true
+    }
+
+    func resumeDownloadAll() {
+        isDownloadPaused = false
     }
 
     func deleteDownload(song: Song, modelContext: ModelContext? = nil) {

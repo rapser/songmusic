@@ -32,6 +32,9 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
     private var wasPlayingBeforeInterruption = false
     private var seekOffset: TimeInterval = 0
 
+    // Swift 6: Optimización de memoria - liberar recursos cuando no se reproduce
+    private var resourceCleanupTimer: Timer?
+
     override init() {
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()

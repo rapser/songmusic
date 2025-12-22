@@ -128,6 +128,10 @@ class LibraryViewModel: ObservableObject {
                     print("❌ Error en sincronización: \(syncErrorMessage ?? "Error desconocido")")
                 }
             }
+        
+            @MainActor func hasCredentials() -> Bool {
+                return keychainService.hasGoogleDriveCredentials
+            }
         }
     }
 

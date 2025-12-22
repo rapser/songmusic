@@ -63,8 +63,43 @@ struct DownloadMusicView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 40)
+                } else if songs.isEmpty && !libraryViewModel.isLoadingSongs {
+                    // No hay canciones en la biblioteca
+                    VStack(spacing: 20) {
+                        Spacer()
+
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 60))
+                            .foregroundColor(.appPurple)
+
+                        VStack(spacing: 8) {
+                            Text("Biblioteca vacía")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+
+                            Text("Sincroniza tus canciones desde Google Drive")
+                                .font(.system(size: 14))
+                                .foregroundColor(.textGray)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Button(action: {
+                            libraryViewModel.syncLibraryWithCatalog(modelContext: modelContext)
+                        }) {
+                            Text("Sincronizar")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.appDark)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.appPurple)
+                                .cornerRadius(24)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 40)
                 } else if pendingSongs.isEmpty && !libraryViewModel.isLoadingSongs {
-                    // Estado vacío
+                    // Estado vacío - todo descargado
                     VStack(spacing: 20) {
                         Spacer()
 
@@ -167,35 +202,30 @@ struct DownloadMusicView: View {
                         .padding(.vertical, 12)
 
                         // Lista
-                        ScrollView {
-                            VStack(spacing: 0) {
-                                ForEach(pendingSongs) { song in
-                                    SongRow(
-                                        song: song,
-                                        songQueue: pendingSongs,
-                                        isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
-                                        isPlaying: playerViewModel.isPlaying,
-                                        onPlay: {
-                                            if let url = song.localURL {
-                                                playerViewModel.play(song: song, from: url, in: pendingSongs)
-                                            }
-                                        },
-                                        onPause: {
-                                            playerViewModel.pause()
-                                        },
-                                        showAddToPlaylistForSong: $songForPlaylistSheet
-                                    )
-
-                                    if song.id != pendingSongs.last?.id {
-                                        Divider()
-                                            .background(Color.white.opacity(0.1))
-                                            .padding(.leading, 16)
-                                    }
-                                }
+                        List {
+                            ForEach(pendingSongs) { song in
+                                SongRow(
+                                    song: song,
+                                    songQueue: pendingSongs,
+                                    isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
+                                    isPlaying: playerViewModel.isPlaying,
+                                    onPlay: {
+                                        if let url = song.localURL {
+                                            playerViewModel.play(song: song, from: url, in: pendingSongs)
+                                        }
+                                    },
+                                    onPause: {
+                                        playerViewModel.pause()
+                                    },
+                                    showAddToPlaylistForSong: $songForPlaylistSheet
+                                )
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 100)
                         }
+                        .listStyle(.plain)
+                        .padding(.bottom, 16)
                     }
                 }
             }
