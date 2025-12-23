@@ -234,6 +234,12 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
     func getDownloadURL(for fileId: String) -> String {
         return "https://drive.google.com/uc?export=download&id=\(fileId)"
     }
+
+    deinit {
+        // CRÍTICO: Invalidar URLSession para romper el ciclo de retención
+        // URLSession mantiene una referencia fuerte a su delegate
+        urlSession.invalidateAndCancel()
+    }
 }
 
 // MARK: - URLSessionDownloadDelegate

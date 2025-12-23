@@ -17,7 +17,10 @@ import Foundation
 class CarPlayService {
     static let shared = CarPlayService()
 
-    private var playerViewModel: PlayerViewModel?
+    // CRÍTICO: weak para evitar memory leak
+    // CarPlayService es singleton (vive toda la vida de la app)
+    // Si mantiene referencia fuerte al ViewModel, nunca se libera
+    private weak var playerViewModel: PlayerViewModel?
 
     private init() {
         // Inicialización privada para singleton

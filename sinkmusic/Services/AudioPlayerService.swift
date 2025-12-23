@@ -129,7 +129,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
                 playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
 
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { [weak self] in
                         guard let self = self else {
                             return
                         }
@@ -222,7 +222,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                 frameCount: frameCount,
                 at: nil
             ) { [weak self] in
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
 
                     // Validar que este completion corresponde al seek actual

@@ -92,6 +92,10 @@ class SongListViewModel: ObservableObject {
             downloadError = "Error descargando \(song.title): \(error.localizedDescription)"
             print("❌ \(downloadError!)")
         }
+
+        // CRÍTICO: Limpiar la tarea del diccionario cuando termine
+        // Previene acumulación de memoria con muchas descargas
+        progressAnimationTasks.removeValue(forKey: song.id)
     }
 
     func clearDownloadError() {

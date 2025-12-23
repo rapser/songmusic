@@ -44,14 +44,20 @@ class SearchViewModel: ObservableObject {
         searchTask?.cancel()
 
         // Programar nueva búsqueda con debounce de 300ms
-        searchTask = Task {
+        searchTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(300))
 
-            // Verificar si la tarea fue cancelada
-            guard !Task.isCancelled else { return }
+            // Verificar si la tarea fue cancelada o si self fue deallocado
+            guard !Task.isCancelled, let self = self else { return }
 
             performSearch()
         }
+    }
+
+    deinit {
+        // Cancelar tarea de búsqueda pendiente
+        searchTask?.cancel()
+        searchTask = nil
     }
 
     private func performSearch() {
