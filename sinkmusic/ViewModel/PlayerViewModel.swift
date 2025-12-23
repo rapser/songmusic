@@ -287,6 +287,9 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
             guard let self = self else { return }
 
+            // Actualizar songDuration siempre
+            self.songDuration = duration
+
             // Throttle: solo actualizar playbackTime si el cambio es significativo (> 0.5 segundos)
             // Esto previene el warning "onChange tried to update multiple times per frame"
             // 0.5 segundos es suficiente para una UI fluida sin sobrecargar SwiftUI
@@ -295,13 +298,12 @@ class PlayerViewModel: ObservableObject {
                 self.lastPlaybackTime = time
             }
 
-            self.songDuration = duration
-
-            // Throttle manual: actualizar Now Playing Info solo cada 1 segundo
+            // Actualizar Now Playing Info cada 1 segundo para lock screen
+            // Usar el tiempo real del callback, no el throttled playbackTime
             let currentTime = CACurrentMediaTime()
             if currentTime - self.lastNowPlayingUpdateTime >= 1.0 {
                 self.lastNowPlayingUpdateTime = currentTime
-                self.updateNowPlayingInfo()
+                self.updateNowPlayingInfo(with: time)
             }
         }
 
@@ -335,16 +337,18 @@ class PlayerViewModel: ObservableObject {
         }
     }
 
-    private func updateNowPlayingInfo() {
+    private func updateNowPlayingInfo(with currentTime: TimeInterval? = nil) {
         guard let songInfo = currentSongInfo else { return }
         let duration = songDuration > 0 ? songDuration : (songInfo.duration ?? 0)
+        // Usar el tiempo proporcionado o el playbackTime actual
+        let time = currentTime ?? playbackTime
 
         audioPlayerService.updateNowPlayingInfo(
             title: songInfo.title,
             artist: songInfo.artist,
             album: songInfo.album,
             duration: duration,
-            currentTime: playbackTime,
+            currentTime: time,
             artwork: songInfo.artworkData
         )
     }
