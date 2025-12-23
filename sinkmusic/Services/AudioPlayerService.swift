@@ -50,12 +50,18 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
     private func setupAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(
+            let audioSession = AVAudioSession.sharedInstance()
+
+            // CRÍTICO: Configurar la categoría para permitir reproducción en background
+            // y mostrar controles en el lock screen
+            try audioSession.setCategory(
                 .playback,
                 mode: .default,
                 options: []
             )
-            try AVAudioSession.sharedInstance().setActive(true)
+
+            // Activar la sesión de audio
+            try audioSession.setActive(true)
         } catch {
             // Error al configurar la sesión de audio
         }
@@ -425,28 +431,36 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
     }
 
     func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) {
+        // CRÍTICO: Crear un nuevo diccionario cada vez para forzar la actualización
         var nowPlayingInfo = [String: Any]()
+
+        // Información básica - siempre presente
         nowPlayingInfo[MPMediaItemPropertyTitle] = title
         nowPlayingInfo[MPMediaItemPropertyArtist] = artist
 
-        if let album = album {
+        if let album = album, !album.isEmpty {
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
 
-        if duration > 0 {
-            nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
-        }
+        // Duración total de la canción
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
 
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = playerNode.isPlaying ? 1.0 : 0.0
+        // Tiempo actual de reproducción
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime)
 
+        // Velocidad de reproducción (1.0 = reproduciendo, 0.0 = pausado)
+        let playbackRate = playerNode.isPlaying ? 1.0 : 0.0
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: playbackRate)
+
+        // Artwork (cover art)
         if let artworkData = artwork, let image = UIImage(data: artworkData) {
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
+            let artworkImage = MPMediaItemArtwork(boundsSize: image.size) { _ in
                 return image
             }
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artworkImage
         }
 
+        // CRÍTICO: Asignar al Now Playing Info Center
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }

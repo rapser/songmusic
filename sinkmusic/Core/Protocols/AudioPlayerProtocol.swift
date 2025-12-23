@@ -70,12 +70,8 @@ protocol AudioEqualizerProtocol {
 protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioPlaybackStateProtocol, RemoteControlsProtocol, AudioEqualizerProtocol {
     // Este protocolo hereda todos los métodos y propiedades de los protocolos base
     // Los clientes pueden depender solo del protocolo específico que necesiten
-}
 
-// MARK: - Extensión con métodos avanzados de audio (opcionales)
-
-extension AudioPlayerProtocol {
-    /// Actualiza la información de Now Playing en el sistema
+    /// Actualiza la información de Now Playing en el sistema (REQUERIDO)
     /// - Parameters:
     ///   - title: Título de la canción
     ///   - artist: Artista
@@ -83,8 +79,12 @@ extension AudioPlayerProtocol {
     ///   - duration: Duración total
     ///   - currentTime: Tiempo actual de reproducción
     ///   - artwork: Datos de la imagen del artwork (opcional)
-    func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) { }
+    func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?)
+}
 
+// MARK: - Extensión con métodos avanzados de audio (opcionales)
+
+extension AudioPlayerProtocol {
     /// Ajusta la amplitud del estéreo (0.0 = mono, 1.0 = muy ancho)
     /// - Parameter width: Valor entre 0.0 y 1.5 (recomendado: 0.5-0.8)
     func setStereoWidth(_ width: Float) { }

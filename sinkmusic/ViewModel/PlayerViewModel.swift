@@ -93,11 +93,13 @@ class PlayerViewModel: ObservableObject {
             // Nueva canción o canción pausada
             playbackTime = 0
             lastPlaybackTime = 0
+            songDuration = 0 // Reset para detectar primera actualización de duración
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
 
         // Actualizar Now Playing Info con los datos actuales
+        // Nota: La duración aún puede ser 0 aquí, se actualizará en el primer callback
         updateNowPlayingInfo()
 
         // Incrementar contador de reproducciones
@@ -287,6 +289,9 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
             guard let self = self else { return }
 
+            // Detectar si es la primera vez que recibimos la duración
+            let isFirstDurationUpdate = self.songDuration == 0 && duration > 0
+
             // Actualizar songDuration siempre
             self.songDuration = duration
 
@@ -296,6 +301,14 @@ class PlayerViewModel: ObservableObject {
             if abs(time - self.lastPlaybackTime) > 0.5 {
                 self.playbackTime = time
                 self.lastPlaybackTime = time
+            }
+
+            // CRÍTICO: Si es la primera vez que recibimos la duración, actualizar inmediatamente
+            // para que el lock screen tenga la información completa
+            if isFirstDurationUpdate {
+                self.updateNowPlayingInfo(with: time)
+                self.lastNowPlayingUpdateTime = CACurrentMediaTime()
+                return
             }
 
             // Actualizar Now Playing Info cada 1 segundo para lock screen
@@ -339,6 +352,7 @@ class PlayerViewModel: ObservableObject {
 
     private func updateNowPlayingInfo(with currentTime: TimeInterval? = nil) {
         guard let songInfo = currentSongInfo else { return }
+
         let duration = songDuration > 0 ? songDuration : (songInfo.duration ?? 0)
         // Usar el tiempo proporcionado o el playbackTime actual
         let time = currentTime ?? playbackTime
