@@ -37,7 +37,7 @@ struct PlaylistListView: View {
                             .foregroundColor(.white)
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 16)
                 .padding(.top, 20)
                 .padding(.bottom, 16)
 
@@ -61,7 +61,7 @@ struct PlaylistListView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 100)
                     }
                 }

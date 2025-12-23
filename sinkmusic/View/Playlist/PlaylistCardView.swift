@@ -73,6 +73,7 @@ struct PlaylistCardView: View {
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(.textGray)
             }
+            .padding(.leading, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

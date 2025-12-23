@@ -14,10 +14,14 @@ struct SongRow: View {
     let isPlaying: Bool
     let onPlay: () -> Void
     let onPause: () -> Void
-    
+
     @Binding var showAddToPlaylistForSong: Song?
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
+
+    // Parámetros opcionales para cuando se usa dentro de una playlist
+    var playlist: Playlist? = nil
+    var onRemoveFromPlaylist: (() -> Void)? = nil
 
     @State private var showSongMenu = false
     @State private var isPressed = false
@@ -72,10 +76,6 @@ struct SongRow: View {
             onPlay()
         }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
-            Button(action: { showAddToPlaylistForSong = song }) {
-                Label("Agregar a playlist", systemImage: "plus")
-            }
-
             Button(action: {
                 if isCurrentlyPlaying && isPlaying {
                     onPause()
@@ -87,6 +87,17 @@ struct SongRow: View {
                     isCurrentlyPlaying && isPlaying ? "Pausar" : "Reproducir",
                     systemImage: isCurrentlyPlaying && isPlaying ? "pause.fill" : "play.fill"
                 )
+            }
+
+            Button(action: { showAddToPlaylistForSong = song }) {
+                Label("Agregar a playlist", systemImage: "plus")
+            }
+
+            // Mostrar opción de eliminar solo si estamos en una playlist
+            if playlist != nil, let removeAction = onRemoveFromPlaylist {
+                Button(role: .destructive, action: removeAction) {
+                    Label("Eliminar de playlist", systemImage: "trash")
+                }
             }
 
             Button("Cancelar", role: .cancel) {}

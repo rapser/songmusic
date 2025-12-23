@@ -154,7 +154,11 @@ struct PlaylistDetailView: View {
                                     onPause: {
                                         playerViewModel.pause()
                                     },
-                                    showAddToPlaylistForSong: $songForPlaylistSheet
+                                    showAddToPlaylistForSong: $songForPlaylistSheet,
+                                    playlist: playlist,
+                                    onRemoveFromPlaylist: {
+                                        viewModel.removeSong(song, from: playlist)
+                                    }
                                 )
 
                                 if song.id != playlist.songs.last?.id {
