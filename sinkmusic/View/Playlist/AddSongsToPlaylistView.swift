@@ -15,30 +15,65 @@ struct AddSongsToPlaylistView: View {
 
     // Query for all downloaded songs
     @Query private var allSongs: [Song]
-    
+
+    // Paginación
+    @State private var displayedSongsCount = 30 // Mostrar 30 canciones inicialmente
+    private let itemsPerPage = 30
+
     private var availableSongs: [Song] {
         let playlistSongIDs = Set(playlist.songs.map { $0.id })
         return allSongs.filter { $0.isDownloaded && !playlistSongIDs.contains($0.id) }
+    }
+
+    private var displayedSongs: [Song] {
+        Array(availableSongs.prefix(displayedSongsCount))
+    }
+
+    private var hasMoreSongs: Bool {
+        displayedSongsCount < availableSongs.count
     }
 
     var body: some View {
         NavigationView {
             ZStack {
                 Color.appDark.edgesIgnoringSafeArea(.all)
-                
+
                 VStack(spacing: 0) {
                     if availableSongs.isEmpty {
                         Text("No hay más canciones para agregar.")
                             .foregroundColor(.textGray)
                             .padding()
                     } else {
-                        List(availableSongs) { song in
-                            AddSongRow(song: song) {
-                                viewModel.addSong(song, to: playlist)
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(displayedSongs) { song in
+                                    VStack(spacing: 0) {
+                                        AddSongRow(song: song) {
+                                            viewModel.addSong(song, to: playlist)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+
+                                        Divider()
+                                            .background(Color.white.opacity(0.1))
+                                    }
+                                }
+
+                                // Trigger para cargar más canciones
+                                if hasMoreSongs {
+                                    HStack {
+                                        Spacer()
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        Spacer()
+                                    }
+                                    .padding()
+                                    .onAppear {
+                                        loadMoreSongs()
+                                    }
+                                }
                             }
-                            .listRowBackground(Color.appDark)
                         }
-                        .listStyle(.plain)
                     }
                 }
             }
@@ -53,6 +88,11 @@ struct AddSongsToPlaylistView: View {
                 }
             }
         }
+    }
+
+    private func loadMoreSongs() {
+        guard hasMoreSongs else { return }
+        displayedSongsCount += itemsPerPage
     }
 }
 
