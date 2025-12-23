@@ -53,15 +53,15 @@ struct PlaylistGridCard: View {
     let playlist: Playlist
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Cover image
+        HStack(spacing: 4) {
+            // Cover image - 50x50
             ZStack {
                 if let coverData = playlist.coverImageData,
                    let uiImage = UIImage(data: coverData) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(height: 120)
+                        .frame(width: 50, height: 50)
                         .clipped()
                 } else {
                     LinearGradient(
@@ -72,26 +72,25 @@ struct PlaylistGridCard: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
-                    .frame(height: 120)
+                    .frame(width: 50, height: 50)
                     .overlay(
                         Image(systemName: "music.note.list")
-                            .font(.system(size: 32))
+                            .font(.system(size: 20))
                             .foregroundColor(.white.opacity(0.6))
                     )
                 }
             }
-            .cornerRadius(8)
+            .cornerRadius(4)
 
-            // Playlist name
+            // Playlist name - centrado verticalmente
             Text(playlist.name)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
-                .lineLimit(1)
-
-            // Song count
-            Text("\(playlist.songCount) canciones")
-                .font(.system(size: 12))
-                .foregroundColor(.textGray)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(height: 50)
+        .background(Color.white.opacity(0.1))
+        .cornerRadius(4)
     }
 }
