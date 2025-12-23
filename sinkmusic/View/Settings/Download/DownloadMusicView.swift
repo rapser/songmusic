@@ -147,56 +147,13 @@ struct DownloadMusicView: View {
                 } else {
                     // Lista de canciones pendientes
                     VStack(spacing: 0) {
-                        // Header con contador y botón de descargar todas
+                        // Header con contador
                         HStack(spacing: 16) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(pendingSongs.count) canciones por descargar")
-                                    .font(.subheadline)
-                                    .foregroundColor(.textGray)
-
-                                if songListViewModel.isDownloadingAll {
-                                    let downloadingCount = songListViewModel.downloadProgress.count
-                                    Text("Descargando \(downloadingCount) de \(pendingSongs.count)...")
-                                        .font(.caption)
-                                        .foregroundColor(.appPurple)
-                                }
-                            }
+                            Text("\(pendingSongs.count) canciones por descargar")
+                                .font(.subheadline)
+                                .foregroundColor(.textGray)
 
                             Spacer()
-
-                            if songListViewModel.isDownloadingAll {
-                                Button(action: {
-                                    songListViewModel.cancelDownloadAll()
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "stop.fill")
-                                            .font(.system(size: 12))
-                                        Text("Detener")
-                                            .font(.system(size: 14, weight: .semibold))
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.red)
-                                    .cornerRadius(20)
-                                }
-                            } else {
-                                Button(action: {
-                                    songListViewModel.downloadAll(songs: pendingSongs, modelContext: modelContext)
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "arrow.down.circle.fill")
-                                            .font(.system(size: 12))
-                                        Text("Descargar todas")
-                                            .font(.system(size: 14, weight: .semibold))
-                                    }
-                                    .foregroundColor(.appDark)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.appPurple)
-                                    .cornerRadius(20)
-                                }
-                            }
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
