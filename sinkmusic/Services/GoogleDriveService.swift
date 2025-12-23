@@ -252,9 +252,9 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
         if totalBytesExpectedToWrite > 0 {
             progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
             let progressPercent = Int(progress * 100)
-            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
 
-            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+            // Solo imprimir en consola cada 10% para no saturar logs
+            if progressPercent % 10 == 0 && progressPercent != (lastReportedProgress[downloadTask.taskIdentifier] ?? -1) {
                 let totalMB = Double(totalBytesExpectedToWrite) / (1024 * 1024)
                 let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
                 print("📡 Progreso descarga \(downloadTask.taskIdentifier): \(String(format: "%.2f", downloadedMB))MB / \(String(format: "%.2f", totalMB))MB (\(progressPercent)%)")
@@ -264,15 +264,15 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
             let estimatedTotalBytes: Int64 = 10 * 1024 * 1024 // 10MB
             progress = min(0.95, Double(totalBytesWritten) / Double(estimatedTotalBytes))
             let progressPercent = Int(progress * 100)
-            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
 
-            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+            if progressPercent % 10 == 0 && progressPercent != (lastReportedProgress[downloadTask.taskIdentifier] ?? -1) {
                 let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
                 print("📡 Progreso (estimado) \(downloadTask.taskIdentifier): \(String(format: "%.2f", downloadedMB))MB (\(progressPercent)%)")
                 lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
             }
         }
 
+        // SIEMPRE reportar al callback para que se actualice en tiempo real
         if let progressCallback = downloadInfo.progressCallback {
             Task { @MainActor in
                 progressCallback(progress)

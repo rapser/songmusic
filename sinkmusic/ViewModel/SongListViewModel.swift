@@ -31,6 +31,7 @@ class SongListViewModel: ObservableObject {
         self.sharedModelContext = modelContext
     }
 
+
     func download(song: Song, modelContext: ModelContext? = nil) {
         guard let context = modelContext ?? sharedModelContext else {
             print("❌ Error: No hay ModelContext disponible para guardar la descarga")
@@ -56,8 +57,10 @@ class SongListViewModel: ObservableObject {
 
         do {
             let localURL = try await downloadService.download(song: song) { [weak self] progress in
+                guard let self = self else { return }
                 if progress >= 0 {
-                    self?.downloadProgress[song.id] = progress
+                    // Actualizar progreso directamente sin animación
+                    self.downloadProgress[song.id] = progress
                 }
             }
             print("✅ Descarga completada: \(song.title)")
@@ -75,6 +78,8 @@ class SongListViewModel: ObservableObject {
 
             song.isDownloaded = true
             try context.save()
+
+            // Establecer a 100%
             downloadProgress[song.id] = 1.0 // Mostrar 100% completado
             print("💾 Guardada: \(song.title)")
 
@@ -86,7 +91,6 @@ class SongListViewModel: ObservableObject {
             downloadProgress[song.id] = nil
             downloadError = "Error descargando \(song.title): \(error.localizedDescription)"
             print("❌ \(downloadError!)")
-            // La función termina aquí, y el bucle en `downloadAll` continuará
         }
     }
 
