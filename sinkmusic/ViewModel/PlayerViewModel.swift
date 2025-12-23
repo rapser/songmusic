@@ -287,9 +287,10 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
             guard let self = self else { return }
 
-            // Throttle: solo actualizar playbackTime si el cambio es significativo (> 0.1 segundos)
+            // Throttle: solo actualizar playbackTime si el cambio es significativo (> 0.5 segundos)
             // Esto previene el warning "onChange tried to update multiple times per frame"
-            if abs(time - self.lastPlaybackTime) > 0.1 {
+            // 0.5 segundos es suficiente para una UI fluida sin sobrecargar SwiftUI
+            if abs(time - self.lastPlaybackTime) > 0.5 {
                 self.playbackTime = time
                 self.lastPlaybackTime = time
             }

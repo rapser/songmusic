@@ -102,9 +102,9 @@ struct PlayerView: View {
             isSeekingManually = false
         }
         .onChange(of: playerViewModel.playbackTime) { oldValue, newValue in
-            // Solo actualizar si no está buscando manualmente Y si el cambio es significativo (> 0.1 segundos)
+            // Solo actualizar si no está buscando manualmente Y si el cambio es significativo (> 0.5 segundos)
             // Esto previene actualizaciones excesivas por frame
-            if !isSeekingManually && abs(newValue - sliderValue) > 0.1 {
+            if !isSeekingManually && abs(newValue - sliderValue) > 0.5 {
                 sliderValue = newValue
             }
         }

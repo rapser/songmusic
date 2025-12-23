@@ -20,12 +20,26 @@ struct AddSongsToPlaylistView: View {
     @State private var displayedSongsCount = 30 // Mostrar 30 canciones inicialmente
     private let itemsPerPage = 30
 
+    // Búsqueda
+    @State private var searchText = ""
+
     private var availableSongs: [Song] {
         // Filtrar solo canciones descargadas que NO están en NINGUNA playlist
-        // Ordenadas alfabéticamente por título
-        return allSongs
-            .filter { $0.isDownloaded && $0.playlists.isEmpty }
-            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        let baseSongs = allSongs.filter { $0.isDownloaded && $0.playlists.isEmpty }
+
+        // Aplicar filtro de búsqueda si hay texto
+        let filteredSongs: [Song]
+        if searchText.isEmpty {
+            filteredSongs = baseSongs
+        } else {
+            filteredSongs = baseSongs.filter { song in
+                song.title.localizedCaseInsensitiveContains(searchText) ||
+                song.artist.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+
+        // Ordenar alfabéticamente por título
+        return filteredSongs.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     private var displayedSongs: [Song] {
@@ -42,8 +56,18 @@ struct AddSongsToPlaylistView: View {
                 Color.appDark.edgesIgnoringSafeArea(.all)
 
                 VStack(spacing: 0) {
+                    // Barra de búsqueda
+                    SearchBar(text: $searchText, placeholder: "Buscar por título o artista")
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+
                     if availableSongs.isEmpty {
-                        EmptyAvailableSongsView()
+                        if searchText.isEmpty {
+                            EmptyAvailableSongsView()
+                        } else {
+                            SearchEmptyView(searchText: searchText)
+                        }
                     } else {
                         ScrollView {
                             LazyVStack(spacing: 0) {

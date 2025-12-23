@@ -1,5 +1,5 @@
 //
-//  EmptyAvailableSongsView.swift
+//  SearchEmptyView.swift
 //  sinkmusic
 //
 //  Created by miguel tomairo on 23/12/25.
@@ -7,21 +7,23 @@
 
 import SwiftUI
 
-struct EmptyAvailableSongsView: View {
+struct SearchEmptyView: View {
+    let searchText: String
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image(systemName: "music.note.list")
+            Image(systemName: "magnifyingglass")
                 .font(.system(size: 60))
                 .foregroundColor(.textGray)
 
             VStack(spacing: 8) {
-                Text("No hay canciones disponibles")
+                Text("No se encontraron resultados")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
 
-                Text("Todas tus canciones ya están en otras playlists.\nElimina canciones de otras playlists para volver a agregarlas aquí.")
+                Text("No hay canciones que coincidan con '\(searchText)'")
                     .font(.system(size: 14))
                     .foregroundColor(.textGray)
                     .multilineTextAlignment(.center)
