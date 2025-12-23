@@ -21,7 +21,7 @@ struct TopSongsCarousel: View {
                 EmptyTopSongsView()
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 14) {
                         ForEach(songs) { song in
                             TopSongCard(song: song)
                                 .onTapGesture {

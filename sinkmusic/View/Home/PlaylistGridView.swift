@@ -53,7 +53,7 @@ struct PlaylistGridCard: View {
     let playlist: Playlist
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             // Cover image - 50x50
             ZStack {
                 if let coverData = playlist.coverImageData,

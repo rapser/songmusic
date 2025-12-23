@@ -20,12 +20,12 @@ struct TopSongCard: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 140, height: 140)
+                        .frame(width: 150, height: 155)
                         .clipped()
                 } else {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: 140, height: 140)
+                        .frame(width: 150, height: 155)
                         .overlay(
                             Image(systemName: "music.note")
                                 .font(.system(size: 40))
@@ -40,15 +40,15 @@ struct TopSongCard: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.white)
                 .lineLimit(1)
-                .frame(width: 140, alignment: .leading)
+                .frame(width: 150, alignment: .leading)
 
             // Artist
             Text(song.artist)
                 .font(.system(size: 12))
                 .foregroundColor(.textGray)
                 .lineLimit(1)
-                .frame(width: 140, alignment: .leading)
+                .frame(width: 150, alignment: .leading)
         }
-        .frame(width: 140)
+        .frame(width: 150)
     }
 }
