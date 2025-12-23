@@ -41,6 +41,7 @@ class PlayerViewModel: ObservableObject {
     private var currentSongInfo: PlayingSongInfo?
     private var currentSongURL: URL? // Almacena la URL para reanudar reproducción
     private var lastNowPlayingUpdateTime: TimeInterval = 0
+    private var lastPlaybackTime: TimeInterval = 0 // Para throttling de actualizaciones
     private var modelContext: ModelContext?
 
     init(
@@ -87,9 +88,11 @@ class PlayerViewModel: ObservableObject {
             // Reiniciar la canción desde el principio
             audioPlayerService.seek(to: 0)
             playbackTime = 0
+            lastPlaybackTime = 0
         } else {
             // Nueva canción o canción pausada
             playbackTime = 0
+            lastPlaybackTime = 0
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
@@ -268,6 +271,7 @@ class PlayerViewModel: ObservableObject {
     func seek(to time: TimeInterval) {
         audioPlayerService.seek(to: time)
         playbackTime = time
+        lastPlaybackTime = time
     }
 
     private func setupCallbacks() {
@@ -282,7 +286,14 @@ class PlayerViewModel: ObservableObject {
         // Callback para cambios en el tiempo de reproducción
         audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
             guard let self = self else { return }
-            self.playbackTime = time
+
+            // Throttle: solo actualizar playbackTime si el cambio es significativo (> 0.1 segundos)
+            // Esto previene el warning "onChange tried to update multiple times per frame"
+            if abs(time - self.lastPlaybackTime) > 0.1 {
+                self.playbackTime = time
+                self.lastPlaybackTime = time
+            }
+
             self.songDuration = duration
 
             // Throttle manual: actualizar Now Playing Info solo cada 1 segundo
