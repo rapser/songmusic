@@ -128,8 +128,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                 self.currentScheduleID = scheduleID
 
                 playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
-
-                    DispatchQueue.main.async { [weak self] in
+                    Task { @MainActor [weak self] in
                         guard let self = self else {
                             return
                         }
@@ -145,9 +144,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                         self.playbackTimer?.invalidate()
                         self.playbackTimer = nil
 
-                        Task { @MainActor in
-                            self.onSongFinished?(currentID)
-                        }
+                        self.onSongFinished?(currentID)
                     }
                 }
 
@@ -222,7 +219,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                 frameCount: frameCount,
                 at: nil
             ) { [weak self] in
-                DispatchQueue.main.async { [weak self] in
+                Task { @MainActor [weak self] in
                     guard let self = self else { return }
 
                     // Validar que este completion corresponde al seek actual
@@ -236,9 +233,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil
 
-                    Task { @MainActor in
-                        self.onSongFinished?(currentID)
-                    }
+                    self.onSongFinished?(currentID)
                 }
             }
 
