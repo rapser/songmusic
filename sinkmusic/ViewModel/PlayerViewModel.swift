@@ -41,6 +41,7 @@ class PlayerViewModel: ObservableObject {
     private var currentSongInfo: PlayingSongInfo?
     private var currentSongURL: URL? // Almacena la URL para reanudar reproducción
     private var lastNowPlayingUpdateTime: TimeInterval = 0
+    private var modelContext: ModelContext?
 
     init(
         audioPlayerService: AudioPlayerProtocol = AudioPlayerService()
@@ -48,6 +49,11 @@ class PlayerViewModel: ObservableObject {
         self.audioPlayerService = audioPlayerService
         setupCallbacks()
         setupLiveActivityHandlers()
+    }
+
+    /// Configura el ModelContext para poder actualizar estadísticas de reproducción
+    func configure(with modelContext: ModelContext) {
+        self.modelContext = modelContext
     }
 
     /// Reproduce una canción y establece la cola de reproducción actual
@@ -90,6 +96,26 @@ class PlayerViewModel: ObservableObject {
 
         // Actualizar Now Playing Info con los datos actuales
         updateNowPlayingInfo()
+
+        // Incrementar contador de reproducciones
+        incrementPlayCount(for: song)
+    }
+
+    /// Incrementa el contador de reproducciones de una canción
+    private func incrementPlayCount(for song: Song) {
+        guard let context = modelContext else { return }
+
+        Task { @MainActor in
+            song.playCount += 1
+            song.lastPlayedAt = Date()
+
+            do {
+                try context.save()
+                print("📊 PlayCount actualizado: \(song.title) - \(song.playCount) reproducciones")
+            } catch {
+                print("❌ Error al actualizar playCount: \(error)")
+            }
+        }
     }
 
     func togglePlayPause() {

@@ -20,6 +20,10 @@ final class Song: Identifiable {
     var cachedDominantColorGreen: Double?
     var cachedDominantColorBlue: Double?
 
+    // Contador de reproducciones
+    var playCount: Int = 0
+    var lastPlayedAt: Date?
+
     // Relación con playlists (muchos a muchos)
     var playlists: [Playlist] = []
 
