@@ -111,7 +111,7 @@ class SettingsViewModel: ObservableObject {
     }
 
     /// Guarda las credenciales en el Keychain
-    func saveCredentials(modelContext: ModelContext, mainViewModel: MainViewModel) {
+    func saveCredentials(modelContext: ModelContext, libraryViewModel: LibraryViewModel) {
         let apiKeySaved = keychainService.save(apiKey, for: .googleDriveAPIKey)
         let folderIdSaved = keychainService.save(folderId, for: .googleDriveFolderId)
 
@@ -121,20 +121,20 @@ class SettingsViewModel: ObservableObject {
             print("✅ Credenciales guardadas en Keychain")
 
             // Sincronizar automáticamente después de guardar credenciales
-            mainViewModel.syncLibraryWithCatalog(modelContext: modelContext)
+            libraryViewModel.syncLibraryWithCatalog(modelContext: modelContext)
         } else {
             print("❌ Error al guardar credenciales")
         }
     }
 
     /// Elimina las credenciales del Keychain y limpia la biblioteca
-    func deleteCredentials(modelContext: ModelContext, mainViewModel: MainViewModel) {
+    func deleteCredentials(modelContext: ModelContext, libraryViewModel: LibraryViewModel) {
         keychainService.delete(for: .googleDriveAPIKey)
         keychainService.delete(for: .googleDriveFolderId)
         apiKey = ""
         folderId = ""
         hasExistingCredentials = false
-        mainViewModel.clearLibrary(modelContext: modelContext)
+        libraryViewModel.clearLibrary(modelContext: modelContext)
         print("🗑️ Credenciales eliminadas del Keychain y biblioteca local limpiada.")
     }
 

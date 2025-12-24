@@ -20,6 +20,10 @@ final class Song: Identifiable {
     var cachedDominantColorGreen: Double?
     var cachedDominantColorBlue: Double?
 
+    // Contador de reproducciones
+    var playCount: Int = 0
+    var lastPlayedAt: Date?
+
     // Relación con playlists (muchos a muchos)
     var playlists: [Playlist] = []
 
@@ -33,6 +37,40 @@ final class Song: Identifiable {
         self.isDownloaded = isDownloaded
         self.duration = duration
         self.artworkData = artworkData
+    }
+}
+
+// MARK: - Helper Extensions
+extension Song {
+    /// Obtiene la URL local del archivo descargado
+    /// Replica la lógica de GoogleDriveService.localURL(for:)
+    var localURL: URL? {
+        guard isDownloaded else { return nil }
+
+        let fileManager = FileManager.default
+        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let musicDirectory = documentsDirectory.appendingPathComponent("Music")
+        let fileURL = musicDirectory.appendingPathComponent("\(id.uuidString).m4a")
+
+        // Verificar que el archivo existe
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+
+        return fileURL
+    }
+}
+
+// MARK: - Hashable
+extension Song: Hashable {
+    static func == (lhs: Song, rhs: Song) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 

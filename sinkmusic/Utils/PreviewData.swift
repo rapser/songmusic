@@ -91,7 +91,7 @@ struct PreviewContainer {
 // MARK: - ViewModels de prueba
 @MainActor
 struct PreviewViewModels {
-    static func mainVM() -> MainViewModel { MainViewModel() }
+    static func libraryVM() -> LibraryViewModel { LibraryViewModel() }
     static func songListVM() -> SongListViewModel { SongListViewModel() }
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
         let vm = PlayerViewModel()
@@ -103,35 +103,45 @@ struct PreviewViewModels {
         }
         return vm
     }
+    static func equalizerVM() -> EqualizerViewModel { EqualizerViewModel() }
+    static func metadataVM() -> MetadataCacheViewModel { MetadataCacheViewModel() }
 }
 
 // MARK: - Wrapper genérico
 struct PreviewWrapper<Content: View>: View {
     private let content: () -> Content
-    private let mainVM: MainViewModel?
+    private let libraryVM: LibraryViewModel?
     private let songListVM: SongListViewModel?
     private let playerVM: PlayerViewModel?
+    private let equalizerVM: EqualizerViewModel?
+    private let metadataVM: MetadataCacheViewModel?
     private let modelContainer: ModelContainer?
 
     init(
-        mainVM: MainViewModel? = nil,
+        libraryVM: LibraryViewModel? = nil,
         songListVM: SongListViewModel? = nil,
         playerVM: PlayerViewModel? = nil,
+        equalizerVM: EqualizerViewModel? = nil,
+        metadataVM: MetadataCacheViewModel? = nil,
         modelContainer: ModelContainer? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        self.mainVM = mainVM
+        self.libraryVM = libraryVM
         self.songListVM = songListVM
         self.playerVM = playerVM
+        self.equalizerVM = equalizerVM
+        self.metadataVM = metadataVM
         self.modelContainer = modelContainer
         self.content = content
     }
 
     var body: some View {
         content()
-            .environmentObject(mainVM ?? PreviewViewModels.mainVM())
+            .environmentObject(libraryVM ?? PreviewViewModels.libraryVM())
             .environmentObject(songListVM ?? PreviewViewModels.songListVM())
             .environmentObject(playerVM ?? PreviewViewModels.playerVM())
+            .environmentObject(equalizerVM ?? PreviewViewModels.equalizerVM())
+            .environmentObject(metadataVM ?? PreviewViewModels.metadataVM())
             .ifLet(modelContainer) { view, container in
                 view.modelContainer(container)
             }

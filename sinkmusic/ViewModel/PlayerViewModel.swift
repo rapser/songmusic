@@ -4,6 +4,21 @@ import AVFoundation
 import SwiftData
 import UIKit
 
+/// Información de la canción actualmente reproduciéndose
+/// Desacoplada de SwiftData para evitar re-renders innecesarios
+private struct PlayingSongInfo {
+    let id: UUID
+    let title: String
+    let artist: String
+    let album: String?
+    let author: String?
+    let duration: TimeInterval?
+    let artworkData: Data?
+    let artworkThumbnail: Data?
+}
+
+/// ViewModel responsable ÚNICAMENTE de la reproducción de audio
+/// SOLID: Single Responsibility Principle - Solo maneja reproducción, no metadatos ni ecualizador
 @MainActor
 class PlayerViewModel: ObservableObject {
     @Published var isPlaying = false
@@ -13,46 +28,59 @@ class PlayerViewModel: ObservableObject {
     @Published var showPlayerView: Bool = false
     @Published var isShuffleEnabled = false
     @Published var repeatMode: RepeatMode = .off
-    @Published var equalizerBands: [EqualizerBand] = EqualizerBand.defaultBands
-    @Published var selectedPreset: EqualizerPreset = .flat
-    @Published var cachedArtwork: UIImage? = nil
 
     enum RepeatMode {
         case off, repeatAll, repeatOne
     }
 
-    private let audioPlayerService: AudioPlayerService
-    private let downloadService: DownloadService
-    private let metadataService: MetadataService
+    // SOLID: Dependency Inversion - depende de abstracciones, no de implementaciones concretas
+    // Nota: audioPlayerService es 'var' porque necesitamos asignar sus callbacks en setupCallbacks()
+    private var audioPlayerService: AudioPlayerProtocol
     private let liveActivityService = LiveActivityService()
     private var allSongs: [Song] = []
-    private var currentSong: Song?
+    private var currentSongInfo: PlayingSongInfo?
+    private var currentSongURL: URL? // Almacena la URL para reanudar reproducción
     private var lastNowPlayingUpdateTime: TimeInterval = 0
-
-    weak var scrollResetter: ScrollStateResettable?
+    private var lastPlaybackTime: TimeInterval = 0 // Para throttling de actualizaciones
+    private var modelContext: ModelContext?
 
     init(
-        audioPlayerService: AudioPlayerService = AudioPlayerService(),
-        downloadService: DownloadService = DownloadService(),
-        metadataService: MetadataService = MetadataService()
+        audioPlayerService: AudioPlayerProtocol = AudioPlayerService()
     ) {
         self.audioPlayerService = audioPlayerService
-        self.downloadService = downloadService
-        self.metadataService = metadataService
         setupCallbacks()
         setupLiveActivityHandlers()
     }
 
-    func play(song: Song) {
+    /// Configura el ModelContext para poder actualizar estadísticas de reproducción
+    func configure(with modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+
+    /// Reproduce una canción y establece la cola de reproducción actual
+    /// NOTA: El artwork debe ser cacheado externamente por MetadataCacheViewModel
+    func play(song: Song, from url: URL, in queue: [Song]) {
         guard song.isDownloaded else {
             return
         }
 
-        guard let url = downloadService.localURL(for: song.id) else {
-            return
-        }
+        // Establecer la nueva cola de reproducción, filtrando solo las descargadas
+        self.allSongs = queue.filter { $0.isDownloaded }
 
-        currentSong = song
+        // Guardar URL para poder reanudar reproducción
+        currentSongURL = url
+
+        // Crear snapshot de datos desacoplado de SwiftData
+        currentSongInfo = PlayingSongInfo(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            author: song.author,
+            duration: song.duration,
+            artworkData: song.artworkData,
+            artworkThumbnail: song.artworkThumbnail
+        )
 
         // Comportamiento estilo Spotify cuando presionas desde el listado:
         // Si presionas la canción que ya está tocando, reinicia desde el principio
@@ -60,70 +88,50 @@ class PlayerViewModel: ObservableObject {
             // Reiniciar la canción desde el principio
             audioPlayerService.seek(to: 0)
             playbackTime = 0
+            lastPlaybackTime = 0
         } else {
             // Nueva canción o canción pausada
             playbackTime = 0
+            lastPlaybackTime = 0
+            songDuration = 0 // Reset para detectar primera actualización de duración
             currentlyPlayingID = song.id
             audioPlayerService.play(songID: song.id, url: url)
         }
 
-        // Pre-cargar artwork inmediatamente para evitar delay en la UI
-        preloadArtwork(from: song)
-
-        // Actualizar metadata inmediatamente con los datos actuales
+        // Actualizar Now Playing Info con los datos actuales
+        // Nota: La duración aún puede ser 0 aquí, se actualizará en el primer callback
         updateNowPlayingInfo()
 
-        scrollResetter?.resetScrollState()
-
-        // Extraer metadata en background con baja prioridad (después de iniciar reproducción)
-        if song.duration == nil || song.artworkData == nil {
-            Task(priority: .utility) { [weak self] in
-                guard let self = self else { return }
-                if let metadata = await self.metadataService.extractMetadata(from: url) {
-                    song.title = metadata.title
-                    song.artist = metadata.artist
-                    song.album = metadata.album
-                    song.author = metadata.author
-                    song.duration = metadata.duration
-                    song.artworkData = metadata.artwork
-                    song.artworkThumbnail = metadata.artworkThumbnail
-                    song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
-
-                    // Actualizar info después de cargar metadata
-                    self.updateNowPlayingInfo()
-                    self.preloadArtwork(from: song)
-                }
-            }
-        }
+        // Incrementar contador de reproducciones
+        incrementPlayCount(for: song)
     }
 
-    private func preloadArtwork(from song: Song) {
-        guard let artworkData = song.artworkData else {
-            cachedArtwork = nil
-            return
-        }
+    /// Incrementa el contador de reproducciones de una canción
+    private func incrementPlayCount(for song: Song) {
+        guard let context = modelContext else { return }
 
-        // Cargar imagen en background con alta prioridad
-        Task(priority: .userInitiated) { [weak self] in
-            let image = await Task.detached(priority: .userInitiated) {
-                UIImage(data: artworkData)
-            }.value
+        Task { @MainActor in
+            song.playCount += 1
+            song.lastPlayedAt = Date()
 
-            await MainActor.run {
-                self?.cachedArtwork = image
+            do {
+                try context.save()
+                print("📊 PlayCount actualizado: \(song.title) - \(song.playCount) reproducciones")
+            } catch {
+                print("❌ Error al actualizar playCount: \(error)")
             }
         }
     }
 
     func togglePlayPause() {
-        guard let song = currentSong else { return }
+        guard let songInfo = currentSongInfo,
+              let url = currentSongURL else { return }
 
         if isPlaying {
             pause()
         } else {
             // Reanudar reproducción sin reiniciar
-            guard let url = downloadService.localURL(for: song.id) else { return }
-            audioPlayerService.play(songID: song.id, url: url)
+            audioPlayerService.play(songID: songInfo.id, url: url)
         }
     }
 
@@ -136,13 +144,6 @@ class PlayerViewModel: ObservableObject {
         audioPlayerService.stop()
         isPlaying = false
         currentlyPlayingID = nil
-    }
-
-
-    func updateSongsList(_ songs: [Song]) {
-        let downloadedSongs = songs.filter { $0.isDownloaded }
-        self.allSongs = downloadedSongs
-        print("📋 Lista actualizada: \(downloadedSongs.count) canciones descargadas")
     }
 
     func toggleShuffle() {
@@ -164,24 +165,22 @@ class PlayerViewModel: ObservableObject {
         // Usar allSongs cacheado en lugar de filtrar cada vez
         guard !self.allSongs.isEmpty else { return }
 
+        var nextSong: Song?
+
         if isShuffleEnabled {
             // Modo aleatorio: selecciona una canción aleatoria DIFERENTE a la actual
             let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
-
-            if !otherSongs.isEmpty {
-                // Hay más canciones disponibles, elige una aleatoria
-                if let randomSong = otherSongs.randomElement() {
-                    play(song: randomSong)
-                }
-            } else if self.allSongs.count == 1 {
-                // Solo hay una canción, reproducirla de nuevo
-                play(song: currentSong)
-            }
+            nextSong = otherSongs.randomElement() ?? self.allSongs.first
         } else {
             // Modo secuencial
             guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
             let nextIdx = (idx + 1) % self.allSongs.count
-            play(song: self.allSongs[nextIdx])
+            nextSong = self.allSongs[nextIdx]
+        }
+        
+        if let songToPlay = nextSong, let url = songToPlay.localURL {
+            // La cola no cambia, se mantiene la actual
+            play(song: songToPlay, from: url, in: self.allSongs)
         }
     }
 
@@ -189,19 +188,22 @@ class PlayerViewModel: ObservableObject {
         // Usar allSongs cacheado en lugar de filtrar cada vez
         guard !self.allSongs.isEmpty else { return }
 
+        var prevSong: Song?
+
         if isShuffleEnabled {
             // En modo aleatorio, también va a una canción aleatoria
             let otherSongs = self.allSongs.filter { $0.id != currentSong.id }
-            if let randomSong = otherSongs.randomElement() {
-                play(song: randomSong)
-            } else if let firstSong = self.allSongs.first {
-                play(song: firstSong)
-            }
+            prevSong = otherSongs.randomElement() ?? self.allSongs.first
         } else {
             // Modo secuencial
             guard let idx = self.allSongs.firstIndex(where: { $0.id == currentSong.id }) else { return }
             let prevIdx = (idx - 1 + self.allSongs.count) % self.allSongs.count
-            play(song: self.allSongs[prevIdx])
+            prevSong = self.allSongs[prevIdx]
+        }
+        
+        if let songToPlay = prevSong, let url = songToPlay.localURL {
+            // La cola no cambia, se mantiene la actual
+            play(song: songToPlay, from: url, in: self.allSongs)
         }
     }
 
@@ -225,7 +227,10 @@ class PlayerViewModel: ObservableObject {
         case .repeatOne:
             // Repetir la misma canción
             print("🔁 Repeat One: Repitiendo '\(currentSong.title)'")
-            play(song: currentSong)
+            if let url = currentSong.localURL {
+                // La cola no cambia
+                play(song: currentSong, from: url, in: self.allSongs)
+            }
 
         case .repeatAll:
             // Continuar reproduciendo y volver al inicio si es la última
@@ -268,29 +273,7 @@ class PlayerViewModel: ObservableObject {
     func seek(to time: TimeInterval) {
         audioPlayerService.seek(to: time)
         playbackTime = time
-    }
-
-    // MARK: - Equalizer Functions
-    func updateBandGain(index: Int, gain: Double) {
-        guard index < equalizerBands.count else { return }
-        equalizerBands[index].gain = gain
-        selectedPreset = .flat // Reset preset when manually adjusting
-        audioPlayerService.applyEqualizerSettings(equalizerBands)
-    }
-
-    func applyPreset(_ preset: EqualizerPreset) {
-        selectedPreset = preset
-        let gains = preset.gains
-        for (index, gain) in gains.enumerated() where index < equalizerBands.count {
-            equalizerBands[index].gain = gain
-        }
-        audioPlayerService.applyEqualizerSettings(equalizerBands)
-    }
-
-    func resetEqualizer() {
-        equalizerBands = EqualizerBand.defaultBands
-        selectedPreset = .flat
-        audioPlayerService.applyEqualizerSettings(equalizerBands)
+        lastPlaybackTime = time
     }
 
     private func setupCallbacks() {
@@ -305,14 +288,35 @@ class PlayerViewModel: ObservableObject {
         // Callback para cambios en el tiempo de reproducción
         audioPlayerService.onPlaybackTimeChanged = { [weak self] time, duration in
             guard let self = self else { return }
-            self.playbackTime = time
+
+            // Detectar si es la primera vez que recibimos la duración
+            let isFirstDurationUpdate = self.songDuration == 0 && duration > 0
+
+            // Actualizar songDuration siempre
             self.songDuration = duration
 
-            // Throttle manual: actualizar Now Playing Info solo cada 1 segundo
+            // Throttle: solo actualizar playbackTime si el cambio es significativo (> 0.5 segundos)
+            // Esto previene el warning "onChange tried to update multiple times per frame"
+            // 0.5 segundos es suficiente para una UI fluida sin sobrecargar SwiftUI
+            if abs(time - self.lastPlaybackTime) > 0.5 {
+                self.playbackTime = time
+                self.lastPlaybackTime = time
+            }
+
+            // CRÍTICO: Si es la primera vez que recibimos la duración, actualizar inmediatamente
+            // para que el lock screen tenga la información completa
+            if isFirstDurationUpdate {
+                self.updateNowPlayingInfo(with: time)
+                self.lastNowPlayingUpdateTime = CACurrentMediaTime()
+                return
+            }
+
+            // Actualizar Now Playing Info cada 1 segundo para lock screen
+            // Usar el tiempo real del callback, no el throttled playbackTime
             let currentTime = CACurrentMediaTime()
             if currentTime - self.lastNowPlayingUpdateTime >= 1.0 {
                 self.lastNowPlayingUpdateTime = currentTime
-                self.updateNowPlayingInfo()
+                self.updateNowPlayingInfo(with: time)
             }
         }
 
@@ -331,53 +335,60 @@ class PlayerViewModel: ObservableObject {
 
         // Callback para siguiente canción desde control remoto
         audioPlayerService.onRemoteNext = { [weak self] in
-            guard let self = self, let song = self.currentSong else { return }
+            guard let self = self,
+                  let playingID = self.currentlyPlayingID,
+                  let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
             self.playNext(currentSong: song, allSongs: self.allSongs)
         }
 
         // Callback para canción anterior desde control remoto
         audioPlayerService.onRemotePrevious = { [weak self] in
-            guard let self = self, let song = self.currentSong else { return }
+            guard let self = self,
+                  let playingID = self.currentlyPlayingID,
+                  let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
             self.playPrevious(currentSong: song, allSongs: self.allSongs)
         }
     }
 
-    private func updateNowPlayingInfo() {
-        guard let song = currentSong else { return }
-        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+    private func updateNowPlayingInfo(with currentTime: TimeInterval? = nil) {
+        guard let songInfo = currentSongInfo else { return }
+
+        let duration = songDuration > 0 ? songDuration : (songInfo.duration ?? 0)
+        // Usar el tiempo proporcionado o el playbackTime actual
+        let time = currentTime ?? playbackTime
 
         audioPlayerService.updateNowPlayingInfo(
-            title: song.title,
-            artist: song.artist,
-            album: song.album,
+            title: songInfo.title,
+            artist: songInfo.artist,
+            album: songInfo.album,
             duration: duration,
-            currentTime: playbackTime,
-            artwork: song.artworkData
+            currentTime: time,
+            artwork: songInfo.artworkData
         )
     }
 
     private func updateLiveActivity() {
-        guard let song = currentSong else { return }
-        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+        guard let songInfo = currentSongInfo else { return }
+        let duration = songDuration > 0 ? songDuration : (songInfo.duration ?? 0)
 
         if isPlaying {
             liveActivityService.startActivity(
-                songID: song.id,
-                songTitle: song.title,
-                artistName: song.artist,
+                songID: songInfo.id,
+                songTitle: songInfo.title,
+                artistName: songInfo.artist,
                 isPlaying: isPlaying,
                 currentTime: playbackTime,
                 duration: duration,
-                artworkThumbnail: song.artworkThumbnail
+                artworkThumbnail: songInfo.artworkThumbnail
             )
         } else if !isPlaying && liveActivityService.hasActiveActivity {
             liveActivityService.updateActivity(
-                songTitle: song.title,
-                artistName: song.artist,
+                songTitle: songInfo.title,
+                artistName: songInfo.artist,
                 isPlaying: false,
                 currentTime: playbackTime,
                 duration: duration,
-                artworkThumbnail: song.artworkThumbnail
+                artworkThumbnail: songInfo.artworkThumbnail
             )
         }
     }
@@ -402,7 +413,9 @@ class PlayerViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
+                guard let self = self,
+                      let playingID = self.currentlyPlayingID,
+                      let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
                 self.playNext(currentSong: song, allSongs: self.allSongs)
             }
         }
@@ -414,7 +427,9 @@ class PlayerViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, let song = self.currentSong else { return }
+                guard let self = self,
+                      let playingID = self.currentlyPlayingID,
+                      let song = self.allSongs.first(where: { $0.id == playingID }) else { return }
                 self.playPrevious(currentSong: song, allSongs: self.allSongs)
             }
         }

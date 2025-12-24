@@ -3,7 +3,7 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 
-final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDelegate {
 
     // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
     var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
@@ -32,6 +32,9 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     private var wasPlayingBeforeInterruption = false
     private var seekOffset: TimeInterval = 0
 
+    // Swift 6: Optimización de memoria - liberar recursos cuando no se reproduce
+    private var resourceCleanupTimer: Timer?
+
     override init() {
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
@@ -47,12 +50,18 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
 
     private func setupAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(
+            let audioSession = AVAudioSession.sharedInstance()
+
+            // CRÍTICO: Configurar la categoría para permitir reproducción en background
+            // y mostrar controles en el lock screen
+            try audioSession.setCategory(
                 .playback,
                 mode: .default,
                 options: []
             )
-            try AVAudioSession.sharedInstance().setActive(true)
+
+            // Activar la sesión de audio
+            try audioSession.setActive(true)
         } catch {
             // Error al configurar la sesión de audio
         }
@@ -119,8 +128,7 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 self.currentScheduleID = scheduleID
 
                 playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
-
-                    DispatchQueue.main.async {
+                    Task { @MainActor [weak self] in
                         guard let self = self else {
                             return
                         }
@@ -136,9 +144,7 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                         self.playbackTimer?.invalidate()
                         self.playbackTimer = nil
 
-                        Task { @MainActor in
-                            self.onSongFinished?(currentID)
-                        }
+                        self.onSongFinished?(currentID)
                     }
                 }
 
@@ -213,7 +219,7 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                 frameCount: frameCount,
                 at: nil
             ) { [weak self] in
-                DispatchQueue.main.async {
+                Task { @MainActor [weak self] in
                     guard let self = self else { return }
 
                     // Validar que este completion corresponde al seek actual
@@ -227,9 +233,7 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil
 
-                    Task { @MainActor in
-                        self.onSongFinished?(currentID)
-                    }
+                    self.onSongFinished?(currentID)
                 }
             }
 
@@ -269,6 +273,15 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     // MARK: - Equalizer
+
+    /// Implementación del protocolo AudioPlayerProtocol
+    func updateEqualizer(bands: [Float]) {
+        for (index, gain) in bands.enumerated() where index < eq.bands.count {
+            eq.bands[index].gain = gain
+        }
+    }
+
+    /// Método legacy para compatibilidad con código existente
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
         for (index, band) in bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = Float(band.gain)
@@ -413,28 +426,36 @@ final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
     }
 
     func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) {
+        // CRÍTICO: Crear un nuevo diccionario cada vez para forzar la actualización
         var nowPlayingInfo = [String: Any]()
+
+        // Información básica - siempre presente
         nowPlayingInfo[MPMediaItemPropertyTitle] = title
         nowPlayingInfo[MPMediaItemPropertyArtist] = artist
 
-        if let album = album {
+        if let album = album, !album.isEmpty {
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
 
-        if duration > 0 {
-            nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
-        }
+        // Duración total de la canción
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
 
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = playerNode.isPlaying ? 1.0 : 0.0
+        // Tiempo actual de reproducción
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime)
 
+        // Velocidad de reproducción (1.0 = reproduciendo, 0.0 = pausado)
+        let playbackRate = playerNode.isPlaying ? 1.0 : 0.0
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: playbackRate)
+
+        // Artwork (cover art)
         if let artworkData = artwork, let image = UIImage(data: artworkData) {
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
+            let artworkImage = MPMediaItemArtwork(boundsSize: image.size) { _ in
                 return image
             }
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artworkImage
         }
 
+        // CRÍTICO: Asignar al Now Playing Info Center
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }

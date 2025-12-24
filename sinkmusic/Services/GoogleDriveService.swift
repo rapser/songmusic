@@ -9,7 +9,6 @@ import Foundation
 import AVFoundation
 
 // Typealias para compatibilidad con código existente
-// DownloadService ahora es GoogleDriveService
 typealias DownloadService = GoogleDriveService
 typealias DownloadServiceProtocol = GoogleDriveServiceProtocol
 
@@ -19,10 +18,8 @@ struct GoogleDriveFile: Codable, Identifiable {
     let mimeType: String
 
     var title: String {
-        // Extraer el título del nombre del archivo (sin extensión)
         let components = name.components(separatedBy: " - ")
         if components.count >= 2 {
-            // Formato esperado: "Artista - Título.m4a"
             let titleWithExtension = components[1]
             return titleWithExtension.replacingOccurrences(of: ".m4a", with: "")
         }
@@ -30,7 +27,6 @@ struct GoogleDriveFile: Codable, Identifiable {
     }
 
     var artist: String {
-        // Extraer el artista del nombre del archivo
         let components = name.components(separatedBy: " - ")
         if components.count >= 2 {
             return components[0]
@@ -51,24 +47,18 @@ enum GoogleDriveError: Error {
 }
 
 /// Servicio consolidado para interactuar con Google Drive API y manejar descargas
-/// Implementa GoogleDriveServiceProtocol cumpliendo con SOLID
 final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
     private let keychainService = KeychainService.shared
 
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
-        // Reducir el tamaño del buffer para reportar progreso más frecuentemente
-        // Esto hace que URLSession reporte progreso cada 64KB en lugar de esperar chunks grandes
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
-    // Thread-safe dictionary para descargas activas
     private let downloadsLock = NSLock()
     private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, progressCallback: ((Double) -> Void)?)] = [:]
-
-    // Último progreso reportado por cada tarea (para evitar spam de logs)
     private var lastReportedProgress: [Int: Int] = [:]
 
     private var apiKey: String? {
@@ -81,89 +71,112 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Fetch Songs from Folder
 
-    /// Obtener lista de archivos de la carpeta pública de Google Drive
     func fetchSongsFromFolder() async throws -> [GoogleDriveFile] {
-        // Verificar que las credenciales estén configuradas
         guard let apiKey = apiKey else {
+            print("❌ ERROR: API Key de Google Drive no configurada")
             throw GoogleDriveError.missingAPIKey
         }
-
         guard let folderId = folderId else {
+            print("❌ ERROR: Folder ID de Google Drive no configurado")
             throw GoogleDriveError.missingFolderId
         }
+
+        print("📂 Iniciando obtención de canciones desde carpeta Google Drive: \(folderId)")
 
         var allFiles: [GoogleDriveFile] = []
         var pageToken: String? = nil
 
-        // Iterar sobre todas las páginas de resultados
         repeat {
-            // URL de la API de Google Drive Files.list
-            // Usando acceso público sin autenticación para carpetas compartidas
-            let urlString = "https://www.googleapis.com/drive/v3/files"
-
-            guard var components = URLComponents(string: urlString) else {
-                throw URLError(.badURL)
-            }
-
-            // Parámetros de consulta
+            var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
+            
             var queryItems = [
                 URLQueryItem(name: "q", value: "'\(folderId)' in parents and (mimeType='audio/mpeg' or mimeType='audio/mp4' or mimeType='audio/x-m4a')"),
                 URLQueryItem(name: "fields", value: "files(id,name,mimeType),nextPageToken"),
                 URLQueryItem(name: "pageSize", value: "1000"),
                 URLQueryItem(name: "key", value: apiKey)
             ]
-
-            // Agregar pageToken si existe
+            
             if let pageToken = pageToken {
                 queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
             }
-
+            
             components.queryItems = queryItems
-
+            
             guard let url = components.url else {
+                print("❌ URL inválida al listar archivos de Google Drive")
                 throw URLError(.badURL)
             }
 
-            let (data, response) = try await URLSession.shared.data(from: url)
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("❌ No se recibió respuesta HTTP válida")
+                    throw URLError(.badServerResponse)
+                }
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.badServerResponse)
+                print("📡 Google Drive API LIST - Status: \(httpResponse.statusCode) | URL: \(url.absoluteString)")
+
+                if httpResponse.statusCode != 200 {
+                    // Intentar parsear el error de Google Drive
+                    if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let error = errorJson["error"] as? [String: Any],
+                       let code = error["code"] as? Int,
+                       let message = error["message"] as? String {
+                        
+                        print("❌ Error de Google Drive API:")
+                        print("   Código: \(code)")
+                        print("   Mensaje: \(message)")
+                        
+                        if let errors = error["errors"] as? [[String: Any]],
+                           let first = errors.first,
+                           let reason = first["reason"] as? String,
+                           let domain = first["domain"] as? String {
+                            print("   Razón: \(reason)")
+                            print("   Dominio: \(domain)")
+                        }
+                    } else if let errorString = String(data: data, encoding: .utf8) {
+                        print("❌ Respuesta cruda de error: \(errorString)")
+                    }
+
+                    throw URLError(.badServerResponse, userInfo: ["statusCode": httpResponse.statusCode])
+                }
+
+                let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
+                allFiles.append(contentsOf: driveResponse.files)
+                pageToken = driveResponse.nextPageToken
+                
+            } catch {
+                print("🚨 Error al obtener lista de canciones:")
+                print("   URL: \(url)")
+                print("   Error: \(error.localizedDescription)")
+                throw error
             }
-
-            if httpResponse.statusCode != 200 {
-                throw URLError(.badServerResponse)
-            }
-
-            let driveResponse = try JSONDecoder().decode(GoogleDriveResponse.self, from: data)
-
-            // Agregar archivos de esta página
-            allFiles.append(contentsOf: driveResponse.files)
-
-            // Actualizar pageToken para la siguiente iteración
-            pageToken = driveResponse.nextPageToken
-
         } while pageToken != nil
 
-        // Filtrar solo archivos .m4a
-        let m4aFiles = allFiles.filter { file in
-            file.name.hasSuffix(".m4a")
-        }
-
+        let m4aFiles = allFiles.filter { $0.name.hasSuffix(".m4a") }
+        print("📂 Encontrados \(m4aFiles.count) archivos .m4a en la carpeta")
         return m4aFiles
     }
 
     // MARK: - Download
 
-    /// Descarga un archivo de Google Drive con callback de progreso
     func download(song: Song, progressCallback: ((Double) -> Void)? = nil) async throws -> URL {
-        // Obtener API Key del Keychain
         guard let apiKey = keychainService.googleDriveAPIKey else {
+            print("❌ ERROR: API Key no configurada para descarga")
             throw GoogleDriveError.missingAPIKey
         }
 
-        guard let url = URL(string: "https://www.googleapis.com/drive/v3/files/\(song.fileID)?alt=media&key=\(apiKey)") else {
-            throw NSError(domain: "GoogleDriveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL de la API inválida"])
+        let downloadURLString = "https://www.googleapis.com/drive/v3/files/\(song.fileID)?alt=media&key=\(apiKey)"
+        guard let url = URL(string: downloadURLString) else {
+            print("❌ URL de descarga inválida para fileID: \(song.fileID)")
+            throw NSError(domain: "GoogleDriveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"])
         }
+
+        print("📥 Iniciando descarga de Google Drive:")
+        print("   Song ID: \(song.id.uuidString)")
+        print("   File ID: \(song.fileID)")
+        print("   URL: \(downloadURLString)")
 
         let request = URLRequest(url: url)
 
@@ -172,13 +185,14 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
             downloadsLock.lock()
             activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation, progressCallback)
             downloadsLock.unlock()
+            
+            print("   Tarea creada - Task ID: \(downloadTask.taskIdentifier)")
             downloadTask.resume()
         }
     }
 
     // MARK: - Local File Management
 
-    /// Obtiene la URL local donde se guarda un archivo descargado
     func localURL(for songID: UUID) -> URL? {
         let fileManager = FileManager.default
         guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
@@ -188,39 +202,43 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
         do {
             try fileManager.createDirectory(at: musicDirectory, withIntermediateDirectories: true, attributes: nil)
         } catch {
+            print("❌ Error al crear directorio Music: \(error.localizedDescription)")
             return nil
         }
         return musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
     }
 
-    /// Obtiene la duración de un archivo de audio
     func getDuration(for url: URL) -> TimeInterval? {
         do {
             let audioFile = try AVAudioFile(forReading: url)
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
             return duration
         } catch {
+            print("⚠️ No se pudo obtener duración del audio: \(error.localizedDescription)")
             return nil
         }
     }
 
-    /// Elimina el archivo descargado
     func deleteDownload(for songID: UUID) throws {
         guard let fileURL = localURL(for: songID) else {
-            throw NSError(domain: "GoogleDriveService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No se pudo obtener la URL del archivo"])
+            throw NSError(domain: "GoogleDriveService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No se pudo obtener URL del archivo"])
         }
-
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: fileURL.path) {
             try fileManager.removeItem(at: fileURL)
         }
     }
 
-    // MARK: - Legacy (for compatibility)
+    // MARK: - Legacy
 
-    /// Construir URL de descarga directa para un archivo de Google Drive
     func getDownloadURL(for fileId: String) -> String {
         return "https://drive.google.com/uc?export=download&id=\(fileId)"
+    }
+
+    deinit {
+        // CRÍTICO: Invalidar URLSession para romper el ciclo de retención
+        // URLSession mantiene una referencia fuerte a su delegate
+        urlSession.invalidateAndCancel()
     }
 }
 
@@ -238,34 +256,29 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
 
         let progress: Double
         if totalBytesExpectedToWrite > 0 {
-            // Progreso normal cuando conocemos el tamaño total
             progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-
-            // Solo imprimir logs cada 10% para no saturar la consola
             let progressPercent = Int(progress * 100)
-            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
-            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+
+            // Solo imprimir en consola cada 10% para no saturar logs
+            if progressPercent % 10 == 0 && progressPercent != (lastReportedProgress[downloadTask.taskIdentifier] ?? -1) {
                 let totalMB = Double(totalBytesExpectedToWrite) / (1024 * 1024)
                 let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
-                print("📡 GoogleDrive: \(String(format: "%.2f", downloadedMB))MB / \(String(format: "%.2f", totalMB))MB (\(progressPercent)%)")
+                print("📡 Progreso descarga \(downloadTask.taskIdentifier): \(String(format: "%.2f", downloadedMB))MB / \(String(format: "%.2f", totalMB))MB (\(progressPercent)%)")
                 lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
             }
         } else {
-            // Si no conocemos el total, estimamos basándonos en un tamaño promedio de canción (10MB)
             let estimatedTotalBytes: Int64 = 10 * 1024 * 1024 // 10MB
             progress = min(0.95, Double(totalBytesWritten) / Double(estimatedTotalBytes))
-
             let progressPercent = Int(progress * 100)
-            let lastPercent = lastReportedProgress[downloadTask.taskIdentifier] ?? -1
-            if progressPercent % 10 == 0 && progressPercent != lastPercent {
+
+            if progressPercent % 10 == 0 && progressPercent != (lastReportedProgress[downloadTask.taskIdentifier] ?? -1) {
                 let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
-                print("📡 GoogleDrive: \(String(format: "%.2f", downloadedMB))MB descargados (estimado: \(progressPercent)%)")
+                print("📡 Progreso (estimado) \(downloadTask.taskIdentifier): \(String(format: "%.2f", downloadedMB))MB (\(progressPercent)%)")
                 lastReportedProgress[downloadTask.taskIdentifier] = progressPercent
             }
         }
 
-        // IMPORTANTE: Llamar al callback SIEMPRE, no solo cuando imprimimos logs
-        // El UI necesita todas las actualizaciones de progreso
+        // SIEMPRE reportar al callback para que se actualice en tiempo real
         if let progressCallback = downloadInfo.progressCallback {
             Task { @MainActor in
                 progressCallback(progress)
@@ -282,26 +295,39 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
         downloadsLock.unlock()
 
         guard let destinationURL = localURL(for: downloadInfo.songID) else {
-            let error = NSError(domain: "GoogleDriveService", code: 0, userInfo: [NSLocalizedDescriptionKey: "No se pudo crear la URL de destino."])
+            let error = NSError(domain: "GoogleDriveService", code: 0, userInfo: [NSLocalizedDescriptionKey: "No se pudo crear URL de destino"])
+            print("❌ No se pudo obtener URL de destino para songID: \(downloadInfo.songID.uuidString)")
             downloadInfo.continuation.resume(throwing: error)
             return
         }
 
         do {
-            // Validar que el archivo descargado sea suficientemente grande para ser un archivo de audio
             let fileSize = try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? Int64 ?? 0
             let fileSizeMB = Double(fileSize) / (1024 * 1024)
+            print("📦 Descarga completada - Tamaño: \(String(format: "%.2f", fileSizeMB)) MB")
 
-            print("📦 Archivo descargado: \(String(format: "%.2f", fileSizeMB))MB")
-
-            // Si el archivo es menor a 100KB, probablemente sea un error HTML de Google Drive
             if fileSize < 100_000 {
-                print("⚠️ ADVERTENCIA: Archivo muy pequeño (\(String(format: "%.2f", fileSizeMB))MB). Puede ser un error de Google Drive.")
-                print("💡 Verifica que el archivo tenga permisos públicos en Google Drive")
+                if let content = try? String(contentsOf: location, encoding: .utf8),
+                   content.contains("Google Drive") || content.contains("error") || content.contains("403") {
+                    print("❌ Parece una página HTML de error de Google Drive:")
+                    print("   Primeros 300 caracteres:\n\(content.prefix(300))")
+                } else {
+                    print("⚠️ Archivo muy pequeño (\(String(format: "%.2f", fileSizeMB))MB). Probable error de permisos o archivo no encontrado.")
+                }
             }
 
             try? FileManager.default.removeItem(at: destinationURL)
             try FileManager.default.moveItem(at: location, to: destinationURL)
+
+            // Verificación de integridad
+            do {
+                _ = try AVAudioFile(forReading: destinationURL)
+                print("✅ Verificación de audio exitosa: \(destinationURL.lastPathComponent)")
+            } catch {
+                print("⛔️ ERROR: Archivo descargado no es audio válido: \(error.localizedDescription)")
+                try? FileManager.default.removeItem(at: destinationURL)
+                throw SyncError.invalidAudioFile // Asume que tienes este error definido
+            }
 
             // Evitar backup en iCloud
             var mutableURL = destinationURL
@@ -311,6 +337,8 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
 
             downloadInfo.continuation.resume(returning: destinationURL)
         } catch {
+            print("🚨 Error al procesar archivo descargado:")
+            print("   Error: \(error.localizedDescription)")
             downloadInfo.continuation.resume(throwing: error)
         }
     }
@@ -324,6 +352,26 @@ extension GoogleDriveService: URLSessionDownloadDelegate {
         downloadsLock.unlock()
 
         if let error = error {
+            print("❌ Error al completar descarga (task \(task.taskIdentifier)):")
+            print("   Descripción: \(error.localizedDescription)")
+
+            if let urlError = error as? URLError {
+                print("   URLError code: \(urlError.code.rawValue)")
+                print("   Detalle: \(urlError.localizedDescription)")
+            }
+
+            if let nsError = error as NSError? {
+                print("   Dominio: \(nsError.domain)")
+                print("   Código: \(nsError.code)")
+                if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+                    print("   Error subyacente: \(underlying)")
+                }
+            }
+
+            if let httpResponse = task.response as? HTTPURLResponse {
+                print("   HTTP Status: \(httpResponse.statusCode)")
+            }
+
             downloadInfo.continuation.resume(throwing: error)
         }
     }
