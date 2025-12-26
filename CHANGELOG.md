@@ -5,6 +5,37 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (11) - 2025-12-25 🎄
+
+### 🐛 Corregido
+
+#### Bug Crítico: Reproducción se detiene aleatoriamente después de ~1 minuto
+- **Problema**: Timer de reproducción se pausaba cuando iOS cambiaba de RunLoop mode
+  - Síntomas: Canción se detiene después de ~1 min, botón play no responde
+  - Causa: Timer programado en `.default` mode se pausa durante notificaciones/llamadas
+  - Impacto: Usuarios con muchas canciones (200+) experimentaban el bug aleatoriamente
+- **Solución**: Timer ahora usa `RunLoop.common` mode
+  - El timer NO se pausa durante cambios de sistema
+  - Funciona correctamente en background
+  - Mantiene sincronización con el audio engine
+  - Reproducción continua sin interrupciones
+- **Archivo modificado**: `AudioPlayerService.swift` líneas 255-280
+- **Reportado por**: Usuario con 200 canciones descargadas
+
+#### Bug: Reproductor nativo no aparece en pantalla de bloqueo
+- **Problema**: El reproductor nativo de iOS no se mostraba en la pantalla de bloqueo (Lock Screen)
+  - Síntomas: No se ven controles ni información de la canción en pantalla bloqueada
+  - Causa: Configuración `.mixWithOthers` en AVAudioSession hacía que el sistema tratara el audio como secundario
+  - Impacto: Usuarios tenían que desbloquear el teléfono para controlar la reproducción
+- **Solución**: Removida la opción `.mixWithOthers` de AVAudioSession
+  - AVAudioSession ahora usa categoría `.playback` sin opciones adicionales
+  - El sistema reconoce la app como reproductor principal
+  - Controles nativos aparecen correctamente en Lock Screen y Control Center
+  - MPNowPlayingInfoCenter funciona correctamente
+- **Archivo modificado**: `AudioPlayerService.swift` líneas 51-69
+
+---
+
 ## [1.0.0] (10) - 2025-12-25 🎄
 
 ### ✨ Añadido
@@ -22,7 +53,6 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
   - Delay de 1 segundo para dar tiempo al sistema a liberar recursos de audio
   - Reactivación automática del audio engine si es necesario
   - Manejo robusto de errores con notificación de estado a la UI
-  - Configuración optimizada de AVAudioSession con `.mixWithOthers`
 - Pausa automática al desconectar auriculares
 - Manejo de cambios de ruta de audio (Bluetooth, AirPods, etc.)
 - Reconexión automática del audio engine ante cambios de configuración

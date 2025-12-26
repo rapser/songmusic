@@ -54,11 +54,11 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
             // CRÍTICO: Configurar la categoría para permitir reproducción en background
             // y mostrar controles en el lock screen
-            // mixWithOthers: permite mezclar con otras apps de audio si es necesario
+            // NO usar .mixWithOthers para que el sistema muestre el reproductor nativo
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
-                options: [.mixWithOthers]
+                options: []
             )
 
             // Activar la sesión de audio
@@ -254,7 +254,10 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
     private func startPlaybackTimer() {
         playbackTimer?.invalidate()
-        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+
+        // CRÍTICO: Usar RunLoop.common para que el timer funcione en background
+        // y no se pause cuando el sistema cambia de modo (llamadas, notificaciones, etc.)
+        playbackTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self,
                   let nodeTime = self.playerNode.lastRenderTime,
                   let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
@@ -271,6 +274,9 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                 self.onPlaybackTimeChanged?(currentTime, duration)
             }
         }
+
+        // Agregar el timer al RunLoop.common para que funcione en background
+        RunLoop.current.add(playbackTimer!, forMode: .common)
     }
 
     // MARK: - Equalizer
