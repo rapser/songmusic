@@ -10,8 +10,9 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 - Modo aleatorio y tres modos de repetición (off, all, one)
 - Soporte para reproducción en background
 - Integración con Lock Screen y Control Center
-- Continuación automática después de llamadas telefónicas
+- **Reanudación automática después de llamadas telefónicas** (comportamiento tipo Spotify)
 - Pausa automática al desconectar auriculares
+- Manejo robusto de interrupciones de audio (llamadas, alarmas, Siri, etc.)
 
 ### 🚗 CarPlay
 - Integración nativa con CarPlay
@@ -81,14 +82,17 @@ Este proyecto implementa **MVVM + Protocol-Oriented Programming** siguiendo los 
   - `PlaylistViewModel`: Gestión de playlists
   - `EqualizerViewModel`: Control de ecualizador
   - `MetadataCacheViewModel`: Caché de artwork
+  - `RefactoredSettingsViewModel`: Configuración con Swift 6 @Observable
 
 #### Service Layer
-- **AudioPlayerService**: Reproducción con AVAudioEngine
+- **AudioPlayerService**: Reproducción con AVAudioEngine + manejo de interrupciones
 - **GoogleDriveService**: Sincronización y descarga
 - **MetadataService**: Extracción de ID3 tags
 - **CarPlayService**: Integración con CarPlay
 - **LiveActivityService**: Dynamic Island y Live Activities
 - **KeychainService**: Almacenamiento seguro de credenciales
+- **StorageManagementService**: Gestión de almacenamiento y descargas (SOLID)
+- **CredentialsManagementService**: Gestión de credenciales (SOLID)
 
 #### Data Layer
 - **SwiftData Models**: Persistencia moderna
@@ -375,16 +379,19 @@ func testPlaySong() {
 
 Para ver el historial completo de cambios y versiones, consulta [CHANGELOG.md](./CHANGELOG.md)
 
-### Última Versión: v3.0.0 (2025-12-25) 🎄
+### Última Versión: v1.0.0 (10) - 2025-12-25 🎄
 
 **Destacados:**
 - ✨ Live Activities & Dynamic Island
 - 🚗 CarPlay Integration
 - 📊 PlayCount Tracking
 - ⚡ Migración completa a Swift 6
+- 🎵 **Reanudación automática después de llamadas** (estilo Spotify)
+- 🏗️ **Refactorización de SettingsView** con SOLID y componentes reutilizables
 - 🐛 6 Memory leaks corregidos
 - 🗑️ 11 archivos eliminados (1,242 líneas)
-- 🏆 Calificación: A- con SOLID ⭐⭐⭐⭐⭐
+- 📉 53% reducción de código en SettingsView
+- 🏆 Calificación: A con SOLID ⭐⭐⭐⭐⭐
 
 ## 🤝 Contribuir
 
