@@ -150,7 +150,8 @@ struct AddToPlaylistView: View {
         generator.impactOccurred()
 
         // Auto-dismiss after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
             dismiss()
         }
     }
