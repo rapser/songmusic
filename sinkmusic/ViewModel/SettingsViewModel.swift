@@ -3,13 +3,18 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 6/09/25.
+//  Refactored with Swift 6 improvements
 //
 
 import Foundation
 import SwiftData
 
+// MARK: - Settings ViewModel (Legacy Support + Swift 6 Improvements)
+
 @MainActor
 class SettingsViewModel: ObservableObject {
+    // MARK: - Published Properties
+
     @Published var showDeleteAllAlert = false
     @Published var showSaveConfirmation = false
     @Published var showDeleteCredentialsAlert = false
@@ -17,11 +22,19 @@ class SettingsViewModel: ObservableObject {
     @Published var folderId: String = ""
     @Published var hasExistingCredentials = false
 
-    private let googleDriveService: GoogleDriveServiceProtocol
-    private let keychainService = KeychainService.shared
+    // MARK: - Dependencies (Dependency Injection)
 
-    init(googleDriveService: GoogleDriveServiceProtocol = GoogleDriveService()) {
+    private let googleDriveService: GoogleDriveServiceProtocol
+    private let keychainService: KeychainService
+
+    // MARK: - Initialization
+
+    init(
+        googleDriveService: GoogleDriveServiceProtocol = GoogleDriveService(),
+        keychainService: KeychainService = .shared
+    ) {
         self.googleDriveService = googleDriveService
+        self.keychainService = keychainService
     }
 
     // MARK: - Storage Management
