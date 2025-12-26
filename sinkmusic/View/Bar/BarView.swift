@@ -15,7 +15,7 @@ struct BarView: View {
     let delay: Double
 
     @State private var targetHeight: CGFloat
-    @State private var animationTimer: Timer?
+    @State private var animationTask: Task<Void, Never>?
 
     init(isPlaying: Bool, minHeight: CGFloat, maxHeight: CGFloat, delay: Double = 0) {
         self.isPlaying = isPlaying
@@ -42,27 +42,40 @@ struct BarView: View {
                 }
             }
             .onDisappear {
-                animationTimer?.invalidate()
-                animationTimer = nil
+                animationTask?.cancel()
+                animationTask = nil
             }
     }
 
     private func startAnimation() {
-        // Iniciar con un delay si se especifica
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard self.isPlaying else { return }
-            self.animateToRandomHeight()
-            // Configurar timer para cambiar alturas periódicamente
-            self.animationTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { _ in
-                guard self.isPlaying else { return }
-                self.animateToRandomHeight()
+
+        // Cancel any existing animation
+        animationTask?.cancel()
+
+        // Start new animation task
+        animationTask = Task { @MainActor in
+            // Initial delay if specified
+            if delay > 0 {
+                try? await Task.sleep(for: .milliseconds(Int(delay * 1000)))
+            }
+            
+            guard !Task.isCancelled else { return }
+            
+            // Animate to random height immediately
+            animateToRandomHeight()
+            
+            // Continue animating while playing
+            while !Task.isCancelled && isPlaying {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled && isPlaying else { break }
+                animateToRandomHeight()
             }
         }
     }
 
     private func stopAnimation() {
-        animationTimer?.invalidate()
-        animationTimer = nil
+        animationTask?.cancel()
+        animationTask = nil
         withAnimation(.easeOut(duration: 0.2)) {
             targetHeight = minHeight
         }

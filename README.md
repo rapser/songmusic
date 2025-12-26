@@ -1,190 +1,462 @@
 # 🎵 SinkMusic
 
-Una aplicación de música moderna para iOS con reproducción de audio, gestión de playlists y sincronización con Google Drive.
+Una aplicación de música moderna para iOS con reproducción de audio de alta calidad, gestión de playlists, integración con CarPlay y sincronización con Google Drive.
 
 ## ✨ Características
 
-- 🎵 Reproducción de audio con ecualizador de 10 bandas
-- 📥 Descarga de canciones desde Google Drive
-- 🎨 Extracción automática de metadatos y artwork
-- 📋 Gestión de playlists personalizadas
-- 🔀 Modo aleatorio y repetición
-- 🎚️ Ecualizador personalizable con presets
-- 💾 Almacenamiento local con SwiftData
+### 🎵 Reproducción de Audio
+- Reproducción con AVAudioEngine y ecualizador de 6 bandas
+- Controles de reproducción avanzados (play/pause, siguiente, anterior)
+- Modo aleatorio y tres modos de repetición (off, all, one)
+- Soporte para reproducción en background
+- Integración con Lock Screen y Control Center
+- **Reanudación automática después de llamadas telefónicas** (comportamiento tipo Spotify)
+- Pausa automática al desconectar auriculares
+- Manejo robusto de interrupciones de audio (llamadas, alarmas, Siri, etc.)
+
+### 🚗 CarPlay
+- Integración nativa con CarPlay
+- Navegación por biblioteca y playlists desde el auto
+- Controles de reproducción seguros mientras conduces
+
+### 📱 Live Activities & Dynamic Island
+- Reproductor en vivo con Dynamic Island (iPhone 14 Pro+)
+- Controles de reproducción desde Lock Screen
+- Artwork y metadatos en tiempo real
+
+### 📥 Google Drive
+- Sincronización automática con carpeta de Google Drive
+- Descarga de canciones para reproducción offline
+- Extracción automática de metadatos (ID3, artwork)
+- Gestión de caché de imágenes (3 tamaños: 32x32, 64x64, full)
+
+### 📋 Playlists
+- Creación y gestión de playlists personalizadas
+- Agregar/remover canciones con gestos intuitivos
+- Contador de reproducciones y últimas canciones reproducidas
+- Grid view estilo Spotify con top songs carousel
+
+### 🎚️ Ecualizador
+- 6 bandas ajustables (60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 15kHz)
+- Presets predefinidos (Rock, Pop, Jazz, Clásica, etc.)
+- Aplicación en tiempo real sin interrumpir reproducción
+
+### 🔍 Búsqueda
+- Búsqueda en tiempo real con debouncing (300ms)
+- Filtrado por título, artista y álbum
+- Resultados instantáneos
 
 ## 🏗️ Arquitectura
 
-Este proyecto implementa **Clean Architecture + MVVM** siguiendo los principios **SOLID**.
+Este proyecto implementa **MVVM + Protocol-Oriented Programming** siguiendo los principios **SOLID** y usando **Swift 6** con concurrencia moderna.
 
-Consulta [ARCHITECTURE.md](./ARCHITECTURE.md) para más detalles sobre la arquitectura.
+### Arquitectura Modular
+
+```
+┌─────────────────────────────────────────┐
+│          Presentation Layer             │
+│  ┌─────────────┐      ┌──────────────┐ │
+│  │   Views     │◄─────┤  ViewModels  │ │
+│  │  (SwiftUI)  │      │ (@MainActor) │ │
+│  └─────────────┘      └──────┬───────┘ │
+└────────────────────────────┬─┬──────────┘
+                             │ │
+                ┌────────────┘ └─────────────┐
+                │                             │
+┌───────────────▼──────┐      ┌──────────────▼────┐
+│   Service Layer      │      │   Data Layer      │
+│  ┌────────────────┐  │      │  ┌─────────────┐  │
+│  │   Services     │  │      │  │   Models    │  │
+│  │  (Protocols)   │  │      │  │ (@Model)    │  │
+│  └────────────────┘  │      │  └─────────────┘  │
+└──────────────────────┘      └───────────────────┘
+```
 
 ### Capas Principales
 
-- **Presentation**: Views y ViewModels (SwiftUI + Combine)
-- **Domain**: UseCases y Protocolos (lógica de negocio)
-- **Data**: Repositories y Services (acceso a datos)
+#### Presentation Layer
+- **Views**: Componentes SwiftUI declarativos y reutilizables
+- **ViewModels**: Lógica de presentación con `@MainActor` para thread-safety
+  - `PlayerViewModel`: Reproducción de audio
+  - `LibraryViewModel`: Gestión de biblioteca
+  - `PlaylistViewModel`: Gestión de playlists
+  - `EqualizerViewModel`: Control de ecualizador
+  - `MetadataCacheViewModel`: Caché de artwork
+  - `RefactoredSettingsViewModel`: Configuración con Swift 6 @Observable
+
+#### Service Layer
+- **AudioPlayerService**: Reproducción con AVAudioEngine + manejo de interrupciones
+- **GoogleDriveService**: Sincronización y descarga
+- **MetadataService**: Extracción de ID3 tags
+- **CarPlayService**: Integración con CarPlay
+- **LiveActivityService**: Dynamic Island y Live Activities
+- **KeychainService**: Almacenamiento seguro de credenciales
+- **StorageManagementService**: Gestión de almacenamiento y descargas (SOLID)
+- **CredentialsManagementService**: Gestión de credenciales (SOLID)
+
+#### Data Layer
+- **SwiftData Models**: Persistencia moderna
+  - `Song`: Modelo de canción con metadatos
+  - `Playlist`: Modelo de playlist con relaciones
+
+### Principios de Diseño
+
+#### Protocol-Oriented Programming
+```swift
+// Segregación de interfaces - cada protocolo tiene una responsabilidad
+protocol AudioPlaybackProtocol {
+    func play(songID: UUID, url: URL)
+    func pause()
+    func seek(to time: TimeInterval)
+}
+
+protocol AudioEqualizerProtocol {
+    func updateEqualizer(bands: [Float])
+}
+
+// Composición de protocolos
+protocol AudioPlayerProtocol: AudioPlaybackProtocol,
+                              AudioEqualizerProtocol,
+                              RemoteControlsProtocol { }
+```
+
+#### Dependency Inversion
+```swift
+// ViewModels dependen de protocolos, no implementaciones concretas
+@MainActor
+class PlayerViewModel: ObservableObject {
+    private var audioPlayerService: AudioPlayerProtocol  // ✅ Protocol
+
+    init(audioPlayerService: AudioPlayerProtocol = AudioPlayerService()) {
+        self.audioPlayerService = audioPlayerService
+    }
+}
+```
 
 ## 🎯 Principios SOLID
 
-- ✅ **Single Responsibility**: Cada clase tiene una única responsabilidad
-- ✅ **Open/Closed**: Abierto a extensión, cerrado a modificación
-- ✅ **Liskov Substitution**: Las abstracciones son intercambiables
-- ✅ **Interface Segregation**: Interfaces específicas y focalizadas
-- ✅ **Dependency Inversion**: Dependencias de abstracciones, no implementaciones
+### ✅ Single Responsibility
+Cada clase tiene una única responsabilidad bien definida:
+- `PlayerViewModel`: Solo maneja estado de reproducción
+- `AudioPlayerService`: Solo maneja audio engine
+- `MetadataService`: Solo extrae metadatos
 
-## 🚀 Empezar
-
-### Requisitos
-
-- iOS 16.0+
-- Xcode 15.0+
-- Swift 5.9+
-
-### Instalación
-
-1. Clona el repositorio
-```bash
-git clone https://github.com/rapser/songmusic.git
-cd songmusic
+### ✅ Open/Closed
+Extensible vía protocolos sin modificar código existente:
+```swift
+protocol AudioPlayerProtocol {
+    // Nuevas funcionalidades se agregan aquí
+}
 ```
 
-2. Abre el proyecto en Xcode
-```bash
-open sinkmusic.xcodeproj
+### ✅ Liskov Substitution
+Todas las implementaciones de protocolos son intercambiables:
+```swift
+let player: AudioPlayerProtocol = AudioPlayerService()  // Intercambiable
 ```
 
-3. Compila y ejecuta (⌘R)
+### ✅ Interface Segregation ⭐
+Interfaces pequeñas y específicas:
+- `AudioPlaybackProtocol`: Solo reproducción
+- `AudioEqualizerProtocol`: Solo ecualizador
+- Compuestas en `AudioPlayerProtocol`
 
-## 📱 Uso
+### ✅ Dependency Inversion
+ViewModels y Services dependen de abstracciones (protocolos), no de clases concretas.
 
-### Configuración Inicial
+## 🚀 Tecnologías y Frameworks
 
-1. Abre la app
-2. Ve a **Configuración** (⚙️)
-3. Sincroniza la biblioteca con Google Drive
-4. Descarga tus canciones favoritas
+### Core Technologies
+- **Swift 6**: Lenguaje moderno con concurrencia nativa
+- **SwiftUI**: Framework declarativo de UI
+- **SwiftData**: Persistencia moderna (reemplazo de CoreData)
+- **async/await**: Concurrencia moderna (sin Combine)
 
-### Reproducir Música
-
-1. Ve a **Inicio** para ver tus canciones descargadas
-2. Toca una canción para reproducirla
-3. Usa el player para controlar la reproducción
-
-### Crear Playlists
-
-1. Ve a **Playlists** (📋)
-2. Toca el botón **+** para crear una nueva playlist
-3. Agrega canciones desde cualquier vista con el menú contextual
-
-### Personalizar Ecualizador
-
-1. Toca el botón de ecualizador en el player
-2. Ajusta las bandas manualmente o selecciona un preset
-3. Los cambios se aplican en tiempo real
-
-## 🛠️ Tecnologías
-
-- **SwiftUI**: Framework de UI declarativo
-- **Combine**: Programación reactiva
-- **SwiftData**: Persistencia de datos
+### Audio & Media
 - **AVFoundation**: Reproducción de audio
 - **AVAudioEngine**: Procesamiento de audio y efectos
+- **MediaPlayer**: Integración con sistema (Now Playing, Remote Commands)
+- **CarPlay Framework**: Integración con vehículos
+
+### Cloud & Storage
+- **Google Drive API**: Sincronización de música
+- **Keychain Services**: Almacenamiento seguro de tokens
+- **FileManager**: Gestión de archivos locales
+
+### UI & UX
+- **ActivityKit**: Live Activities y Dynamic Island
+- **UIKit Integration**: Para componentes específicos (feedback háptico)
+
+### Concurrency & Performance
+- **@MainActor**: Thread-safety automático para UI
+- **Task API**: Concurrencia estructurada
+- **NSLock**: Sincronización de recursos compartidos
+- **RunLoop.common**: Timers que funcionan en background
 
 ## 📂 Estructura del Proyecto
 
 ```
 sinkmusic/
+├── Application/
+│   └── sinkmusicApp.swift          # Entry point
 ├── Core/
-│   ├── Protocols/          # Interfaces (DIP)
-│   ├── Errors/             # Manejo de errores
-│   └── DependencyContainer # IoC Container
-├── Domain/
-│   └── UseCases/           # Lógica de negocio
-├── Data/
-│   └── Repositories/       # Acceso a datos
-├── Model/                  # Modelos de dominio
-├── Services/               # Servicios técnicos
-├── ViewModel/              # Lógica de presentación
-├── View/                   # Interfaz de usuario
-└── Utils/                  # Utilidades
+│   ├── Protocols/                  # Definiciones de interfaces
+│   │   ├── AudioPlayerProtocol.swift
+│   │   └── GoogleDriveServiceProtocol.swift
+│   └── Extensions/                 # Extensiones de tipos
+│       └── Color+Extension.swift
+├── Model/                          # SwiftData Models
+│   ├── Song.swift                  # @Model con metadatos
+│   └── Playlist.swift              # @Model con relaciones
+├── Services/                       # Capa de servicios
+│   ├── AudioPlayerService.swift    # AVAudioEngine
+│   ├── GoogleDriveService.swift    # API de Google Drive
+│   ├── MetadataService.swift       # Extracción ID3
+│   ├── CarPlayService.swift        # Integración CarPlay
+│   ├── LiveActivityService.swift   # Dynamic Island
+│   └── KeychainService.swift       # Almacenamiento seguro
+├── ViewModel/                      # Lógica de presentación
+│   ├── PlayerViewModel.swift       # @MainActor
+│   ├── LibraryViewModel.swift      # @MainActor
+│   ├── PlaylistViewModel.swift     # @MainActor
+│   ├── EqualizerViewModel.swift    # @MainActor
+│   └── MetadataCacheViewModel.swift # @MainActor
+├── View/                           # UI SwiftUI
+│   ├── Main/
+│   │   └── MainAppView.swift       # Tab navigation
+│   ├── Home/
+│   │   └── HomeView.swift          # Grid + Carousel
+│   ├── Player/
+│   │   ├── PlayerView.swift        # Full player
+│   │   └── MiniPlayerView.swift    # Mini player
+│   ├── Playlist/
+│   │   └── PlaylistView.swift      # Lista de playlists
+│   ├── Settings/
+│   │   └── SettingsView.swift      # Configuración
+│   └── Components/                 # Componentes reutilizables
+├── Utils/                          # Utilidades
+│   ├── PreviewData.swift           # Datos para previews
+│   └── ImageCompressionService.swift
+└── Resources/
+    └── Info.plist                  # Configuración del app
 ```
+
+## 🚀 Empezar
+
+### Requisitos
+
+- **iOS 17.0+** (requerido para Live Activities)
+- **Xcode 16.0+** (Swift 6)
+- **Cuenta de Google Drive** con API habilitada
+- **Dispositivo físico** (para CarPlay y Live Activities)
+
+### Instalación
+
+1. **Clona el repositorio**
+```bash
+git clone https://github.com/rapser/sinkmusic.git
+cd sinkmusic
+```
+
+2. **Configurar Google Drive API**
+   - Crea un proyecto en [Google Cloud Console](https://console.cloud.google.com/)
+   - Habilita Google Drive API
+   - Crea credenciales OAuth 2.0
+   - Agrega el Client ID al proyecto
+
+3. **Abre el proyecto en Xcode**
+```bash
+open sinkmusic.xcodeproj
+```
+
+4. **Configura el equipo de desarrollo**
+   - Selecciona tu equipo en Signing & Capabilities
+   - Habilita Push Notifications para Live Activities
+
+5. **Compila y ejecuta** (⌘R)
+
+### Configuración Inicial
+
+1. **Autenticación**
+   - Inicia sesión con Sign in with Apple
+   - Autoriza acceso a Google Drive
+
+2. **Sincronización**
+   - Ve a Settings → Configurar Google Drive
+   - Selecciona la carpeta con tus archivos MP3
+   - Espera la sincronización inicial
+
+3. **Descarga música**
+   - Ve a Settings → Descargar música
+   - Selecciona las canciones que deseas offline
+   - Los metadatos se extraen automáticamente
+
+## 📱 Uso
+
+### Reproducción
+
+- **Play/Pause**: Toca el botón central
+- **Siguiente/Anterior**: Botones de navegación
+- **Seek**: Desliza la barra de progreso
+- **Shuffle**: Activa/desactiva modo aleatorio
+- **Repeat**: Cicla entre Off → All → One
+
+### Ecualizador
+
+1. Toca el ícono de ecualizador en el player
+2. Ajusta las 6 bandas manualmente
+3. O selecciona un preset (Rock, Pop, Jazz, etc.)
+4. Los cambios se aplican en tiempo real
+
+### Playlists
+
+- **Crear**: Botón + en la vista de Playlists
+- **Agregar canciones**: Long press en cualquier canción
+- **Remover**: Swipe left en la lista de canciones
+- **Reproducir**: Toca cualquier canción de la playlist
+
+### CarPlay
+
+- Conecta tu iPhone al auto
+- Navega por Biblioteca o Playlists
+- Usa controles de volante/pantalla
 
 ## 🧪 Testing
 
-Para ejecutar tests:
-
 ```bash
+# Ejecutar todos los tests
 ⌘U en Xcode
+
+# Ejecutar tests específicos
+⌘ + Click en el test y seleccionar "Run"
 ```
 
-La arquitectura facilita testing con inyección de dependencias:
+La arquitectura con inyección de dependencias facilita testing:
 
 ```swift
-// Ejemplo de test con mocks
-let mockPlayer = MockAudioPlayer()
-let viewModel = RefactoredPlayerViewModel(
-    audioPlayer: mockPlayer,
-    downloadService: mockDownloadService,
-    metadataService: mockMetadataService,
-    songRepository: mockRepository
-)
+// Mock de AudioPlayerService
+class MockAudioPlayerService: AudioPlayerProtocol {
+    var playCallCount = 0
+
+    func play(songID: UUID, url: URL) {
+        playCallCount += 1
+    }
+}
+
+// Test de PlayerViewModel
+func testPlaySong() {
+    let mockPlayer = MockAudioPlayerService()
+    let viewModel = PlayerViewModel(audioPlayerService: mockPlayer)
+
+    viewModel.playSong(song)
+
+    XCTAssertEqual(mockPlayer.playCallCount, 1)
+}
 ```
 
-## 🤝 Contribuir
+## 🔧 Optimizaciones de Performance
 
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+### Memory Management
+- ✅ Todos los closures usan `[weak self]`
+- ✅ URLSession delegates se invalidan en deinit
+- ✅ Timers se cancelan apropiadamente
+- ✅ Tasks se cancelan con deinit
 
-### Lineamientos de Contribución
+### UI Performance
+- ✅ Throttling de `playbackTime` (0.5s) para evitar re-renders
+- ✅ SettingsView optimizado con valores cacheados
+- ✅ Dictionary lookup O(1) en lugar de O(n)
+- ✅ Artwork en 3 tamaños cacheados
+- ✅ Color dominante pre-calculado y persistido
 
-- Seguir principios SOLID
-- Mantener la arquitectura limpia
-- Escribir tests para nueva funcionalidad
-- Documentar cambios importantes
-
-## 📄 Licencia
-
-Este proyecto es privado y pertenece a [rapser].
-
-## 👤 Autor
-
-**rapser**
-- GitHub: [@rapser](https://github.com/rapser)
-
-## 🙏 Agradecimientos
-
-- Clean Architecture por Uncle Bob
-- Comunidad de Swift/iOS
-- Contribuidores del proyecto
+### Audio Performance
+- ✅ Timer con `RunLoop.common` para background
+- ✅ Buffer duration optimizado (5ms)
+- ✅ Sample rate preferido (44.1kHz)
+- ✅ Manejo de interrupciones (llamadas, alarmas)
 
 ## 📝 Changelog
 
-### v2.0.0 - Refactor Arquitectónico (2025-11-20)
-- ✅ Implementación completa de Clean Architecture
-- ✅ Aplicación de principios SOLID
-- ✅ Patrón Repository para acceso a datos
-- ✅ UseCases para lógica de negocio
-- ✅ Dependency Injection Container
-- ✅ Mejora en manejo de errores
-- ✅ Documentación completa de arquitectura
+Para ver el historial completo de cambios y versiones, consulta [CHANGELOG.md](./CHANGELOG.md)
 
-### v1.0.0 - Versión Inicial
-- 🎵 Reproducción de audio básica
-- 📥 Descarga de canciones
-- 📋 Gestión de playlists
-- 🎚️ Ecualizador básico
+### Última Versión: v1.0.0 (10) - 2025-12-25 🎄
+
+**Destacados:**
+- ✨ Live Activities & Dynamic Island
+- 🚗 CarPlay Integration
+- 📊 PlayCount Tracking
+- ⚡ Migración completa a Swift 6
+- 🎵 **Reanudación automática después de llamadas** (estilo Spotify)
+- 🏗️ **Refactorización de SettingsView** con SOLID y componentes reutilizables
+- 🐛 6 Memory leaks corregidos
+- 🗑️ 11 archivos eliminados (1,242 líneas)
+- 📉 53% reducción de código en SettingsView
+- 🏆 Calificación: A con SOLID ⭐⭐⭐⭐⭐
+
+## 🤝 Contribuir
+
+### Lineamientos
+
+1. **Código**
+   - Seguir principios SOLID
+   - Usar Swift 6 moderno (async/await, @MainActor)
+   - Evitar force unwraps (!)
+   - Usar guard/if-let para optionals
+
+2. **Arquitectura**
+   - Mantener separación de capas
+   - ViewModels con `@MainActor`
+   - Services con protocolos
+   - Dependency injection
+
+3. **Performance**
+   - Usar `[weak self]` en closures
+   - Cancelar Tasks en deinit
+   - Cachear valores costosos
+   - Evitar re-renders innecesarios
+
+4. **Testing**
+   - Escribir tests para nueva funcionalidad
+   - Usar mocks para dependencias
+   - Test coverage > 70%
+
+### Proceso
+
+1. Fork el proyecto
+2. Crea una rama (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## 📄 Licencia
+
+Este proyecto es privado y pertenece a **rapser**.
+
+## 👤 Autor
+
+**Miguel Tomairo (rapser)**
+- GitHub: [@rapser](https://github.com/rapser)
+- Email: [tu-email]
+
+## 🙏 Agradecimientos
+
+- **Clean Architecture** por Uncle Bob Martin
+- **Swift Community** por el soporte y recursos
+- **Apple** por los excelentes frameworks
+- **Claude** por asistencia en arquitectura y optimización
 
 ## 📞 Soporte
 
-Si encuentras algún problema o tienes sugerencias:
+¿Encontraste un bug o tienes una sugerencia?
 
-1. Abre un [Issue](https://github.com/rapser/songmusic/issues)
+1. Abre un [Issue](https://github.com/rapser/sinkmusic/issues)
 2. Describe el problema detalladamente
-3. Incluye pasos para reproducir (si aplica)
+3. Incluye:
+   - iOS version
+   - Xcode version
+   - Pasos para reproducir
+   - Screenshots/logs si aplica
 
 ---
 
-Hecho con ❤️ y Swift
+**Hecho con ❤️, Swift 6 y mucha música** 🎵

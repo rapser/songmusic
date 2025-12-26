@@ -1,14 +1,35 @@
+//
+//  RefactoredSettingsView.swift
+//  sinkmusic
+//
+//  Created by Claude Code
+//
+
 import SwiftUI
 import SwiftData
 
-struct SettingsView: View {
+// MARK: - Refactored Settings View (MVVM + SOLID + Swift 6)
+
+/// Vista de configuración refactorizada siguiendo buenas prácticas:
+/// - MVVM: Separación clara entre vista y lógica de negocio
+/// - SOLID: Componentes reutilizables, cada uno con una responsabilidad
+/// - Swift 6: Usa @Observable en lugar de @StateObject
+/// - Composición: Vista simple que ensambla componentes
+struct RefactoredSettingsView: View {
+    // MARK: - Environment & Dependencies
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
+
     @EnvironmentObject var playerViewModel: PlayerViewModel
     @EnvironmentObject var authManager: AuthenticationManager
 
+    // MARK: - State (Swift 6)
+
     @State private var viewModel = RefactoredSettingsViewModel()
     @State private var showSignOutAlert = false
+
+    // MARK: - Body
 
     var body: some View {
         ZStack {
@@ -16,23 +37,28 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // Header
                     HeaderView()
 
+                    // User Profile Section
                     if let profile = viewModel.state.userProfile {
                         UserProfileSectionView(profile: profile)
                     }
 
+                    // Account Section
                     SectionHeaderView(title: "Cuenta")
                     if let profile = viewModel.state.userProfile {
                         AccountSectionView(profile: profile)
                     }
 
+                    // Downloads Section
                     SectionHeaderView(title: "Descargas")
                     DownloadsSectionView(
                         pendingCount: viewModel.state.pendingSongsCount,
                         isGoogleDriveConfigured: viewModel.state.isGoogleDriveConfigured
                     )
 
+                    // Storage Section
                     SectionHeaderView(title: "Almacenamiento")
                     StorageSectionView(
                         totalStorage: viewModel.state.totalStorageUsed,
@@ -42,9 +68,11 @@ struct SettingsView: View {
                         }
                     )
 
+                    // About Section
                     SectionHeaderView(title: "Acerca de")
                     AboutSectionView(appVersion: "1.0.0")
 
+                    // Sign Out Button
                     SignOutButtonView {
                         showSignOutAlert = true
                     }
@@ -75,6 +103,8 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Private Methods
+
     private func updateViewModel() {
         viewModel.updateState(with: songs)
         viewModel.updateUserProfile(
@@ -90,6 +120,7 @@ struct SettingsView: View {
                 songs: songs,
                 modelContext: modelContext,
                 onCompletion: {
+                    // Pausar el reproductor si está tocando
                     if playerViewModel.isPlaying {
                         playerViewModel.pause()
                     }
@@ -98,6 +129,8 @@ struct SettingsView: View {
         }
     }
 }
+
+// MARK: - Header View
 
 private struct HeaderView: View {
     var body: some View {
@@ -111,9 +144,11 @@ private struct HeaderView: View {
     }
 }
 
+// MARK: - Preview
+
 #Preview {
     PreviewWrapper {
-        SettingsView()
+        RefactoredSettingsView()
             .environmentObject(AuthenticationManager.shared)
     }
 }

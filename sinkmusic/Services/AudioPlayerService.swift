@@ -54,6 +54,7 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
             // CRÍTICO: Configurar la categoría para permitir reproducción en background
             // y mostrar controles en el lock screen
+            // NO usar .mixWithOthers para que el sistema muestre el reproductor nativo
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
@@ -253,7 +254,10 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
     private func startPlaybackTimer() {
         playbackTimer?.invalidate()
-        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+
+        // CRÍTICO: Usar RunLoop.common para que el timer funcione en background
+        // y no se pause cuando el sistema cambia de modo (llamadas, notificaciones, etc.)
+        playbackTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self,
                   let nodeTime = self.playerNode.lastRenderTime,
                   let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
@@ -270,6 +274,9 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
                 self.onPlaybackTimeChanged?(currentTime, duration)
             }
         }
+
+        // Agregar el timer al RunLoop.common para que funcione en background
+        RunLoop.current.add(playbackTimer!, forMode: .common)
     }
 
     // MARK: - Equalizer
@@ -317,40 +324,66 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
 
         switch type {
         case .began:
+            // La interrupción comenzó (llamada entrante, alarma, Siri, etc.)
             if playerNode.isPlaying {
                 wasPlayingBeforeInterruption = true
                 pause()
             }
 
         case .ended:
-            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else {
-                return
-            }
-
-            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-
-            if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                    guard let self = self, let songID = self.currentlyPlayingID else { return }
-
-                    do {
-                        try AVAudioSession.sharedInstance().setActive(true)
-                    } catch {
-                        // Error al reactivar la sesión
-                    }
-
-                    self.playerNode.play()
-                    if !self.audioEngine.isRunning {
-                        try? self.audioEngine.start()
-                    }
-                    self.startPlaybackTimer()
-                    Task { @MainActor in
-                        self.onPlaybackStateChanged?(true, songID)
-                    }
-                    self.wasPlayingBeforeInterruption = false
+            // La interrupción terminó (llamada finalizada, alarma detenida, etc.)
+            // MEJORA: Intentar reanudar siempre que estábamos reproduciendo antes,
+            // sin depender exclusivamente del flag shouldResume que a veces no llega
+            if wasPlayingBeforeInterruption {
+                // Obtener las opciones de interrupción si están disponibles
+                let shouldResume: Bool
+                if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                    let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                    shouldResume = options.contains(.shouldResume)
+                } else {
+                    // Si no hay opciones, asumir que podemos reanudar
+                    // Este es el comportamiento más amigable para el usuario
+                    shouldResume = true
                 }
-            } else {
-                wasPlayingBeforeInterruption = false
+
+                if shouldResume {
+                    // Delay ligeramente mayor para dar tiempo a que el sistema libere recursos
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                        guard let self = self, let songID = self.currentlyPlayingID else {
+                            return
+                        }
+
+                        do {
+                            // Reactivar la sesión de audio
+                            try AVAudioSession.sharedInstance().setActive(true)
+
+                            // Reanudar la reproducción
+                            if !self.audioEngine.isRunning {
+                                try self.audioEngine.start()
+                            }
+
+                            self.playerNode.play()
+                            self.startPlaybackTimer()
+
+                            // Notificar el cambio de estado
+                            Task { @MainActor in
+                                self.onPlaybackStateChanged?(true, songID)
+                            }
+
+                            self.wasPlayingBeforeInterruption = false
+                        } catch {
+                            // Si falla la reanudación, resetear el flag
+                            self.wasPlayingBeforeInterruption = false
+
+                            // Notificar que no se pudo reanudar
+                            Task { @MainActor in
+                                self.onPlaybackStateChanged?(false, songID)
+                            }
+                        }
+                    }
+                } else {
+                    wasPlayingBeforeInterruption = false
+                }
             }
 
         @unknown default:
