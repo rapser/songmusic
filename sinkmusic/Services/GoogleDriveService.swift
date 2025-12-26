@@ -235,11 +235,11 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
         return "https://drive.google.com/uc?export=download&id=\(fileId)"
     }
 
-    deinit {
-        // CRÍTICO: Invalidar URLSession para romper el ciclo de retención
-        // URLSession mantiene una referencia fuerte a su delegate
-        urlSession.invalidateAndCancel()
-    }
+    // NOTA: No usar deinit aquí porque:
+    // 1. GoogleDriveService se usa como instancia compartida entre ViewModels
+    // 2. invalidateAndCancel() cancelaría todas las descargas activas
+    // 3. URLSession se limpia automáticamente al finalizar la app
+    // 4. Para evitar el retain cycle, se usa weak self en los delegates
 }
 
 // MARK: - URLSessionDownloadDelegate
