@@ -1,9 +1,17 @@
+//
+//  SongDTO.swift
+//  sinkmusic
+//
+//  Created by miguel tomairo on 6/09/25.
+//  Migrated to DTO on 3/01/26.
+//
 
 import Foundation
 import SwiftData
 
+/// DTO (Data Transfer Object) para SwiftData - Capa de persistencia
 @Model
-final class Song: Identifiable {
+final class SongDTO: Identifiable {
     @Attribute(.unique) var id: UUID
     var title: String
     var artist: String
@@ -25,7 +33,7 @@ final class Song: Identifiable {
     var lastPlayedAt: Date?
 
     // Relación con playlists (muchos a muchos)
-    var playlists: [Playlist] = []
+    var playlists: [PlaylistDTO] = []
 
     init(id: UUID = UUID(), title: String, artist: String, album: String? = nil, author: String? = nil, fileID: String, isDownloaded: Bool = false, duration: TimeInterval? = nil, artworkData: Data? = nil) {
         self.id = id
@@ -41,7 +49,7 @@ final class Song: Identifiable {
 }
 
 // MARK: - Helper Extensions
-extension Song {
+extension SongDTO {
     /// Obtiene la URL local del archivo descargado
     /// Replica la lógica de GoogleDriveService.localURL(for:)
     var localURL: URL? {
@@ -64,8 +72,8 @@ extension Song {
 }
 
 // MARK: - Hashable
-extension Song: Hashable {
-    static func == (lhs: Song, rhs: Song) -> Bool {
+extension SongDTO: Hashable {
+    static func == (lhs: SongDTO, rhs: SongDTO) -> Bool {
         lhs.id == rhs.id
     }
 

@@ -1,15 +1,17 @@
 //
-//  Playlist.swift
+//  PlaylistDTO.swift
 //  sinkmusic
 //
 //  Created by miguel tomairo on 6/09/25.
+//  Migrated to DTO on 3/01/26.
 //
 
 import Foundation
 import SwiftData
 
+/// DTO (Data Transfer Object) para SwiftData - Capa de persistencia
 @Model
-final class Playlist {
+final class PlaylistDTO {
     var id: UUID
     var name: String
     var desc: String
@@ -18,8 +20,8 @@ final class Playlist {
     var coverImageData: Data?
 
     // Relación con canciones (muchos a muchos)
-    @Relationship(deleteRule: .nullify, inverse: \Song.playlists)
-    var songs: [Song]
+    @Relationship(deleteRule: .nullify, inverse: \SongDTO.playlists)
+    var songs: [SongDTO]
 
     init(
         id: UUID = UUID(),
@@ -28,7 +30,7 @@ final class Playlist {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         coverImageData: Data? = nil,
-        songs: [Song] = []
+        songs: [SongDTO] = []
     ) {
         self.id = id
         self.name = name
