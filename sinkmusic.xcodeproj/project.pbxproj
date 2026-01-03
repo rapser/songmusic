@@ -14,7 +14,7 @@
 		460FE7F82E6DD56F00249628 /* Exceptions for "sinkmusic" folder in "sinkmusic" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
+				Resources/Info.plist,
 			);
 			target = 464D59E62E6CE82800DE10FF /* sinkmusic */;
 		};
@@ -264,14 +264,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = sinkmusic/sinkmusic.entitlements;
+				CODE_SIGN_ENTITLEMENTS = sinkmusic/Application/Configuration/sinkmusic.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 8AJBS923B3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = sinkmusic/Info.plist;
+				INFOPLIST_FILE = sinkmusic/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = musicApp;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -297,14 +297,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = sinkmusic/sinkmusic.entitlements;
+				CODE_SIGN_ENTITLEMENTS = sinkmusic/Application/Configuration/sinkmusic.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 8AJBS923B3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = sinkmusic/Info.plist;
+				INFOPLIST_FILE = sinkmusic/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = musicApp;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
