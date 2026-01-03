@@ -17,6 +17,38 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     private let audioPlayerService: AudioPlayerService
 
+    // MARK: - Callbacks
+
+    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? {
+        get { audioPlayerService.onPlaybackStateChanged }
+        set { audioPlayerService.onPlaybackStateChanged = newValue }
+    }
+
+    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? {
+        get { audioPlayerService.onPlaybackTimeChanged }
+        set { audioPlayerService.onPlaybackTimeChanged = newValue }
+    }
+
+    var onSongFinished: (@MainActor (UUID) -> Void)? {
+        get { audioPlayerService.onSongFinished }
+        set { audioPlayerService.onSongFinished = newValue }
+    }
+
+    var onRemotePlayPause: (@MainActor () -> Void)? {
+        get { audioPlayerService.onRemotePlayPause }
+        set { audioPlayerService.onRemotePlayPause = newValue }
+    }
+
+    var onRemoteNext: (@MainActor () -> Void)? {
+        get { audioPlayerService.onRemoteNext }
+        set { audioPlayerService.onRemoteNext = newValue }
+    }
+
+    var onRemotePrevious: (@MainActor () -> Void)? {
+        get { audioPlayerService.onRemotePrevious }
+        set { audioPlayerService.onRemotePrevious = newValue }
+    }
+
     // MARK: - Initialization
 
     init(audioPlayerService: AudioPlayerService) {
@@ -25,7 +57,7 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     // MARK: - AudioPlayerRepositoryProtocol
 
-    func play(songID: UUID, url: URL) async {
+    func play(songID: UUID, url: URL) async throws {
         audioPlayerService.play(songID: songID, url: url)
     }
 
@@ -39,6 +71,10 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     func seek(to time: TimeInterval) async {
         audioPlayerService.seek(to: time)
+    }
+
+    func isPlaying() async -> Bool {
+        return audioPlayerService.isPlaying
     }
 
     func updateEqualizer(bands: [Float]) async {
@@ -61,34 +97,6 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
             currentTime: currentTime,
             artwork: artwork
         )
-    }
-
-    // MARK: - State Observation
-
-    func observePlaybackState(onChange: @escaping @MainActor (Bool, UUID?) -> Void) {
-        audioPlayerService.onPlaybackStateChanged = onChange
-    }
-
-    func observePlaybackTime(onChange: @escaping @MainActor (TimeInterval, TimeInterval) -> Void) {
-        audioPlayerService.onPlaybackTimeChanged = onChange
-    }
-
-    func observeSongFinished(onFinish: @escaping @MainActor (UUID) -> Void) {
-        audioPlayerService.onSongFinished = onFinish
-    }
-
-    // MARK: - Remote Controls
-
-    func observeRemotePlayPause(onCommand: @escaping @MainActor () -> Void) {
-        audioPlayerService.onRemotePlayPause = onCommand
-    }
-
-    func observeRemoteNext(onCommand: @escaping @MainActor () -> Void) {
-        audioPlayerService.onRemoteNext = onCommand
-    }
-
-    func observeRemotePrevious(onCommand: @escaping @MainActor () -> Void) {
-        audioPlayerService.onRemotePrevious = onCommand
     }
 }
 

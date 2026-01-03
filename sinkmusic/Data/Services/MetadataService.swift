@@ -10,16 +10,7 @@ import AVFoundation
 import UIKit
 import OSLog
 
-struct SongMetadata {
-    let title: String
-    let artist: String
-    let album: String // Siempre tendrá un valor, por defecto "Álbum Desconocido"
-    let author: String?
-    let duration: TimeInterval
-    let artwork: Data?
-    let artworkThumbnail: Data? // Thumbnail pequeño generado automáticamente (32x32, < 1KB)
-    let artworkMediumThumbnail: Data? // Thumbnail medio para listas (64x64, < 5KB)
-}
+// SongMetadata is defined in Domain/RepositoryProtocols/MetadataRepositoryProtocol.swift
 
 /// Servicio para extraer metadatos de archivos de audio
 /// Implementa MetadataServiceProtocol cumpliendo con SOLID

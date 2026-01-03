@@ -12,40 +12,6 @@ import AVFoundation
 typealias DownloadService = GoogleDriveService
 typealias DownloadServiceProtocol = GoogleDriveServiceProtocol
 
-struct GoogleDriveFile: Codable, Identifiable {
-    let id: String
-    let name: String
-    let mimeType: String
-
-    var title: String {
-        let components = name.components(separatedBy: " - ")
-        if components.count >= 2 {
-            let titleWithExtension = components[1]
-            return titleWithExtension.replacingOccurrences(of: ".m4a", with: "")
-        }
-        return name.replacingOccurrences(of: ".m4a", with: "")
-    }
-
-    var artist: String {
-        let components = name.components(separatedBy: " - ")
-        if components.count >= 2 {
-            return components[0]
-        }
-        return "Artista Desconocido"
-    }
-}
-
-struct GoogleDriveResponse: Codable {
-    let files: [GoogleDriveFile]
-    let nextPageToken: String?
-}
-
-enum GoogleDriveError: Error {
-    case credentialsNotConfigured
-    case missingAPIKey
-    case missingFolderId
-}
-
 /// Servicio consolidado para interactuar con Google Drive API y manejar descargas
 final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
     private let keychainService = KeychainService.shared
@@ -161,21 +127,21 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Download
 
-    func download(song: Song, progressCallback: ((Double) -> Void)? = nil) async throws -> URL {
+    func download(fileID: String, songID: UUID, progressCallback: @escaping (Double) -> Void) async throws -> URL {
         guard let apiKey = keychainService.googleDriveAPIKey else {
             print("❌ ERROR: API Key no configurada para descarga")
             throw GoogleDriveError.missingAPIKey
         }
 
-        let downloadURLString = "https://www.googleapis.com/drive/v3/files/\(song.fileID)?alt=media&key=\(apiKey)"
+        let downloadURLString = "https://www.googleapis.com/drive/v3/files/\(fileID)?alt=media&key=\(apiKey)"
         guard let url = URL(string: downloadURLString) else {
-            print("❌ URL de descarga inválida para fileID: \(song.fileID)")
+            print("❌ URL de descarga inválida para fileID: \(fileID)")
             throw NSError(domain: "GoogleDriveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"])
         }
 
         print("📥 Iniciando descarga de Google Drive:")
-        print("   Song ID: \(song.id.uuidString)")
-        print("   File ID: \(song.fileID)")
+        print("   Song ID: \(songID.uuidString)")
+        print("   File ID: \(fileID)")
         print("   URL: \(downloadURLString)")
 
         let request = URLRequest(url: url)
@@ -183,9 +149,9 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
         return try await withCheckedThrowingContinuation { continuation in
             let downloadTask = urlSession.downloadTask(with: request)
             downloadsLock.lock()
-            activeDownloads[downloadTask.taskIdentifier] = (song.id, continuation, progressCallback)
+            activeDownloads[downloadTask.taskIdentifier] = (songID, continuation, progressCallback)
             downloadsLock.unlock()
-            
+
             print("   Tarea creada - Task ID: \(downloadTask.taskIdentifier)")
             downloadTask.resume()
         }

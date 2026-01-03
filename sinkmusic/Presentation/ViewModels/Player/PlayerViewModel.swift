@@ -385,10 +385,3 @@ final class PlayerViewModel {
     }
 }
 
-// MARK: - Repeat Mode
-
-enum RepeatMode: String, Sendable {
-    case off
-    case repeatAll
-    case repeatOne
-}

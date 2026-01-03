@@ -33,8 +33,7 @@ protocol GoogleDriveRepositoryProtocol: Sendable {
     func localURL(for songID: UUID) -> URL?
 }
 
-/// Estructura para archivos de Google Drive (ya existe en GoogleDriveService)
-/// Se mantiene aquí para referencia del protocolo
+/// Estructura para archivos de Google Drive
 struct GoogleDriveFile: Codable, Identifiable, Sendable {
     let id: String
     let name: String
@@ -49,4 +48,17 @@ struct GoogleDriveFile: Codable, Identifiable, Sendable {
         let components = name.components(separatedBy: " - ")
         return components.first ?? "Artista Desconocido"
     }
+}
+
+/// Respuesta de Google Drive API
+struct GoogleDriveResponse: Codable {
+    let files: [GoogleDriveFile]
+    let nextPageToken: String?
+}
+
+/// Errores de Google Drive
+enum GoogleDriveError: Error {
+    case credentialsNotConfigured
+    case missingAPIKey
+    case missingFolderId
 }

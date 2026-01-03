@@ -173,21 +173,4 @@ final class LibraryViewModel {
 }
 
 // MARK: - Sync Error
-
-enum SyncError: Error, Equatable {
-    case invalidCredentials
-    case emptyFolder
-    case networkError(String)
-
-    static func == (lhs: SyncError, rhs: SyncError) -> Bool {
-        switch (lhs, rhs) {
-        case (.invalidCredentials, .invalidCredentials),
-             (.emptyFolder, .emptyFolder):
-            return true
-        case (.networkError(let lhsMsg), .networkError(let rhsMsg)):
-            return lhsMsg == rhsMsg
-        default:
-            return false
-        }
-    }
-}
+// SyncError is defined in Core/Errors/SyncError.swift

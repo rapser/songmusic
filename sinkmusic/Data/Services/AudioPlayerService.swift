@@ -35,6 +35,11 @@ final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDele
     // Swift 6: Optimización de memoria - liberar recursos cuando no se reproduce
     private var resourceCleanupTimer: Timer?
 
+    // Propiedad pública para verificar el estado de reproducción
+    var isPlaying: Bool {
+        return playerNode.isPlaying
+    }
+
     override init() {
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()

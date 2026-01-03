@@ -130,39 +130,45 @@ struct PlaylistDetailView: View {
                     .padding(.bottom, 20)
 
                     // Songs List
-                    if playlist.songs.isEmpty {
+                    if viewModel.songsInPlaylist.isEmpty {
                         EmptyPlaylistSongsView(onAddSongs: { showAddSongsSheet = true })
                     } else {
                         LazyVStack(spacing: 0) {
-                            ForEach(playlist.songs) { song in
+                            ForEach(viewModel.songsInPlaylist) { song in
                                 SongRow(
                                     song: song,
-                                    songQueue: playlist.songs,
+                                    songQueue: viewModel.songsInPlaylist,
                                     isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
                                     isPlaying: playerViewModel.isPlaying,
                                     onPlay: {
-                                        if let url = song.localURL {
-                                            playerViewModel.play(song: song, from: url, in: playlist.songs)
+                                        Task {
+                                            await playerViewModel.play(songID: song.id, queue: viewModel.songsInPlaylist)
                                         }
                                     },
                                     onPause: {
-                                        playerViewModel.pause()
+                                        Task {
+                                            await playerViewModel.pause()
+                                        }
                                     },
                                     showAddToPlaylistForSong: $songForPlaylistSheet,
                                     playlist: playlist,
                                     onRemoveFromPlaylist: {
-                                        viewModel.removeSong(song, from: playlist)
+                                        Task {
+                                            await viewModel.removeSongFromPlaylist(songID: song.id, playlistID: playlist.id)
+                                        }
                                     }
                                 )
 
-                                if song.id != playlist.songs.last?.id {
+                                if song.id != viewModel.songsInPlaylist.last?.id {
                                     Divider()
                                         .background(Color.white.opacity(0.1))
                                         .padding(.leading, 20)
                                 }
                             }
                             .onMove { source, destination in
-                                viewModel.reorderSongs(in: playlist, from: source, to: destination)
+                                Task {
+                                    await viewModel.reorderSongsInPlaylist(playlistID: playlist.id, fromOffsets: source, toOffset: destination)
+                                }
                             }
                         }
                         .environment(\.editMode, $editMode)
@@ -172,16 +178,19 @@ struct PlaylistDetailView: View {
                 }
             }
         }
+        .task {
+            await viewModel.loadSongsInPlaylist(playlist.id)
+        }
         .sheet(isPresented: $showAddSongsSheet) {
-            AddSongsToPlaylistView(viewModel: viewModel, playlist: playlist)
+            AddSongsToPlaylistView(playlist: playlist)
         }
         .sheet(item: $songForPlaylistSheet) { song in
-            AddToPlaylistView(viewModel: viewModel, song: song)
+            AddToPlaylistView(song: song)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                if !playlist.songs.isEmpty {
+                if !viewModel.songsInPlaylist.isEmpty {
                     Button(editMode == .active ? "Listo" : "Editar") {
                         withAnimation {
                             editMode = editMode == .active ? .inactive : .active
@@ -203,8 +212,10 @@ struct PlaylistDetailView: View {
         .alert("¿Eliminar playlist?", isPresented: $showDeleteAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
-                viewModel.deletePlaylist(playlist)
-                dismiss()
+                Task {
+                    await viewModel.deletePlaylist(playlist.id)
+                    dismiss()
+                }
             }
         } message: {
             Text("Esta acción no se puede deshacer")
@@ -212,9 +223,10 @@ struct PlaylistDetailView: View {
     }
 
     private func playAll() {
-        guard let firstSong = playlist.songs.first,
-              let url = firstSong.localURL else { return }
-        playerViewModel.play(song: firstSong, from: url, in: playlist.songs)
+        guard let firstSong = viewModel.songsInPlaylist.first else { return }
+        Task {
+            await playerViewModel.play(songID: firstSong.id, queue: viewModel.songsInPlaylist)
+        }
     }
 }
 

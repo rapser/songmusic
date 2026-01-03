@@ -20,7 +20,7 @@ final class StorageManagementService: SettingsServiceProtocol {
 
     // MARK: - SettingsServiceProtocol
 
-    func calculateStorageUsed(for songs: [Song]) -> String {
+    func calculateStorageUsed(for songs: [SongEntity]) -> String {
         let fileManager = FileManager.default
         var totalSize: Int64 = 0
 
@@ -42,17 +42,17 @@ final class StorageManagementService: SettingsServiceProtocol {
         return formatBytes(totalSize)
     }
 
-    func filterPendingSongs(_ songs: [Song]) -> [Song] {
+    func filterPendingSongs(_ songs: [SongEntity]) -> [SongEntity] {
         songs.filter { !$0.isDownloaded }
     }
 
-    func filterDownloadedSongs(_ songs: [Song]) -> [Song] {
+    func filterDownloadedSongs(_ songs: [SongEntity]) -> [SongEntity] {
         songs.filter { $0.isDownloaded }
     }
 
     @MainActor
     func deleteAllDownloads(
-        songs: [Song],
+        songs: [SongEntity],
         modelContext: ModelContext
     ) async throws {
         let downloadedSongs = filterDownloadedSongs(songs)
@@ -61,12 +61,17 @@ final class StorageManagementService: SettingsServiceProtocol {
             // Eliminar el archivo descargado
             try? googleDriveService.deleteDownload(for: song.id)
 
-            // Resetear los datos de la canción
-            song.isDownloaded = false
-            song.duration = nil
-            song.artworkData = nil
-            song.album = nil
-            song.author = nil
+            // Buscar el DTO correspondiente en el ModelContext y actualizar
+            let descriptor = FetchDescriptor<SongDTO>(
+                predicate: #Predicate { $0.id == song.id }
+            )
+            if let songDTO = try? modelContext.fetch(descriptor).first {
+                songDTO.isDownloaded = false
+                songDTO.duration = nil
+                songDTO.artworkData = nil
+                songDTO.album = nil
+                songDTO.author = nil
+            }
         }
 
         // Guardar todos los cambios

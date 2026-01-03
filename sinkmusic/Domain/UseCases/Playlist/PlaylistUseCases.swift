@@ -212,15 +212,6 @@ struct PlaylistStats: Sendable {
     }
 }
 
-// MARK: - Errors
-
-enum PlaylistError: Error {
-    case playlistNotFound
-    case songNotFound
-    case duplicateSong
-    case invalidOperation
-}
-
 // MARK: - Sendable Conformance
 
 extension PlaylistUseCases: Sendable {}

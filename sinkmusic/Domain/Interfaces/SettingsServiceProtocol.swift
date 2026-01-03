@@ -13,18 +13,18 @@ import SwiftData
 /// Protocolo para gestión de configuraciones y almacenamiento
 protocol SettingsServiceProtocol: Sendable {
     /// Calcula el espacio de almacenamiento usado
-    func calculateStorageUsed(for songs: [Song]) -> String
+    func calculateStorageUsed(for songs: [SongEntity]) -> String
 
     /// Filtra canciones pendientes
-    func filterPendingSongs(_ songs: [Song]) -> [Song]
+    func filterPendingSongs(_ songs: [SongEntity]) -> [SongEntity]
 
     /// Filtra canciones descargadas
-    func filterDownloadedSongs(_ songs: [Song]) -> [Song]
+    func filterDownloadedSongs(_ songs: [SongEntity]) -> [SongEntity]
 
     /// Elimina todas las descargas
     @MainActor
     func deleteAllDownloads(
-        songs: [Song],
+        songs: [SongEntity],
         modelContext: ModelContext
     ) async throws
 }

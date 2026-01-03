@@ -26,10 +26,11 @@ protocol GoogleDriveServiceProtocol {
 
     /// Descarga una canción de Google Drive con callback de progreso
     /// - Parameters:
-    ///   - song: La canción a descargar
-    ///   - progressCallback: Closure opcional que recibe el progreso (0.0 a 1.0, o -1 para indeterminado)
+    ///   - fileID: Identificador del archivo en Google Drive
+    ///   - songID: Identificador de la canción
+    ///   - progressCallback: Closure que recibe el progreso (0.0 a 1.0)
     /// - Returns: URL local donde se guardó el archivo
-    func download(song: Song, progressCallback: ((Double) -> Void)?) async throws -> URL
+    func download(fileID: String, songID: UUID, progressCallback: @escaping (Double) -> Void) async throws -> URL
 
     // MARK: - Local File Management
 
