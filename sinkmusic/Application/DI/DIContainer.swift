@@ -81,16 +81,18 @@ final class DIContainer {
     }
 
     private func makeAudioPlayerRepository() -> AudioPlayerRepositoryProtocol {
-        AudioPlayerRepositoryImpl(
-            audioPlayerService: audioPlayerService,
-            liveActivityService: liveActivityService
-        )
+        AudioPlayerRepositoryImpl(audioPlayerService: audioPlayerService)
     }
 
     private func makeGoogleDriveRepository() -> GoogleDriveRepositoryProtocol {
-        GoogleDriveRepositoryImpl(
-            remoteDataSource: GoogleDriveRemoteDataSource(),
-            credentialsRepository: credentialsRepository
+        guard let context = modelContext else {
+            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
+        }
+        let songLocalDataSource = SongLocalDataSource(modelContext: context)
+        let googleDriveService = GoogleDriveService()
+        return GoogleDriveRepositoryImpl(
+            googleDriveService: googleDriveService,
+            songLocalDataSource: songLocalDataSource
         )
     }
 
@@ -99,10 +101,8 @@ final class DIContainer {
     }
 
     private func makeMetadataRepository() -> MetadataRepositoryProtocol {
-        MetadataRepositoryImpl(
-            metadataService: MetadataService(),
-            imageCompressionService: ImageCompressionService()
-        )
+        let metadataService = MetadataService()
+        return MetadataRepositoryImpl(metadataService: metadataService)
     }
 
     // MARK: - Use Case Factories
