@@ -2,7 +2,7 @@
 //  CreatePlaylistView.swift
 //  sinkmusic
 //
-//  Created by miguel tomairo on 6/09/25.
+//  Refactorizado con Clean Architecture
 //
 
 import SwiftUI
@@ -10,7 +10,7 @@ import PhotosUI
 
 struct CreatePlaylistView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @Environment(PlaylistViewModel.self) private var viewModel
 
     @State private var playlistName = ""
     @State private var playlistDescription = ""
@@ -141,25 +141,22 @@ struct CreatePlaylistView: View {
     }
 
     private func createPlaylist() {
-        let playlist = Playlist(
-            name: playlistName,
-            description: playlistDescription,
-            coverImageData: coverImageData
-        )
-
-        modelContext.insert(playlist)
-
-        do {
-            try modelContext.save()
-            dismiss()
-        } catch {
-            print("❌ Error al crear playlist: \(error)")
+        Task {
+            await viewModel.createPlaylist(
+                name: playlistName,
+                description: playlistDescription.isEmpty ? nil : playlistDescription,
+                coverImageData: coverImageData
+            )
             dismiss()
         }
     }
 }
 
 #Preview {
-    CreatePlaylistView()
-        .modelContainer(PreviewContainer.shared.container)
+    PreviewWrapper(
+        playlistVM: PreviewViewModels.playlistVM(),
+        modelContainer: PreviewData.container(with: PreviewSongs.generate())
+    ) {
+        CreatePlaylistView()
+    }
 }

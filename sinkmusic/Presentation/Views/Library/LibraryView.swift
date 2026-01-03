@@ -2,12 +2,13 @@
 import SwiftUI
 
 struct LibraryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    // MARK: - ViewModels (Clean Architecture)
+    @Environment(PlayerViewModel.self) private var playerViewModel
+    @Environment(PlaylistViewModel.self) private var playlistViewModel
 
     var body: some View {
         NavigationStack {
-            PlaylistListView(modelContext: modelContext)
+            PlaylistListView()
         }
     }
 }

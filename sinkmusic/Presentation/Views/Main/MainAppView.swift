@@ -2,30 +2,30 @@ import SwiftUI
 import SwiftData
 
 struct MainAppView: View {
-    @EnvironmentObject private var playerViewModel: PlayerViewModel
+    // MARK: - ViewModels (Clean Architecture)
+    @Environment(PlayerViewModel.self) private var playerViewModel
+    @Environment(LibraryViewModel.self) private var libraryViewModel
     @EnvironmentObject private var metadataViewModel: MetadataCacheViewModel
-    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
+
     @Namespace private var animation
 
-    @State private var currentSong: Song? = nil
-    @State private var debugMessage = ""
-    @State private var showDebugInfo = true
-    @State private var songsLookup: [UUID: Song] = [:]
+    @State private var currentSongEntity: SongEntity? = nil
+    @State private var songsLookup: [UUID: SongEntity] = [:]
 
     init() {
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
         tabBarAppearance.backgroundColor =  UIColor(Color.appGray)
-        
+
         let textAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor(Color.textGray)]
         let selectedTextAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.white]
-        
+
         tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(Color.textGray)
         tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = textAttributes
-        
+
         tabBarAppearance.stackedLayoutAppearance.selected.iconColor = .white
         tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = selectedTextAttributes
-        
+
         UITabBar.appearance().standardAppearance = tabBarAppearance
         UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
     }
@@ -47,9 +47,9 @@ struct MainAppView: View {
             .accentColor(.white)
 
             // PlayerView completo - Aparición instantánea
-            if let currentSong = currentSong, playerViewModel.showPlayerView {
+            if let currentSong = currentSongEntity, playerViewModel.showPlayerView {
                 PlayerView(
-                    songs: songs,
+                    songs: libraryViewModel.songs,
                     currentSong: currentSong,
                     namespace: animation
                 )
@@ -57,7 +57,7 @@ struct MainAppView: View {
             }
 
             // Mini Player - Aparición instantánea como Spotify
-            if let currentSong = currentSong,
+            if let currentSong = currentSongEntity,
                playerViewModel.currentlyPlayingID != nil,
                !playerViewModel.showPlayerView {
 
@@ -65,7 +65,7 @@ struct MainAppView: View {
                     songID: currentSong.id,
                     title: currentSong.title,
                     artist: currentSong.artist,
-                    dominantColor: Color.dominantColor(from: currentSong),
+                    dominantColor: currentSong.dominantColor,
                     namespace: animation
                 )
                 .padding(.horizontal, 8)
@@ -78,49 +78,36 @@ struct MainAppView: View {
             }
         }
         .task {
-            // Crear lookup dictionary una vez al inicio
             updateSongsLookup()
         }
         .onChange(of: playerViewModel.currentlyPlayingID) { oldValue, newValue in
-            // Usar lookup O(1) en lugar de first O(n)
-            if let playingID = newValue, let song = songsLookup[playingID] {
-                // CRÍTICO: Cachear artwork ANTES de asignar currentSong
-                // Usa thumbnail (pequeño) para mini player y artwork completo para player grande
-                // Esto garantiza rendimiento óptimo con 100+ canciones
-                metadataViewModel.cacheArtwork(
-                    from: song.artworkData,
-                    thumbnail: song.artworkThumbnail
-                )
-                currentSong = song
+            if let playingID = newValue {
+                // Buscar en la library en lugar del lookup para asegurar datos frescos
+                if let song = libraryViewModel.songs.first(where: { $0.id == playingID }) {
+                    metadataViewModel.cacheArtwork(
+                        from: song.artworkData,
+                        thumbnail: song.artworkThumbnail
+                    )
+                    currentSongEntity = song
+                }
             } else {
                 metadataViewModel.clearCache()
-                currentSong = nil
+                currentSongEntity = nil
             }
-            updateDebugInfo()
         }
-        .onChange(of: songs) { oldValue, newValue in
-            // Actualizar lookup solo cuando cambian las canciones
+        .onChange(of: libraryViewModel.songs) { oldValue, newValue in
             updateSongsLookup()
+
+            // Actualizar currentSong si la canción actual cambió en la biblioteca
+            if let playingID = playerViewModel.currentlyPlayingID,
+               let updatedSong = newValue.first(where: { $0.id == playingID }) {
+                currentSongEntity = updatedSong
+            }
         }
     }
 
     private func updateSongsLookup() {
-        // O(n) solo cuando cambian las canciones, no en cada render
-        songsLookup = Dictionary(uniqueKeysWithValues: songs.map { ($0.id, $0) })
-
-        // Actualizar currentSong con el nuevo lookup
-        if let playingID = playerViewModel.currentlyPlayingID {
-            currentSong = songsLookup[playingID]
-        }
-    }
-    
-    private func updateDebugInfo() {
-        debugMessage = """
-        Song: \(currentSong?.title.prefix(15) ?? "nil")
-        ID: \(playerViewModel.currentlyPlayingID?.uuidString.prefix(8) ?? "nil")
-        Playing: \(playerViewModel.isPlaying)
-        ShowPlayer: \(playerViewModel.showPlayerView)
-        """
+        songsLookup = Dictionary(uniqueKeysWithValues: libraryViewModel.songs.map { ($0.id, $0) })
     }
 }
 
@@ -130,4 +117,3 @@ struct MainAppView: View {
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
     ) { MainAppView() }
 }
-

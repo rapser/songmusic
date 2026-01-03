@@ -7,8 +7,8 @@
 import SwiftUI
 
 struct TopSongsCarousel: View {
-    let songs: [Song]
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    let songs: [SongEntity]
+    @Environment(PlayerViewModel.self) private var playerViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -25,8 +25,8 @@ struct TopSongsCarousel: View {
                         ForEach(songs) { song in
                             TopSongCard(song: song)
                                 .onTapGesture {
-                                    if let url = song.localURL {
-                                        playerViewModel.play(song: song, from: url, in: songs)
+                                    Task {
+                                        await playerViewModel.play(songID: song.id, queue: songs)
                                     }
                                 }
                         }

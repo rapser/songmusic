@@ -2,17 +2,13 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Playlist.updatedAt, order: .reverse) private var playlists: [Playlist]
-    @Query private var allSongs: [Song]
+    // MARK: - ViewModels (Clean Architecture)
+    @Environment(HomeViewModel.self) private var viewModel
+    @Environment(PlayerViewModel.self) private var playerViewModel
 
-    @EnvironmentObject var playerViewModel: PlayerViewModel
-
-    var topSongs: [Song] {
-        // Filtrar solo canciones descargadas con playCount > 0
-        let downloadedSongs = allSongs.filter { $0.isDownloaded && $0.playCount > 0 }
-        // Ordenar por playCount descendente y tomar las primeras 6
-        return Array(downloadedSongs.sorted { $0.playCount > $1.playCount }.prefix(6))
+    var topSongs: [SongEntity] {
+        // Ya viene ordenado por playCount desde el ViewModel
+        Array(viewModel.mostPlayedSongs.prefix(6))
     }
 
     var body: some View {
@@ -34,17 +30,31 @@ struct HomeView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
 
-                        // Playlists Grid
-                        PlaylistGridView(playlists: Array(playlists.prefix(8)))
+                        // Loading State
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .padding()
+                        } else {
+                            // Playlists Grid
+                            PlaylistGridView(playlists: Array(viewModel.playlists.prefix(8)))
 
-                        // Top Songs Carousel
-                        TopSongsCarousel(songs: topSongs)
+                            // Top Songs Carousel
+                            TopSongsCarousel(songs: topSongs)
+                        }
 
                         Spacer(minLength: 100)
                     }
                 }
+                .refreshable {
+                    await viewModel.refresh()
+                }
             }
             .navigationBarHidden(true)
+        }
+        .task {
+            // Cargar datos al aparecer la vista
+            await viewModel.loadData()
         }
     }
 }

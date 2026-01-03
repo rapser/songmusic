@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct SearchResultRow: View, Equatable {
-    let song: Song
+    let song: SongEntity
     let currentlyPlayingID: UUID?
     let isPlaying: Bool
     let onTap: () -> Void

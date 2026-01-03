@@ -13,7 +13,7 @@ struct PlayerControlsView: View {
     let artist: String
     let dominantColor: Color
     var namespace: Namespace.ID
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    @Environment(PlayerViewModel.self) private var playerViewModel
     @EnvironmentObject var metadataViewModel: MetadataCacheViewModel
 
     private var progress: Double {

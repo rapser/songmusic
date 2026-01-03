@@ -3,9 +3,9 @@ import SwiftUI
 import SwiftData
 
 struct SearchView: View {
-    @EnvironmentObject var playerViewModel: PlayerViewModel
-    @StateObject private var searchViewModel = SearchViewModel()
-    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
+    // MARK: - ViewModels (Clean Architecture)
+    @Environment(SearchViewModel.self) private var viewModel
+    @Environment(PlayerViewModel.self) private var playerViewModel
 
     var body: some View {
         NavigationStack {
@@ -14,23 +14,48 @@ struct SearchView: View {
 
                 VStack(spacing: 0) {
                     // Barra de búsqueda
-                    SearchBar(text: $searchViewModel.searchText)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                    SearchBar(text: Binding(
+                        get: { viewModel.searchQuery },
+                        set: { newValue in
+                            viewModel.searchQuery = newValue
+                            Task {
+                                await viewModel.search()
+                            }
+                        }
+                    ))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
 
                     // Filtros
-                    FilterPicker(selectedFilter: $searchViewModel.selectedFilter)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                    FilterPicker(selectedFilter: Binding(
+                        get: {
+                            // Mapear SortOption a SearchFilter (legacy)
+                            convertToSearchFilter(viewModel.sortOption)
+                        },
+                        set: { newFilter in
+                            let sortOption = convertToSortOption(newFilter)
+                            Task {
+                                await viewModel.changeSortOption(sortOption)
+                            }
+                        }
+                    ))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
 
+                    // Loading State
+                    if viewModel.isSearching {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .padding()
+                    }
                     // Resultados
-                    if searchViewModel.searchText.isEmpty {
+                    else if viewModel.searchQuery.isEmpty {
                         EmptySearchView()
-                    } else if searchViewModel.filteredSongs.isEmpty {
+                    } else if viewModel.searchResults.isEmpty {
                         NoResultsView()
                     } else {
                         SearchResultsList(
-                            songs: searchViewModel.filteredSongs,
+                            songs: viewModel.searchResults,
                             playerViewModel: playerViewModel
                         )
                     }
@@ -45,11 +70,29 @@ struct SearchView: View {
                 }
             }
         }
-        .onAppear {
-            searchViewModel.updateSongs(songs)
+        .task {
+            // Cargar datos iniciales
+            await viewModel.loadAggregations()
+            await viewModel.loadRecommendations()
         }
-        .onChange(of: songs) {
-            searchViewModel.updateSongs(songs)
+    }
+
+    // MARK: - Helpers para compatibilidad con FilterPicker legacy
+
+    private func convertToSearchFilter(_ sortOption: SortOption) -> SearchFilter {
+        switch sortOption {
+        case .title: return .all
+        case .artist: return .downloaded
+        case .playCount: return .notDownloaded
+        default: return .all
+        }
+    }
+
+    private func convertToSortOption(_ filter: SearchFilter) -> SortOption {
+        switch filter {
+        case .all: return .title
+        case .downloaded: return .artist
+        case .notDownloaded: return .playCount
         }
     }
 }

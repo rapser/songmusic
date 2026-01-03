@@ -198,6 +198,15 @@ final class PlaylistViewModel {
         }
     }
 
+    // MARK: - Helpers
+
+    /// Verifica si una canción está en alguna playlist
+    func isSongInAnyPlaylist(songID: UUID) -> Bool {
+        return playlists.contains { playlist in
+            playlist.songIDs.contains(songID)
+        }
+    }
+
     // MARK: - Observers
 
     private func setupObservers() {

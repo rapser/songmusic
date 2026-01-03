@@ -2,13 +2,14 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    // MARK: - ViewModels (Clean Architecture)
+    @Environment(SettingsViewModel.self) private var viewModel
+    @Environment(PlayerViewModel.self) private var playerViewModel
+    @Environment(LibraryViewModel.self) private var libraryViewModel
     @EnvironmentObject var authManager: AuthenticationManager
 
-    @State private var viewModel = RefactoredSettingsViewModel()
     @State private var showSignOutAlert = false
+    @State private var showDeleteAllAlert = false
 
     var body: some View {
         ZStack {
@@ -18,32 +19,33 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HeaderView()
 
-                    if let profile = viewModel.state.userProfile {
+                    // User Profile Section
+                    if let profile = makeUserProfile() {
                         UserProfileSectionView(profile: profile)
                     }
 
                     SectionHeaderView(title: "Cuenta")
-                    if let profile = viewModel.state.userProfile {
+                    if let profile = makeUserProfile() {
                         AccountSectionView(profile: profile)
                     }
 
                     SectionHeaderView(title: "Descargas")
                     DownloadsSectionView(
-                        pendingCount: viewModel.state.pendingSongsCount,
-                        isGoogleDriveConfigured: viewModel.state.isGoogleDriveConfigured
+                        pendingCount: pendingSongsCount,
+                        isGoogleDriveConfigured: viewModel.hasCredentials()
                     )
 
                     SectionHeaderView(title: "Almacenamiento")
                     StorageSectionView(
-                        totalStorage: viewModel.state.totalStorageUsed,
-                        downloadedCount: viewModel.state.downloadedSongsCount,
+                        totalStorage: viewModel.storageInfo?.formattedTotalSize ?? "0 MB",
+                        downloadedCount: viewModel.downloadStats?.totalDownloaded ?? 0,
                         onDeleteAll: {
-                            viewModel.showDeleteAllAlert = true
+                            showDeleteAllAlert = true
                         }
                     )
 
                     SectionHeaderView(title: "Acerca de")
-                    AboutSectionView(appVersion: "1.0.0")
+                    AboutSectionView(appVersion: viewModel.appInfo?.fullVersion ?? "1.0.0")
 
                     SignOutButtonView {
                         showSignOutAlert = true
@@ -51,19 +53,19 @@ struct SettingsView: View {
                 }
             }
         }
-        .onAppear {
-            updateViewModel()
+        .task {
+            // Cargar información al aparecer
+            await viewModel.loadAllInfo()
         }
-        .onChange(of: songs) { _, _ in
-            updateViewModel()
-        }
-        .alert("Eliminar todas las descargas", isPresented: $viewModel.showDeleteAllAlert) {
+        .alert("Eliminar todas las descargas", isPresented: $showDeleteAllAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
-                handleDeleteAllDownloads()
+                Task {
+                    await handleDeleteAllDownloads()
+                }
             }
         } message: {
-            Text("Se eliminarán \(viewModel.state.downloadedSongsCount) canciones descargadas. Esta acción no se puede deshacer.")
+            Text("Se eliminarán \(viewModel.downloadStats?.totalDownloaded ?? 0) canciones descargadas. Esta acción no se puede deshacer.")
         }
         .alert("Cerrar sesión", isPresented: $showSignOutAlert) {
             Button("Cancelar", role: .cancel) {}
@@ -75,27 +77,37 @@ struct SettingsView: View {
         }
     }
 
-    private func updateViewModel() {
-        viewModel.updateState(with: songs)
-        viewModel.updateUserProfile(
-            fullName: authManager.userFullName,
-            email: authManager.userEmail,
-            userID: authManager.userID
+    // MARK: - Helpers
+
+    private func makeUserProfile() -> UserProfile? {
+        guard let fullName = authManager.userFullName,
+              let email = authManager.userEmail,
+              let userID = authManager.userID else {
+            return nil
+        }
+        return UserProfile(
+            fullName: fullName,
+            email: email,
+            userID: userID
         )
     }
 
-    private func handleDeleteAllDownloads() {
-        Task {
-            await viewModel.deleteAllDownloads(
-                songs: songs,
-                modelContext: modelContext,
-                onCompletion: {
-                    if playerViewModel.isPlaying {
-                        playerViewModel.pause()
-                    }
-                }
-            )
+    private var pendingSongsCount: Int {
+        // Canciones no descargadas
+        libraryViewModel.songs.filter { !$0.isDownloaded }.count
+    }
+
+    private func handleDeleteAllDownloads() async {
+        // Pausar reproducción si está activa
+        if playerViewModel.isPlaying {
+            await playerViewModel.pause()
         }
+
+        // Eliminar todas las descargas
+        await viewModel.deleteAllDownloads()
+
+        // Recargar información
+        await viewModel.loadAllInfo()
     }
 }
 

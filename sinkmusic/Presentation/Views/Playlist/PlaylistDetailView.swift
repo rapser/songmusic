@@ -9,23 +9,17 @@ import SwiftUI
 import SwiftData
 
 struct PlaylistDetailView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel: PlaylistViewModel
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    @Environment(PlaylistViewModel.self) private var viewModel
+    @Environment(PlayerViewModel.self) private var playerViewModel
     @EnvironmentObject var songListViewModel: SongListViewModel
 
-    let playlist: Playlist
+    let playlist: PlaylistEntity
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddSongsSheet = false
-    @State private var songForPlaylistSheet: Song?
+    @State private var songForPlaylistSheet: SongEntity?
     @State private var editMode: EditMode = .inactive
-
-    init(playlist: Playlist, modelContext: ModelContext) {
-        self.playlist = playlist
-        _viewModel = StateObject(wrappedValue: PlaylistViewModel(modelContext: modelContext))
-    }
 
     var body: some View {
         ZStack {

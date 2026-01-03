@@ -19,10 +19,9 @@ struct SongInfoView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 if isCurrentlyPlaying {
-                    // TODO: - Corregir
-//                    PlayingBarsIndicator(isPlaying: isPlaying)
                     Image(systemName: "waveform")
                         .foregroundColor(.appPurple)
+                        .symbolEffect(.variableColor.iterative.reversing, isActive: isPlaying)
                 }
 
                 Text(title)
@@ -36,6 +35,5 @@ struct SongInfoView: View {
                 .foregroundColor(.textGray)
                 .lineLimit(1)
         }
-        
     }
 }

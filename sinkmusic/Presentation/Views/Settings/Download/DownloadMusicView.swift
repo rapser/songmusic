@@ -2,29 +2,26 @@
 //  DownloadMusicView.swift
 //  sinkmusic
 //
-//  Created by miguel tomairo on 6/09/25.
+//  Refactorizado con Clean Architecture
 //
 
 import SwiftUI
 import SwiftData
 
 struct DownloadMusicView: View {
-    @Environment(\.modelContext) private var modelContext
+    // MARK: - ViewModels (Clean Architecture)
+    @Environment(PlayerViewModel.self) private var playerViewModel
+    @Environment(LibraryViewModel.self) private var libraryViewModel
+    @Environment(PlaylistViewModel.self) private var playlistViewModel
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: [SortDescriptor(\Song.title)]) private var songs: [Song]
-    @EnvironmentObject var playerViewModel: PlayerViewModel
-    @EnvironmentObject var songListViewModel: SongListViewModel
-    @EnvironmentObject var libraryViewModel: LibraryViewModel
-    
-    @State private var songForPlaylistSheet: Song?
 
-    var pendingSongs: [Song] {
-        songs.filter { !$0.isDownloaded }
+    @State private var songForPlaylistSheet: SongEntity?
+
+    var pendingSongs: [SongEntity] {
+        libraryViewModel.songs.filter { !$0.isDownloaded }
     }
 
     var body: some View {
-        let playlistViewModel = PlaylistViewModel(modelContext: modelContext)
-        
         ZStack {
             Color.appDark.ignoresSafeArea()
 
@@ -63,7 +60,7 @@ struct DownloadMusicView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 40)
-                } else if songs.isEmpty && !libraryViewModel.isLoadingSongs {
+                } else if libraryViewModel.songs.isEmpty && !libraryViewModel.isLoadingSongs {
                     // No hay canciones en la biblioteca
                     VStack(spacing: 20) {
                         Spacer()
@@ -84,7 +81,9 @@ struct DownloadMusicView: View {
                         }
 
                         Button(action: {
-                            libraryViewModel.syncLibraryWithCatalog(modelContext: modelContext)
+                            Task {
+                                await libraryViewModel.syncLibraryWithCatalog()
+                            }
                         }) {
                             Text("Sincronizar")
                                 .font(.system(size: 14, weight: .semibold))
@@ -168,12 +167,17 @@ struct DownloadMusicView: View {
                                         isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
                                         isPlaying: playerViewModel.isPlaying,
                                         onPlay: {
-                                            if let url = song.localURL {
-                                                playerViewModel.play(song: song, from: url, in: pendingSongs)
+                                            Task {
+                                                await playerViewModel.play(
+                                                    songID: song.id,
+                                                    queue: pendingSongs
+                                                )
                                             }
                                         },
                                         onPause: {
-                                            playerViewModel.pause()
+                                            Task {
+                                                await playerViewModel.pause()
+                                            }
                                         },
                                         showAddToPlaylistForSong: $songForPlaylistSheet
                                     )
@@ -186,7 +190,7 @@ struct DownloadMusicView: View {
             }
         }
         .sheet(item: $songForPlaylistSheet) { song in
-            AddToPlaylistView(viewModel: playlistViewModel, song: song)
+            AddToPlaylistView(song: song)
         }
         .navigationTitle("Descargar música")
         .navigationBarTitleDisplayMode(.large)
@@ -198,10 +202,6 @@ struct DownloadMusicView: View {
         libraryVM: PreviewViewModels.libraryVM(),
         songListVM: PreviewViewModels.songListVM(),
         playerVM: PreviewViewModels.playerVM(),
-        modelContainer: PreviewContainer.shared.container
-    ) {
-        NavigationStack {
-            DownloadMusicView()
-        }
-    }
+        modelContainer: PreviewData.container(with: PreviewSongs.generate())
+    ) { DownloadMusicView() }
 }

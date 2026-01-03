@@ -2,7 +2,7 @@
 //  AddToPlaylistView.swift
 //  sinkmusic
 //
-//  Created by miguel tomairo on 6/09/25.
+//  Refactorizado con Clean Architecture
 //
 
 import SwiftUI
@@ -10,18 +10,17 @@ import SwiftData
 
 struct AddToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\Playlist.updatedAt, order: .reverse)]) private var playlists: [Playlist]
-    @ObservedObject var viewModel: PlaylistViewModel
-    let song: Song
+    @Environment(PlaylistViewModel.self) private var viewModel
+
+    let song: SongEntity
 
     @State private var searchText = ""
 
-    var filteredPlaylists: [Playlist] {
+    var filteredPlaylists: [PlaylistEntity] {
         if searchText.isEmpty {
-            return playlists
+            return viewModel.playlists
         } else {
-            return playlists.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            return viewModel.playlists.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
     }
 
@@ -56,7 +55,7 @@ struct AddToPlaylistView: View {
 
                     // New Playlist Button
                     Button(action: {
-                        viewModel.showCreatePlaylist = true
+                        // TODO: Implement create playlist flow
                     }) {
                         HStack(spacing: 12) {
                             ZStack {
@@ -106,7 +105,7 @@ struct AddToPlaylistView: View {
                                     PlaylistSelectRow(
                                         playlist: playlist,
                                         song: song,
-                                        isAdded: playlist.songs.contains(where: { $0.id == song.id })
+                                        isAdded: playlist.songIDs.contains(song.id)
                                     )
                                     .contentShape(Rectangle())
                                     .onTapGesture {
@@ -136,21 +135,17 @@ struct AddToPlaylistView: View {
                 }
             }
         }
-        .sheet(isPresented: $viewModel.showCreatePlaylist) {
-            CreatePlaylistView()
-                .environment(\.modelContext, modelContext)
-        }
     }
 
-    private func addToPlaylist(_ playlist: Playlist) {
-        viewModel.addSong(song, to: playlist)
+    private func addToPlaylist(_ playlist: PlaylistEntity) {
+        Task {
+            await viewModel.addSongToPlaylist(songID: song.id, playlistID: playlist.id)
 
-        // Haptic feedback
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+            // Haptic feedback
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
 
-        // Auto-dismiss after a short delay
-        Task { @MainActor in
+            // Auto-dismiss after a short delay
             try? await Task.sleep(for: .milliseconds(300))
             dismiss()
         }
@@ -158,8 +153,10 @@ struct AddToPlaylistView: View {
 }
 
 #Preview {
-    AddToPlaylistView(
-        viewModel: PlaylistViewModel(modelContext: PreviewContainer.shared.mainContext),
-        song: PreviewSongs.single()
-    )
+    PreviewWrapper(
+        playlistVM: PreviewViewModels.playlistVM(),
+        modelContainer: PreviewData.container(with: PreviewSongs.generate())
+    ) {
+        AddToPlaylistView(song: PreviewSongs.single().toEntity())
+    }
 }

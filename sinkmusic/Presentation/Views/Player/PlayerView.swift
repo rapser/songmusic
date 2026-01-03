@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct PlayerView: View {
-    @EnvironmentObject var playerViewModel: PlayerViewModel
+    @Environment(PlayerViewModel.self) private var playerViewModel
     @EnvironmentObject var metadataViewModel: MetadataCacheViewModel
-    var songs: [Song]
-    var currentSong: Song
+    var songs: [SongEntity]
+    var currentSong: SongEntity
     var namespace: Namespace.ID
 
     @State private var sliderValue: Double = 0

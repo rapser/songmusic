@@ -2,19 +2,19 @@
 //  RefactoredSettingsView.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  DEPRECATED - Legacy file
+//  Este archivo ya no se usa. La vista activa es SettingsView.swift
+//  que usa Clean Architecture con SettingsViewModel del DIContainer.
 //
 
 import SwiftUI
 import SwiftData
 
-// MARK: - Refactored Settings View (MVVM + SOLID + Swift 6)
+// MARK: - DEPRECATED - Legacy Refactored Settings View
 
-/// Vista de configuración refactorizada siguiendo buenas prácticas:
-/// - MVVM: Separación clara entre vista y lógica de negocio
-/// - SOLID: Componentes reutilizables, cada uno con una responsabilidad
-/// - Swift 6: Usa @Observable en lugar de @StateObject
-/// - Composición: Vista simple que ensambla componentes
+/// ⚠️ DEPRECATED: Este archivo ya no se usa.
+/// Usar SettingsView.swift en su lugar, que utiliza Clean Architecture.
+@available(*, deprecated, message: "Use SettingsView.swift instead")
 struct RefactoredSettingsView: View {
     // MARK: - Environment & Dependencies
 

@@ -9,9 +9,8 @@ import SwiftUI
 
 struct GoogleDriveConfigView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var libraryViewModel: LibraryViewModel
-    @StateObject private var settingsViewModel = SettingsViewModel()
+    @Environment(LibraryViewModel.self) private var libraryViewModel
+    @Environment(SettingsViewModel.self) private var settingsViewModel
     
     var body: some View {
         ZStack {

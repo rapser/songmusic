@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct EqualizerView: View {
-    @EnvironmentObject var equalizerViewModel: EqualizerViewModel
+    @Environment(EqualizerViewModel.self) private var equalizerViewModel
     @Environment(\.dismiss) var dismiss
 
     var body: some View {

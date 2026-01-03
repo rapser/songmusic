@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct TopSongCard: View {
-    let song: Song
+    let song: SongEntity
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

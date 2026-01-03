@@ -10,7 +10,7 @@ import SwiftUI
 import SwiftData
 
 struct AddSongRow: View {
-    let song: Song
+    let song: SongEntity
     let onAdd: () -> Void
     
     @State private var wasAdded = false

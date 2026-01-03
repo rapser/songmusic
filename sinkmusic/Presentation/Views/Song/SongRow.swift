@@ -8,23 +8,21 @@
 import SwiftUI
 
 struct SongRow: View {
-    let song: Song
-    let songQueue: [Song]
+    let song: SongEntity
+    let songQueue: [SongEntity]
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
     let onPlay: () -> Void
     let onPause: () -> Void
 
-    @Binding var showAddToPlaylistForSong: Song?
+    @Binding var showAddToPlaylistForSong: SongEntity?
     @EnvironmentObject var songListViewModel: SongListViewModel
     @Environment(\.modelContext) private var modelContext
 
-    // Parámetros opcionales para cuando se usa dentro de una playlist
-    var playlist: Playlist? = nil
+    var playlist: PlaylistEntity? = nil
     var onRemoveFromPlaylist: (() -> Void)? = nil
 
     @State private var showSongMenu = false
-    @State private var isPressed = false
     @State private var showErrorAlert = false
 
     var body: some View {
@@ -50,28 +48,14 @@ struct SongRow: View {
                 }
             )
         }
-        .drawingGroup()
         .padding(.vertical, 8)
         .padding(.horizontal, 20)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isPressed ? Color(white: 0.2) : (isCurrentlyPlaying ? Color.appGray.opacity(0.3) : Color.clear))
+                .fill(isCurrentlyPlaying ? Color.appGray.opacity(0.3) : Color.clear)
         )
         .listRowBackground(Color.appDark)
         .contentShape(Rectangle())
-        // .simultaneousGesture(
-        //     DragGesture(minimumDistance: 0)
-        //         .onChanged { _ in
-        //             withAnimation(.linear(duration: 0.05)) {
-        //                 isPressed = true
-        //             }
-        //         }
-        //         .onEnded { _ in
-        //             withAnimation(.linear(duration: 0.05)) {
-        //                 isPressed = false
-        //             }
-        //         }
-        // )
         .onTapGesture {
             onPlay()
         }
@@ -119,8 +103,8 @@ struct SongRow: View {
 
 #Preview(traits: .sizeThatFitsLayout) {
     struct SongRowPreview: View {
-        @State private var songForPlaylistSheet: Song?
-        
+        @State private var songForPlaylistSheet: SongEntity?
+
         var body: some View {
             PreviewWrapper(
                 songListVM: PreviewViewModels.songListVM(),
@@ -128,8 +112,8 @@ struct SongRow: View {
                 modelContainer: PreviewData.container(with: [PreviewSongs.single()])
             ) {
                 SongRow(
-                    song: PreviewSongs.single(),
-                    songQueue: [PreviewSongs.single()],
+                    song: PreviewSongs.single().toEntity(),
+                    songQueue: [PreviewSongs.single().toEntity()],
                     isCurrentlyPlaying: true,
                     isPlaying: true,
                     onPlay: { print("Play tapped") },
@@ -141,6 +125,6 @@ struct SongRow: View {
             }
         }
     }
-    
+
     return SongRowPreview()
 }

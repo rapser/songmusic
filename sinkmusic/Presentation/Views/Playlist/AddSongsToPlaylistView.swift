@@ -2,7 +2,7 @@
 //  AddSongsToPlaylistView.swift
 //  sinkmusic
 //
-//  Created by miguel tomairo on 12/21/25.
+//  Refactorizado con Clean Architecture
 //
 
 import SwiftUI
@@ -10,11 +10,10 @@ import SwiftData
 
 struct AddSongsToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: PlaylistViewModel
-    let playlist: Playlist
+    @Environment(PlaylistViewModel.self) private var viewModel
+    @Environment(LibraryViewModel.self) private var libraryViewModel
 
-    // Query for all downloaded songs
-    @Query private var allSongs: [Song]
+    let playlist: PlaylistEntity
 
     // Paginación
     @State private var displayedSongsCount = 30 // Mostrar 30 canciones inicialmente
@@ -23,12 +22,14 @@ struct AddSongsToPlaylistView: View {
     // Búsqueda
     @State private var searchText = ""
 
-    private var availableSongs: [Song] {
-        // Filtrar solo canciones descargadas que NO están en NINGUNA playlist
-        let baseSongs = allSongs.filter { $0.isDownloaded && $0.playlists.isEmpty }
+    private var availableSongs: [SongEntity] {
+        // Filtrar solo canciones descargadas que NO están en ninguna playlist
+        let baseSongs = libraryViewModel.songs.filter { song in
+            song.isDownloaded && !viewModel.isSongInAnyPlaylist(songID: song.id)
+        }
 
         // Aplicar filtro de búsqueda si hay texto
-        let filteredSongs: [Song]
+        let filteredSongs: [SongEntity]
         if searchText.isEmpty {
             filteredSongs = baseSongs
         } else {
@@ -42,7 +43,7 @@ struct AddSongsToPlaylistView: View {
         return filteredSongs.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    private var displayedSongs: [Song] {
+    private var displayedSongs: [SongEntity] {
         Array(availableSongs.prefix(displayedSongsCount))
     }
 
@@ -74,7 +75,9 @@ struct AddSongsToPlaylistView: View {
                                 ForEach(displayedSongs) { song in
                                     VStack(spacing: 0) {
                                         AddSongRow(song: song) {
-                                            viewModel.addSong(song, to: playlist)
+                                            Task {
+                                                await viewModel.addSongToPlaylist(songID: song.id, playlistID: playlist.id)
+                                            }
                                         }
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 8)
