@@ -3,10 +3,10 @@
 //  sinkmusic
 //
 //  Refactorizado con Clean Architecture
+//  No SwiftData dependency
 //
 
 import SwiftUI
-import SwiftData
 
 struct AddToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
@@ -152,11 +152,11 @@ struct AddToPlaylistView: View {
     }
 }
 
-#Preview {
-    PreviewWrapper(
-        playlistVM: PreviewViewModels.playlistVM(),
-        modelContainer: PreviewData.container(with: PreviewSongs.generate())
-    ) {
-        AddToPlaylistView(song: PreviewSongs.single().toEntity())
-    }
-}
+//#Preview {
+//    PreviewWrapper(
+//        playlistVM: PreviewViewModels.playlistVM(),
+//        modelContainer: PreviewData.container(with: PreviewSongs.generate())
+//    ) {
+//        AddToPlaylistView(song: PreviewSongs.single().toEntity())
+//    }
+//}

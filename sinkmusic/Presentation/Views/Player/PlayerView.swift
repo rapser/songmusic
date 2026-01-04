@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlayerView: View {
     @Environment(PlayerViewModel.self) private var playerViewModel
-    @EnvironmentObject var metadataViewModel: MetadataCacheViewModel
+    @Environment(MetadataCacheViewModel.self) private var metadataViewModel
     var songs: [SongEntity]
     var currentSong: SongEntity
     var namespace: Namespace.ID
@@ -13,7 +13,7 @@ struct PlayerView: View {
     @State private var dragOffset: CGFloat = 0
 
     private var dominantColor: Color {
-        Color.dominantColor(from: currentSong)
+        Color.dominantColor(from: currentSong.artworkData)
     }
 
     var body: some View {
@@ -62,9 +62,9 @@ struct PlayerView: View {
                     isShuffleEnabled: playerViewModel.isShuffleEnabled,
                     repeatMode: playerViewModel.repeatMode,
                     onToggleShuffle: { playerViewModel.toggleShuffle() },
-                    onPrevious: { playerViewModel.playPrevious(currentSong: currentSong, allSongs: songs) },
+                    onPrevious: { playerViewModel.playPrevious },
                     onPlayPause: { playerViewModel.togglePlayPause() },
-                    onNext: { playerViewModel.playNext(currentSong: currentSong, allSongs: songs) },
+                    onNext: { playerViewModel.playNext },
                     onToggleRepeat: { playerViewModel.toggleRepeat() }
                 )
 
@@ -91,11 +91,7 @@ struct PlayerView: View {
         )
         .onAppear {
             sliderValue = playerViewModel.playbackTime
-            if currentSong.cachedDominantColorRed == nil {
-                Task(priority: .utility) {
-                    Color.cacheAndGetDominantColor(for: currentSong)
-                }
-            }
+            // El color dominante se calcula automáticamente cuando se necesita
         }
         .onChange(of: currentSong.id) { oldValue, newValue in
             sliderValue = 0
@@ -114,14 +110,14 @@ struct PlayerView: View {
     }
 }
 
-#Preview {
-    PreviewWrapper(
-        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.generate().first!.id)
-    ) {
-        PlayerView(
-            songs: PreviewSongs.generate(downloaded: true),
-            currentSong: PreviewSongs.generate(downloaded: true).first!,
-            namespace: Namespace().wrappedValue
-        )
-    }
-}
+//#Preview {
+//    PreviewWrapper(
+//        playerVM: PreviewViewModels.playerVM(songID: PreviewSongs.generate().first!.id)
+//    ) {
+//        PlayerView(
+//            songs: PreviewSongs.generate(downloaded: true),
+//            currentSong: PreviewSongs.generate(downloaded: true).first!,
+//            namespace: Namespace().wrappedValue
+//        )
+//    }
+//}

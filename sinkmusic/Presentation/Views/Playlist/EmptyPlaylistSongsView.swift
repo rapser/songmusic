@@ -5,11 +5,9 @@
 //  Created by miguel tomairo on 23/12/25.
 //
 
-
 import SwiftUI
-import SwiftData
 
-struct EmptyPlaylistSongsView: View {
+struct EmptyPlaylistSongsView: View{
     var onAddSongs: (() -> Void)? = nil
     
     var body: some View {

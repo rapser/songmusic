@@ -46,6 +46,8 @@ final class DIContainer {
 
     private(set) lazy var metadataRepository: MetadataRepositoryProtocol = makeMetadataRepository()
 
+    private(set) lazy var authRepository: AuthRepositoryProtocol = makeAuthRepository()
+
     // MARK: - Use Cases (Lazy initialization)
 
     private(set) lazy var playerUseCases: PlayerUseCases = makePlayerUseCases()
@@ -103,6 +105,10 @@ final class DIContainer {
     private func makeMetadataRepository() -> MetadataRepositoryProtocol {
         let metadataService = MetadataService()
         return MetadataRepositoryImpl(metadataService: metadataService)
+    }
+
+    private func makeAuthRepository() -> AuthRepositoryProtocol {
+        AuthRepositoryImpl(authManager: authManager)
     }
 
     // MARK: - Use Case Factories
@@ -197,5 +203,10 @@ final class DIContainer {
             playlistUseCases: playlistUseCases,
             songRepository: songRepository
         )
+    }
+
+    /// Factory para DownloadViewModel - Crea nueva instancia cada vez
+    func makeDownloadViewModel() -> DownloadViewModel {
+        DownloadViewModel(downloadUseCases: downloadUseCases)
     }
 }

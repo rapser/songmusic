@@ -14,9 +14,13 @@ struct LibraryView: View {
 }
 
 #Preview {
-    NavigationStack {
-        LibraryView()
-            .modelContainer(PreviewContainer.shared.container)
-            .environmentObject(PreviewViewModels.playerVM(songID: UUID()))
+    PreviewWrapper(
+        playerVM: PreviewViewModels.playerVM(songID: UUID()),
+        playlistVM: PreviewViewModels.playlistVM(),
+        modelContainer: PreviewContainer.shared.container
+    ) {
+        NavigationStack {
+            LibraryView()
+        }
     }
 }

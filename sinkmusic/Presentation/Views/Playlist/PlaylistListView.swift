@@ -3,10 +3,10 @@
 //  sinkmusic
 //
 //  Refactorizado con Clean Architecture
+//  No SwiftData dependency
 //
 
 import SwiftUI
-import SwiftData
 
 struct PlaylistListView: View {
     // MARK: - ViewModels (Clean Architecture)
@@ -71,7 +71,7 @@ struct PlaylistListView: View {
             }
         }
         .sheet(isPresented: $showCreatePlaylist) {
-            CreatePlaylistView(showCreatePlaylist: $showCreatePlaylist)
+            CreatePlaylistView()
         }
         .task {
             // Cargar playlists al aparecer

@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 struct HomeView: View {
     // MARK: - ViewModels (Clean Architecture)

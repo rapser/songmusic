@@ -1,7 +1,6 @@
 
 import SwiftUI
 import UIKit
-import SwiftData
 
 extension Color {
     // Colores de la app
@@ -10,59 +9,17 @@ extension Color {
     static let appGray = Color(red: 40/255, green: 40/255, blue: 40/255)
     static let textGray = Color(red: 179/255, green: 179/255, blue: 179/255)
 
-    // Extraer color dominante de una canción con caché
-    static func dominantColor(from song: Song) -> Color {
-        // Si ya está cacheado, devolverlo inmediatamente
-        if let r = song.cachedDominantColorRed,
-           let g = song.cachedDominantColorGreen,
-           let b = song.cachedDominantColorBlue {
-            return Color(red: r, green: g, blue: b)
-        }
-        
-        // Si no hay caché, calcularlo
-        guard let imageData = song.artworkData,
-              let uiImage = UIImage(data: imageData),
-              let cgImage = uiImage.cgImage else {
-            return Color.appGray
-        }
-        
-        let color = extractDominantColor(from: cgImage)
-        
-        // Guardar en caché (se debe hacer desde un contexto que permita mutación)
-        return color
-    }
-    
-    // Versión legacy para compatibilidad
+    /// Extrae el color dominante de los datos de imagen
+    /// - Parameter imageData: Datos de la imagen (artwork)
+    /// - Returns: Color dominante o appGray si no se puede calcular
     static func dominantColor(from imageData: Data?) -> Color {
         guard let imageData = imageData,
               let uiImage = UIImage(data: imageData),
               let cgImage = uiImage.cgImage else {
             return Color.appGray
         }
-        
+
         return extractDominantColor(from: cgImage)
-    }
-    
-    // Método para cachear el color en el modelo Song
-    static func cacheAndGetDominantColor(for song: Song) -> Color {
-        // Si ya está cacheado, devolverlo inmediatamente
-        if let r = song.cachedDominantColorRed,
-           let g = song.cachedDominantColorGreen,
-           let b = song.cachedDominantColorBlue {
-            return Color(red: r, green: g, blue: b)
-        }
-        
-        // Calcular el color
-        let color = dominantColor(from: song.artworkData)
-        
-        // Extraer componentes RGB
-        if let components = UIColor(color).cgColor.components, components.count >= 3 {
-            song.cachedDominantColorRed = Double(components[0])
-            song.cachedDominantColorGreen = Double(components[1])
-            song.cachedDominantColorBlue = Double(components[2])
-        }
-        
-        return color
     }
     
     private static func extractDominantColor(from cgImage: CGImage) -> Color {

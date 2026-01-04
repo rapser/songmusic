@@ -5,9 +5,7 @@
 //  Created by miguel tomairo on 23/12/25.
 //
 
-
 import SwiftUI
-import SwiftData
 
 struct AddSongRow: View {
     let song: SongEntity

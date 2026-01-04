@@ -52,10 +52,11 @@ final class PlaylistUseCases {
         let newPlaylist = PlaylistEntity(
             id: UUID(),
             name: name,
-            description: description,
-            coverImageData: nil,
+            description: description ?? "",
             createdAt: Date(),
-            songIDs: []
+            updatedAt: Date(),
+            coverImageData: nil,
+            songs: []
         )
 
         return try await playlistRepository.create(newPlaylist)
@@ -81,9 +82,10 @@ final class PlaylistUseCases {
             id: playlist.id,
             name: newName,
             description: playlist.description,
-            coverImageData: playlist.coverImageData,
             createdAt: playlist.createdAt,
-            songIDs: playlist.songIDs
+            updatedAt: Date(),
+            coverImageData: playlist.coverImageData,
+            songs: playlist.songs
         )
 
         try await playlistRepository.update(playlist)
@@ -119,14 +121,7 @@ final class PlaylistUseCases {
             throw PlaylistError.playlistNotFound
         }
 
-        var songs: [SongEntity] = []
-        for songID in playlist.songIDs {
-            if let song = try await songRepository.getByID(songID) {
-                songs.append(song)
-            }
-        }
-
-        return songs
+        return playlist.songs
     }
 
     // MARK: - Playlist Organization
@@ -137,16 +132,17 @@ final class PlaylistUseCases {
             throw PlaylistError.playlistNotFound
         }
 
-        var songIDs = playlist.songIDs
-        songIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        var songs = playlist.songs
+        songs.move(fromOffsets: fromOffsets, toOffset: toOffset)
 
         playlist = PlaylistEntity(
             id: playlist.id,
             name: playlist.name,
             description: playlist.description,
-            coverImageData: playlist.coverImageData,
             createdAt: playlist.createdAt,
-            songIDs: songIDs
+            updatedAt: Date(),
+            coverImageData: playlist.coverImageData,
+            songs: songs
         )
 
         try await playlistRepository.update(playlist)
@@ -162,9 +158,10 @@ final class PlaylistUseCases {
             id: playlist.id,
             name: playlist.name,
             description: playlist.description,
-            coverImageData: playlist.coverImageData,
             createdAt: playlist.createdAt,
-            songIDs: []
+            updatedAt: Date(),
+            coverImageData: playlist.coverImageData,
+            songs: []
         )
 
         try await playlistRepository.update(playlist)
@@ -184,7 +181,7 @@ final class PlaylistUseCases {
         let downloadedSongs = songs.filter { $0.isDownloaded }.count
 
         return PlaylistStats(
-            songCount: playlist.songIDs.count,
+            songCount: playlist.songs.count,
             totalDuration: totalDuration,
             totalPlays: totalPlays,
             downloadedSongs: downloadedSongs

@@ -3,13 +3,12 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo
+//  Refactored to Clean Architecture - Uses PlaylistEntity
 
 import SwiftUI
-import SwiftData
 
 struct PlaylistGridView: View {
-    let playlists: [Playlist]
-    @Environment(\.modelContext) private var modelContext
+    let playlists: [PlaylistEntity]
     @State private var showCreatePlaylist = false
 
     private let columns = [
@@ -31,10 +30,7 @@ struct PlaylistGridView: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(playlists.prefix(8)) { playlist in
-                        NavigationLink(destination: PlaylistDetailView(
-                            playlist: playlist,
-                            modelContext: modelContext
-                        )) {
+                        NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
                             PlaylistGridCard(playlist: playlist)
                         }
                     }
@@ -44,13 +40,12 @@ struct PlaylistGridView: View {
         }
         .sheet(isPresented: $showCreatePlaylist) {
             CreatePlaylistView()
-                .environment(\.modelContext, modelContext)
         }
     }
 }
 
 struct PlaylistGridCard: View {
-    let playlist: Playlist
+    let playlist: PlaylistEntity
 
     var body: some View {
         HStack(spacing: 8) {

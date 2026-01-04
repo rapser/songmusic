@@ -3,6 +3,7 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 6/09/25.
+//  Refactored to Clean Architecture - No SwiftData dependency
 //
 
 import SwiftUI
@@ -16,8 +17,7 @@ struct SongRow: View {
     let onPause: () -> Void
 
     @Binding var showAddToPlaylistForSong: SongEntity?
-    @EnvironmentObject var songListViewModel: SongListViewModel
-    @Environment(\.modelContext) private var modelContext
+    @Environment(DownloadViewModel.self) private var downloadViewModel
 
     var playlist: PlaylistEntity? = nil
     var onRemoveFromPlaylist: (() -> Void)? = nil
@@ -40,11 +40,13 @@ struct SongRow: View {
             // Componente de acción (descarga, menú, progreso)
             SongActionView(
                 isDownloaded: song.isDownloaded,
-                downloadProgress: songListViewModel.downloadProgress[song.id],
+                downloadProgress: downloadViewModel.downloadProgress[song.id],
                 showMenu: $showSongMenu,
                 onDownload: {
                     print("Download button pressed for \(song.title)")
-                    songListViewModel.download(song: song, modelContext: modelContext)
+                    Task {
+                        await downloadViewModel.download(songID: song.id)
+                    }
                 }
             )
         }
@@ -86,15 +88,15 @@ struct SongRow: View {
 
             Button("Cancelar", role: .cancel) {}
         }
-        .onChange(of: songListViewModel.downloadError) { _, newValue in
+        .onChange(of: downloadViewModel.downloadError) { _, newValue in
             showErrorAlert = newValue != nil
         }
         .alert("Error de descarga", isPresented: $showErrorAlert) {
             Button("OK") {
-                songListViewModel.clearDownloadError()
+                downloadViewModel.clearDownloadError()
             }
         } message: {
-            if let error = songListViewModel.downloadError {
+            if let error = downloadViewModel.downloadError {
                 Text(error)
             }
         }
@@ -107,7 +109,6 @@ struct SongRow: View {
 
         var body: some View {
             PreviewWrapper(
-                songListVM: PreviewViewModels.songListVM(),
                 playerVM: PreviewViewModels.playerVM(),
                 modelContainer: PreviewData.container(with: [PreviewSongs.single()])
             ) {

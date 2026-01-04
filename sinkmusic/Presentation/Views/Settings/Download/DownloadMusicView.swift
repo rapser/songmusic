@@ -3,10 +3,10 @@
 //  sinkmusic
 //
 //  Refactorizado con Clean Architecture
+//  No SwiftData dependency in View
 //
 
 import SwiftUI
-import SwiftData
 
 struct DownloadMusicView: View {
     // MARK: - ViewModels (Clean Architecture)
@@ -200,7 +200,6 @@ struct DownloadMusicView: View {
 #Preview {
     PreviewWrapper(
         libraryVM: PreviewViewModels.libraryVM(),
-        songListVM: PreviewViewModels.songListVM(),
         playerVM: PreviewViewModels.playerVM(),
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
     ) { DownloadMusicView() }

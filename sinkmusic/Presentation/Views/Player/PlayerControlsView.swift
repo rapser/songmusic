@@ -14,7 +14,7 @@ struct PlayerControlsView: View {
     let dominantColor: Color
     var namespace: Namespace.ID
     @Environment(PlayerViewModel.self) private var playerViewModel
-    @EnvironmentObject var metadataViewModel: MetadataCacheViewModel
+    @Environment(MetadataCacheViewModel.self) private var metadataViewModel
 
     private var progress: Double {
         guard playerViewModel.songDuration > 0 else { return 0 }

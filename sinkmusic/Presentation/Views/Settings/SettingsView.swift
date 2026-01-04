@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 struct SettingsView: View {
     // MARK: - ViewModels (Clean Architecture)

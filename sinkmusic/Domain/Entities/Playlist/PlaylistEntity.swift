@@ -74,26 +74,3 @@ struct PlaylistEntity: Identifiable, Hashable, Sendable {
         songs.contains { $0.id == id }
     }
 }
-
-// MARK: - Inicializador Conveniente
-
-extension PlaylistEntity {
-    /// Inicializador con valores por defecto
-    init(
-        id: UUID = UUID(),
-        name: String,
-        description: String = "",
-        createdAt: Date = Date(),
-        updatedAt: Date = Date(),
-        coverImageData: Data? = nil,
-        songs: [SongEntity] = []
-    ) {
-        self.id = id
-        self.name = name
-        self.description = description
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.coverImageData = coverImageData
-        self.songs = songs
-    }
-}

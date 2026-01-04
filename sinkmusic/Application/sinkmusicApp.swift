@@ -23,9 +23,10 @@ struct sinkmusicApp: App {
     @State private var playlistViewModel: PlaylistViewModel?
     @State private var settingsViewModel: SettingsViewModel?
     @State private var equalizerViewModel: EqualizerViewModel?
+    @State private var downloadViewModel: DownloadViewModel?
 
-    // MARK: - Legacy Services
-    @StateObject private var metadataViewModel = MetadataCacheViewModel()
+    // MARK: - UI Cache & Legacy Services
+    @State private var metadataViewModel = MetadataCacheViewModel()
     @StateObject private var authManager = AuthenticationManager.shared
 
     init() {
@@ -63,7 +64,8 @@ struct sinkmusicApp: App {
                        let searchVM = searchViewModel,
                        let playlistVM = playlistViewModel,
                        let settingsVM = settingsViewModel,
-                       let equalizerVM = equalizerViewModel {
+                       let equalizerVM = equalizerViewModel,
+                       let downloadVM = downloadViewModel {
 
                         MainAppView()
                             .environment(playerVM)
@@ -73,7 +75,8 @@ struct sinkmusicApp: App {
                             .environment(playlistVM)
                             .environment(settingsVM)
                             .environment(equalizerVM)
-                            .environmentObject(metadataViewModel)
+                            .environment(downloadVM)
+                            .environment(metadataViewModel)
                             .environmentObject(authManager)
                             .onAppear {
                                 // Configurar CarPlay cuando la app aparece
@@ -120,6 +123,7 @@ struct sinkmusicApp: App {
             playlistViewModel = container.makePlaylistViewModel()
             settingsViewModel = container.makeSettingsViewModel()
             equalizerViewModel = container.makeEqualizerViewModel()
+            downloadViewModel = container.makeDownloadViewModel()
 
             print("✅ DIContainer configurado correctamente")
 

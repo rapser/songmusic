@@ -1,11 +1,10 @@
 import SwiftUI
-import SwiftData
 
 struct MainAppView: View {
     // MARK: - ViewModels (Clean Architecture)
     @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
-    @EnvironmentObject private var metadataViewModel: MetadataCacheViewModel
+    @Environment(MetadataCacheViewModel.self) private var metadataViewModel
 
     @Namespace private var animation
 

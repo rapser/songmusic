@@ -14,7 +14,7 @@ enum PlaylistMapper {
 
     /// Convierte DTO de SwiftData a Entidad de Dominio pura
     static func toEntity(_ dto: PlaylistDTO, songs: [SongEntity]) -> PlaylistEntity {
-        PlaylistEntity(
+        let entity: PlaylistEntity = PlaylistEntity(
             id: dto.id,
             name: dto.name,
             description: dto.desc,
@@ -23,6 +23,7 @@ enum PlaylistMapper {
             coverImageData: dto.coverImageData,
             songs: songs
         )
+        return entity
     }
 
     /// Convierte DTO con sus canciones a Entity (mapea canciones también)
@@ -41,7 +42,7 @@ enum PlaylistMapper {
     /// Convierte Entidad de Dominio a DTO de SwiftData
     /// Nota: Las relaciones song-playlist se manejan por separado en el repositorio
     static func toDTO(_ entity: PlaylistEntity) -> PlaylistDTO {
-        PlaylistDTO(
+        let dto: PlaylistDTO = PlaylistDTO(
             id: entity.id,
             name: entity.name,
             description: entity.description,
@@ -50,6 +51,7 @@ enum PlaylistMapper {
             coverImageData: entity.coverImageData,
             songs: [] // Las relaciones se manejan por separado
         )
+        return dto
     }
 
     // MARK: - Layer 3: Entity → UIModel (Domain → Presentation)

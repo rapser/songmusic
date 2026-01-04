@@ -11,8 +11,8 @@ import SwiftData
 /// Servicio para notificar cambios en SwiftData SIN usar @Query
 /// REEMPLAZO CRÍTICO de @Query para Clean Architecture
 ///
-/// Funciona escuchando NSManagedObjectContext.didSaveObjectsNotification
-/// y propagando cambios via NotificationCenter para que los ViewModels reaccionen
+/// Funciona observando cambios en ModelContext y propagándolos via NotificationCenter
+/// para que los ViewModels reaccionen sin depender de @Query
 final class SwiftDataNotificationService {
 
     // MARK: - Notification Name
@@ -23,43 +23,23 @@ final class SwiftDataNotificationService {
     // MARK: - Properties
 
     private let modelContext: ModelContext
-    private var observer: NSObjectProtocol?
 
     // MARK: - Lifecycle
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        setupObserver()
-    }
-
-    deinit {
-        if let observer = observer {
-            NotificationCenter.default.removeObserver(observer)
-        }
-    }
-
-    // MARK: - Setup
-
-    private func setupObserver() {
-        // Observar cambios en NSManagedObjectContext
-        observer = NotificationCenter.default.addObserver(
-            forName: NSManagedObjectContext.didSaveObjectsNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            self?.contextDidChange(notification)
-        }
     }
 
     // MARK: - Notification Handling
 
-    @objc private func contextDidChange(_ notification: Notification) {
+    /// Notifica cambios después de un save
+    /// Debe llamarse manualmente después de modelContext.save()
+    @objc private func contextDidChange() {
         Task { @MainActor in
             // Propagar cambio a toda la app
             NotificationCenter.default.post(
                 name: Self.didChangeNotification,
-                object: nil,
-                userInfo: notification.userInfo
+                object: nil
             )
         }
     }

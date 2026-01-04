@@ -3,24 +3,24 @@
 //  sinkmusic
 //
 //  Created by Miguel Tomairo on 19/12/25.
+//  Refactored to Clean Architecture - Solo cacheo de artwork
 //
 
 import Foundation
-import SwiftData
 import UIKit
 
-/// ViewModel responsable ÚNICAMENTE de cachear metadatos y artwork
+/// ViewModel responsable ÚNICAMENTE de cachear artwork en memoria
 /// Cumple con Single Responsibility Principle
+/// NO tiene lógica de negocio, solo cache visual para UI
 @MainActor
-class MetadataCacheViewModel: ObservableObject {
-    @Published var cachedArtwork: UIImage?        // Imagen completa para PlayerView
-    @Published var cachedThumbnail: UIImage?      // Thumbnail para MiniPlayer (42x42)
+@Observable
+final class MetadataCacheViewModel {
+    var cachedArtwork: UIImage?        // Imagen completa para PlayerView
+    var cachedThumbnail: UIImage?      // Thumbnail para MiniPlayer (42x42)
 
-    private let metadataService: MetadataServiceProtocol
+    init() {}
 
-    init(metadataService: MetadataServiceProtocol = MetadataService()) {
-        self.metadataService = metadataService
-    }
+    // MARK: - Cache Operations
 
     /// Carga y cachea el artwork de una canción de forma optimizada
     /// - Parameters:
@@ -43,33 +43,6 @@ class MetadataCacheViewModel: ObservableObject {
             cachedArtwork = UIImage(data: artworkData)
         } else {
             cachedArtwork = nil
-        }
-    }
-
-    /// Extrae metadatos de un archivo de audio en background
-    /// - Parameters:
-    ///   - url: URL del archivo de audio
-    ///   - song: Canción a actualizar con los metadatos
-    func extractAndCacheMetadata(from url: URL, for song: Song) async {
-        guard let metadata = await metadataService.extractMetadata(from: url) else {
-            return
-        }
-
-        // Actualizar la canción con los metadatos extraídos
-        song.title = metadata.title
-        song.artist = metadata.artist
-        song.album = metadata.album
-        song.author = metadata.author
-        song.duration = metadata.duration
-        song.artworkData = metadata.artwork
-        song.artworkThumbnail = metadata.artworkThumbnail
-        song.artworkMediumThumbnail = metadata.artworkMediumThumbnail
-
-        // Actualizar el cache de artwork si hay datos
-        if let artworkData = metadata.artwork {
-            await MainActor.run {
-                self.cachedArtwork = UIImage(data: artworkData)
-            }
         }
     }
 

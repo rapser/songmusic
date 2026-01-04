@@ -135,6 +135,11 @@ struct PreviewViewModels {
     static func metadataVM() -> MetadataCacheViewModel {
         return MetadataCacheViewModel()
     }
+
+    static func downloadVM() -> DownloadViewModel {
+        setupDI()
+        return DownloadViewModel(downloadUseCases: DIContainer.shared.downloadUseCases)
+    }
 }
 
 // MARK: - Wrapper genérico
@@ -145,6 +150,7 @@ struct PreviewWrapper<Content: View>: View {
     private let playlistVM: PlaylistViewModel?
     private let searchVM: SearchViewModel?
     private let equalizerVM: EqualizerViewModel?
+    private let downloadVM: DownloadViewModel?
     private let metadataVM: MetadataCacheViewModel?
     private let modelContainer: ModelContainer?
 
@@ -154,6 +160,7 @@ struct PreviewWrapper<Content: View>: View {
         playlistVM: PlaylistViewModel? = nil,
         searchVM: SearchViewModel? = nil,
         equalizerVM: EqualizerViewModel? = nil,
+        downloadVM: DownloadViewModel? = nil,
         metadataVM: MetadataCacheViewModel? = nil,
         modelContainer: ModelContainer? = nil,
         @ViewBuilder content: @escaping () -> Content
@@ -163,6 +170,7 @@ struct PreviewWrapper<Content: View>: View {
         self.playlistVM = playlistVM
         self.searchVM = searchVM
         self.equalizerVM = equalizerVM
+        self.downloadVM = downloadVM
         self.metadataVM = metadataVM
         self.modelContainer = modelContainer
         self.content = content
@@ -175,7 +183,8 @@ struct PreviewWrapper<Content: View>: View {
             .environment(playlistVM ?? PreviewViewModels.playlistVM())
             .environment(searchVM ?? PreviewViewModels.searchVM())
             .environment(equalizerVM ?? PreviewViewModels.equalizerVM())
-            .environmentObject(metadataVM ?? PreviewViewModels.metadataVM())
+            .environment(downloadVM ?? PreviewViewModels.downloadVM())
+            .environment(metadataVM ?? PreviewViewModels.metadataVM())
             .ifLet(modelContainer) { view, container in
                 view.modelContainer(container)
             }

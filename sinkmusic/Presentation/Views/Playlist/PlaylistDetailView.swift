@@ -3,16 +3,15 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 6/09/25.
+//  Refactored to Clean Architecture - No SwiftData in View
 //
 
 import SwiftUI
-import SwiftData
 
 struct PlaylistDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PlaylistViewModel.self) private var viewModel
     @Environment(PlayerViewModel.self) private var playerViewModel
-    @EnvironmentObject var songListViewModel: SongListViewModel
 
     let playlist: PlaylistEntity
     @State private var showEditSheet = false
@@ -232,12 +231,12 @@ struct PlaylistDetailView: View {
 
 #Preview {
     NavigationStack {
-        PlaylistDetailView(
-            playlist: PreviewPlaylists.samplePlaylist(),
-            modelContext: PreviewContainer.shared.mainContext
-        )
-        .environmentObject(PreviewViewModels.playerVM(songID: UUID()))
-        .environmentObject(PreviewViewModels.songListVM())
+        PreviewWrapper(
+            playerVM: PreviewViewModels.playerVM(songID: UUID()),
+            modelContainer: PreviewContainer.shared.container
+        ) {
+            PlaylistDetailView(playlist: PreviewPlaylists.samplePlaylist())
+        }
     }
 }
 

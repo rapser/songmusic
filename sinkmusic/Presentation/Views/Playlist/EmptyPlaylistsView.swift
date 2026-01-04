@@ -5,9 +5,7 @@
 //  Created by miguel tomairo on 21/12/25.
 //
 
-
 import SwiftUI
-import SwiftData
 
 struct EmptyPlaylistsView: View {
     let onCreate: () -> Void

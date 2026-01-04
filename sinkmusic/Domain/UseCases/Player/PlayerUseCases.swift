@@ -47,7 +47,7 @@ final class PlayerUseCases {
             throw PlayerError.fileNotDownloaded
         }
 
-        await audioPlayerRepository.play(songID: songID, url: localURL)
+        try await audioPlayerRepository.play(songID: songID, url: localURL)
         currentSongID = songID
 
         // Incrementar contador de reproducción
@@ -97,8 +97,7 @@ final class PlayerUseCases {
 
     func updateNowPlayingTime(currentTime: TimeInterval, duration: TimeInterval) async {
         guard let songID = currentSongID,
-              let song = try? await songRepository.getByID(songID),
-              let songEntity = song else {
+              let songEntity = try? await songRepository.getByID(songID) else {
             return
         }
 
@@ -116,7 +115,8 @@ final class PlayerUseCases {
 
     private func setupObservers() {
         // Observar cambios de estado de reproducción
-        audioPlayerRepository.observePlaybackState { [weak self] isPlaying, songID in
+        var repo = audioPlayerRepository
+        repo.onPlaybackStateChanged = { [weak self] isPlaying, songID in
             guard let self = self else { return }
             self.isPlaying = isPlaying
             if let songID = songID {
@@ -126,29 +126,35 @@ final class PlayerUseCases {
     }
 
     func observePlaybackState(onChange: @escaping @MainActor (Bool, UUID?) -> Void) {
-        audioPlayerRepository.observePlaybackState(onChange: onChange)
+        var repo = audioPlayerRepository
+        repo.onPlaybackStateChanged = onChange
     }
 
     func observePlaybackTime(onChange: @escaping @MainActor (TimeInterval, TimeInterval) -> Void) {
-        audioPlayerRepository.observePlaybackTime(onChange: onChange)
+        var repo = audioPlayerRepository
+        repo.onPlaybackTimeChanged = onChange
     }
 
     func observeSongFinished(onFinish: @escaping @MainActor (UUID) -> Void) {
-        audioPlayerRepository.observeSongFinished(onFinish: onFinish)
+        var repo = audioPlayerRepository
+        repo.onSongFinished = onFinish
     }
 
     // MARK: - Remote Controls
 
     func observeRemotePlayPause(onCommand: @escaping @MainActor () -> Void) {
-        audioPlayerRepository.observeRemotePlayPause(onCommand: onCommand)
+        var repo = audioPlayerRepository
+        repo.onRemotePlayPause = onCommand
     }
 
     func observeRemoteNext(onCommand: @escaping @MainActor () -> Void) {
-        audioPlayerRepository.observeRemoteNext(onCommand: onCommand)
+        var repo = audioPlayerRepository
+        repo.onRemoteNext = onCommand
     }
 
     func observeRemotePrevious(onCommand: @escaping @MainActor () -> Void) {
-        audioPlayerRepository.observeRemotePrevious(onCommand: onCommand)
+        var repo = audioPlayerRepository
+        repo.onRemotePrevious = onCommand
     }
 
     // MARK: - Getters

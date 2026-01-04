@@ -3,10 +3,10 @@
 //  sinkmusic
 //
 //  Refactorizado con Clean Architecture
+//  No SwiftData dependency
 //
 
 import SwiftUI
-import SwiftData
 
 struct AddSongsToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
