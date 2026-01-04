@@ -113,8 +113,8 @@ struct SongRow: View {
                 modelContainer: PreviewData.container(with: [PreviewSongs.single()])
             ) {
                 SongRow(
-                    song: PreviewSongs.single().toEntity(),
-                    songQueue: [PreviewSongs.single().toEntity()],
+                    song: SongMapper.toEntity(PreviewSongs.single()),
+                    songQueue: [SongMapper.toEntity(PreviewSongs.single())],
                     isCurrentlyPlaying: true,
                     isPlaying: true,
                     onPlay: { print("Play tapped") },

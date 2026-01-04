@@ -9,12 +9,12 @@
 import SwiftUI
 
 struct FilterPicker: View {
-    @Binding var selectedFilter: SearchViewModel.SearchFilter
+    @Binding var selectedFilter: SearchFilter
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(SearchViewModel.SearchFilter.allCases, id: \.self) { filter in
+                ForEach(SearchFilter.allCases, id: \.self) { filter in
                     FilterChip(
                         title: filter.rawValue,
                         isSelected: selectedFilter == filter,

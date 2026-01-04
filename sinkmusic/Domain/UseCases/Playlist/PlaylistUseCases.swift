@@ -75,7 +75,7 @@ final class PlaylistUseCases {
     /// Renombra una playlist
     func renamePlaylist(_ id: UUID, newName: String) async throws {
         guard var playlist = try await playlistRepository.getByID(id) else {
-            throw PlaylistError.playlistNotFound
+            throw PlaylistError.notFound
         }
 
         playlist = PlaylistEntity(
@@ -100,12 +100,12 @@ final class PlaylistUseCases {
             throw PlaylistError.songNotFound
         }
 
-        try await playlistRepository.addSong(songID, to: playlistID)
+        try await playlistRepository.addSong(songID: songID, toPlaylist: playlistID)
     }
 
     /// Remueve una canción de una playlist
     func removeSongFromPlaylist(songID: UUID, playlistID: UUID) async throws {
-        try await playlistRepository.removeSong(songID, from: playlistID)
+        try await playlistRepository.removeSong(songID: songID, fromPlaylist: playlistID)
     }
 
     /// Agrega múltiples canciones a una playlist
@@ -118,7 +118,7 @@ final class PlaylistUseCases {
     /// Obtiene las canciones de una playlist
     func getSongsInPlaylist(_ playlistID: UUID) async throws -> [SongEntity] {
         guard let playlist = try await playlistRepository.getByID(playlistID) else {
-            throw PlaylistError.playlistNotFound
+            throw PlaylistError.notFound
         }
 
         return playlist.songs
@@ -129,7 +129,7 @@ final class PlaylistUseCases {
     /// Reordena canciones en una playlist
     func reorderSongs(in playlistID: UUID, fromOffsets: IndexSet, toOffset: Int) async throws {
         guard var playlist = try await playlistRepository.getByID(playlistID) else {
-            throw PlaylistError.playlistNotFound
+            throw PlaylistError.notFound
         }
 
         var songs = playlist.songs
@@ -151,7 +151,7 @@ final class PlaylistUseCases {
     /// Limpia una playlist (remueve todas las canciones)
     func clearPlaylist(_ id: UUID) async throws {
         guard var playlist = try await playlistRepository.getByID(id) else {
-            throw PlaylistError.playlistNotFound
+            throw PlaylistError.notFound
         }
 
         playlist = PlaylistEntity(
@@ -172,7 +172,7 @@ final class PlaylistUseCases {
     /// Obtiene estadísticas de una playlist
     func getPlaylistStats(_ id: UUID) async throws -> PlaylistStats {
         guard let playlist = try await playlistRepository.getByID(id) else {
-            throw PlaylistError.playlistNotFound
+            throw PlaylistError.notFound
         }
 
         let songs = try await getSongsInPlaylist(id)

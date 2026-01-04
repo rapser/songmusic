@@ -112,7 +112,7 @@ final class EqualizerViewModel {
 
     /// Obtiene todos los presets disponibles
     var availablePresets: [EqualizerPreset] {
-        [.flat, .bassBoost, .vocal, .treble, .rock, .pop, .classical, .electronic]
+        [.flat, .bassBooster, .vocalBooster, .trebleBooster, .rock, .pop, .classical, .electronic]
     }
 
     /// Nombres de las frecuencias

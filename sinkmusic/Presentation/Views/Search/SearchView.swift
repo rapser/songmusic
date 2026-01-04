@@ -54,8 +54,7 @@ struct SearchView: View {
                         NoResultsView()
                     } else {
                         SearchResultsList(
-                            songs: viewModel.searchResults,
-                            playerViewModel: playerViewModel
+                            songs: viewModel.searchResults
                         )
                     }
                 }
@@ -81,15 +80,20 @@ struct SearchView: View {
     private func convertToSearchFilter(_ sortOption: SortOption) -> SearchFilter {
         switch sortOption {
         case .title: return .all
-        case .artist: return .downloaded
+        case .artist: return .artist
+        case .album: return .album
         case .playCount: return .notDownloaded
-        default: return .all
+        case .duration: return .all
+        case .recentlyPlayed: return .all
         }
     }
 
     private func convertToSortOption(_ filter: SearchFilter) -> SortOption {
         switch filter {
         case .all: return .title
+        case .song: return .title
+        case .artist: return .artist
+        case .album: return .album
         case .downloaded: return .artist
         case .notDownloaded: return .playCount
         }

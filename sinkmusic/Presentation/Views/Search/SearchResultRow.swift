@@ -21,15 +21,9 @@ struct SearchResultRow: View, Equatable {
         lhs.isPlaying == rhs.isPlaying
     }
 
-    // Usar thumbnail medio optimizado para listas (100x100) en lugar del artwork completo
     private var cachedImage: UIImage? {
-        // Preferir el thumbnail medio que es mucho más ligero (< 10KB vs cientos de KB)
-        if let thumbnailData = song.artworkMediumThumbnail {
+        if let thumbnailData = song.artworkThumbnail {
             return UIImage(data: thumbnailData)
-        }
-        // Fallback al artwork completo si no hay thumbnail (canciones viejas)
-        if let artworkData = song.artworkData {
-            return UIImage(data: artworkData)
         }
         return nil
     }

@@ -76,6 +76,7 @@ final class LibraryUseCases {
                 title: file.title,
                 artist: file.artist,
                 album: nil,
+                author: nil,
                 fileID: file.id,
                 isDownloaded: false,
                 duration: nil,

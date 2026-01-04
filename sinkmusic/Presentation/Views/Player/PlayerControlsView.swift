@@ -35,7 +35,7 @@ struct PlayerControlsView: View {
 
                 MiniPlayerPlayButton(
                     isPlaying: playerViewModel.isPlaying,
-                    action: { playerViewModel.togglePlayPause() }
+                    action: { Task { await playerViewModel.togglePlayPause() } }
                 )
             }
             .padding(12)

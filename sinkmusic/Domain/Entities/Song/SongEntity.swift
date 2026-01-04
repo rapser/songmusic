@@ -82,39 +82,3 @@ struct SongEntity: Identifiable, Hashable, Sendable {
     }
 }
 
-// MARK: - Inicializador Conveniente
-
-extension SongEntity {
-    /// Inicializador con valores por defecto
-    init(
-        id: UUID = UUID(),
-        title: String,
-        artist: String,
-        album: String? = nil,
-        author: String? = nil,
-        fileID: String,
-        isDownloaded: Bool = false,
-        duration: TimeInterval? = nil,
-        artworkData: Data? = nil,
-        artworkThumbnail: Data? = nil,
-        artworkMediumThumbnail: Data? = nil,
-        playCount: Int = 0,
-        lastPlayedAt: Date? = nil,
-        dominantColor: Color? = nil
-    ) {
-        self.id = id
-        self.title = title
-        self.artist = artist
-        self.album = album
-        self.author = author
-        self.fileID = fileID
-        self.isDownloaded = isDownloaded
-        self.duration = duration
-        self.artworkData = artworkData
-        self.artworkThumbnail = artworkThumbnail
-        self.artworkMediumThumbnail = artworkMediumThumbnail
-        self.playCount = playCount
-        self.lastPlayedAt = lastPlayedAt
-        self.dominantColor = dominantColor
-    }
-}

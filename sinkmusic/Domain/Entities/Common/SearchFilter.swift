@@ -13,6 +13,8 @@ enum SearchFilter: String, CaseIterable, Sendable {
     case song = "Canción"
     case artist = "Artista"
     case album = "Álbum"
+    case downloaded = "Descargadas"
+    case notDownloaded = "No descargadas"
 
     /// Ícono SF Symbol para el filtro
     var iconName: String {
@@ -25,6 +27,10 @@ enum SearchFilter: String, CaseIterable, Sendable {
             return "person.fill"
         case .album:
             return "square.stack"
+        case .downloaded:
+            return "arrow.down.circle.fill"
+        case .notDownloaded:
+            return "arrow.up.circle"
         }
     }
 }
