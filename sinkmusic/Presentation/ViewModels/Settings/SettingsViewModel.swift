@@ -20,6 +20,7 @@ final class SettingsViewModel {
     var apiKey: String = ""
     var folderId: String = ""
     var hasCredentials: Bool = false
+    var hasExistingCredentials: Bool { hasCredentials }
 
     var storageInfo: StorageInfo?
     var appInfo: AppInfo?
@@ -30,6 +31,8 @@ final class SettingsViewModel {
 
     var showDeleteConfirmation: Bool = false
     var showClearCacheConfirmation: Bool = false
+    var showSaveConfirmation: Bool = false
+    var showDeleteCredentialsAlert: Bool = false
 
     // MARK: - Dependencies
 
@@ -183,6 +186,25 @@ final class SettingsViewModel {
     /// Valida ambas credenciales
     func validateCredentials() -> Bool {
         return validateAPIKey() && validateFolderID()
+    }
+
+    /// Alias para validateCredentials (compatibilidad con GoogleDriveConfigView)
+    var areCredentialsValid: Bool {
+        validateCredentials()
+    }
+
+    /// Guarda credenciales (versión async para compatibilidad)
+    func saveCredentialsAsync() async -> Bool {
+        let success = saveCredentials()
+        if success {
+            showSaveConfirmation = true
+        }
+        return success
+    }
+
+    /// Elimina credenciales (versión async para compatibilidad)
+    func deleteCredentialsAsync() async {
+        deleteCredentials()
     }
 }
 

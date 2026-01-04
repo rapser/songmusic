@@ -119,4 +119,23 @@ final class EqualizerViewModel {
     var bandNames: [String] {
         ["60 Hz", "150 Hz", "400 Hz", "1 kHz", "2.4 kHz", "15 kHz"]
     }
+
+    /// Bandas del ecualizador para la UI
+    var equalizerBands: [EqualizerBand] {
+        [
+            EqualizerBand(frequency: "60", label: "60", gain: Double(band60Hz)),
+            EqualizerBand(frequency: "150", label: "150", gain: Double(band150Hz)),
+            EqualizerBand(frequency: "400", label: "400", gain: Double(band400Hz)),
+            EqualizerBand(frequency: "1k", label: "1k", gain: Double(band1kHz)),
+            EqualizerBand(frequency: "2.4k", label: "2.4k", gain: Double(band2_4kHz)),
+            EqualizerBand(frequency: "15k", label: "15k", gain: Double(band15kHz))
+        ]
+    }
+
+    /// Actualiza la ganancia de una banda específica
+    func updateBandGain(index: Int, gain: Float) {
+        Task {
+            await updateBand(at: index, value: gain)
+        }
+    }
 }

@@ -12,7 +12,7 @@ import SwiftUI
 struct PlayerControls: View {
     let isPlaying: Bool
     let isShuffleEnabled: Bool
-    let repeatMode: PlayerViewModel.RepeatMode
+    let repeatMode: RepeatMode
     let onToggleShuffle: () -> Void
     let onPrevious: () -> Void
     let onPlayPause: () -> Void
@@ -62,9 +62,9 @@ struct PlayerControls: View {
 
             // Repeat
             Button(action: onToggleRepeat) {
-                Image(systemName: repeatMode == .repeatOne ? "repeat.1" : "repeat")
+                Image(systemName: repeatMode == RepeatMode.repeatOne ? "repeat.1" : "repeat")
                     .font(.title3)
-                    .foregroundColor(repeatMode != .off ? .appPurple : .textGray)
+                    .foregroundColor(repeatMode != RepeatMode.off ? .appPurple : .textGray)
                     .frame(width: 50, height: 50)
             }
         }

@@ -140,6 +140,14 @@ struct PreviewViewModels {
         setupDI()
         return DownloadViewModel(downloadUseCases: DIContainer.shared.downloadUseCases)
     }
+
+    static func settingsVM() -> SettingsViewModel {
+        setupDI()
+        return SettingsViewModel(
+            settingsUseCases: DIContainer.shared.settingsUseCases,
+            downloadUseCases: DIContainer.shared.downloadUseCases
+        )
+    }
 }
 
 // MARK: - Wrapper genérico
@@ -151,6 +159,7 @@ struct PreviewWrapper<Content: View>: View {
     private let searchVM: SearchViewModel?
     private let equalizerVM: EqualizerViewModel?
     private let downloadVM: DownloadViewModel?
+    private let settingsVM: SettingsViewModel?
     private let metadataVM: MetadataCacheViewModel?
     private let modelContainer: ModelContainer?
 
@@ -161,6 +170,7 @@ struct PreviewWrapper<Content: View>: View {
         searchVM: SearchViewModel? = nil,
         equalizerVM: EqualizerViewModel? = nil,
         downloadVM: DownloadViewModel? = nil,
+        settingsVM: SettingsViewModel? = nil,
         metadataVM: MetadataCacheViewModel? = nil,
         modelContainer: ModelContainer? = nil,
         @ViewBuilder content: @escaping () -> Content
@@ -171,6 +181,7 @@ struct PreviewWrapper<Content: View>: View {
         self.searchVM = searchVM
         self.equalizerVM = equalizerVM
         self.downloadVM = downloadVM
+        self.settingsVM = settingsVM
         self.metadataVM = metadataVM
         self.modelContainer = modelContainer
         self.content = content
@@ -184,6 +195,7 @@ struct PreviewWrapper<Content: View>: View {
             .environment(searchVM ?? PreviewViewModels.searchVM())
             .environment(equalizerVM ?? PreviewViewModels.equalizerVM())
             .environment(downloadVM ?? PreviewViewModels.downloadVM())
+            .environment(settingsVM ?? PreviewViewModels.settingsVM())
             .environment(metadataVM ?? PreviewViewModels.metadataVM())
             .ifLet(modelContainer) { view, container in
                 view.modelContainer(container)

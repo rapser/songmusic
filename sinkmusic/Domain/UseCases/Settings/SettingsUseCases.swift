@@ -98,6 +98,7 @@ final class SettingsUseCases {
                 title: updatedSong.title,
                 artist: updatedSong.artist,
                 album: updatedSong.album,
+                author: updatedSong.author,
                 fileID: updatedSong.fileID,
                 isDownloaded: updatedSong.isDownloaded,
                 duration: updatedSong.duration,

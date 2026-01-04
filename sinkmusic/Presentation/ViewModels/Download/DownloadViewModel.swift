@@ -8,6 +8,11 @@
 
 import Foundation
 
+/// Gestor de tareas de descarga (no aislado al MainActor para acceso en deinit)
+private final class ActiveTasksManager {
+    var tasks: [UUID: Task<Void, Never>] = [:]
+}
+
 /// ViewModel responsable de gestionar descargas de canciones
 /// Cumple con Clean Architecture - Solo depende de UseCases
 @MainActor
@@ -31,8 +36,8 @@ final class DownloadViewModel {
 
     // MARK: - Private State
 
-    /// Tareas de descarga activas para cancelación
-    private var activeTasks: [UUID: Task<Void, Never>] = [:]
+    /// Gestor de tareas de descarga activas para cancelación
+    private let activeTasksManager = ActiveTasksManager()
 
     // MARK: - Initialization
 
@@ -46,7 +51,7 @@ final class DownloadViewModel {
     /// - Parameter songID: ID de la canción a descargar
     func download(songID: UUID) async {
         // Evitar descargas duplicadas
-        guard activeTasks[songID] == nil else {
+        guard activeTasksManager.tasks[songID] == nil else {
             print("⏭️ Descarga ya en progreso para \(songID)")
             return
         }
@@ -86,14 +91,14 @@ final class DownloadViewModel {
             }
 
             // Limpiar tarea
-            activeTasks.removeValue(forKey: songID)
+            activeTasksManager.tasks.removeValue(forKey: songID)
 
             // Actualizar flag de descarga
-            isDownloading = !activeTasks.isEmpty
+            isDownloading = !activeTasksManager.tasks.isEmpty
         }
 
         // Guardar tarea
-        activeTasks[songID] = task
+        activeTasksManager.tasks[songID] = task
     }
 
     /// Descarga múltiples canciones
@@ -109,9 +114,9 @@ final class DownloadViewModel {
     func deleteDownload(songID: UUID) async {
         do {
             // Cancelar descarga si está en progreso
-            if let task = activeTasks[songID] {
+            if let task = activeTasksManager.tasks[songID] {
                 task.cancel()
-                activeTasks.removeValue(forKey: songID)
+                activeTasksManager.tasks.removeValue(forKey: songID)
                 downloadProgress.removeValue(forKey: songID)
             }
 
@@ -128,33 +133,33 @@ final class DownloadViewModel {
         }
 
         // Actualizar flag de descarga
-        isDownloading = !activeTasks.isEmpty
+        isDownloading = !activeTasksManager.tasks.isEmpty
     }
 
     /// Cancela una descarga en progreso
     /// - Parameter songID: ID de la canción
     func cancelDownload(songID: UUID) {
-        guard let task = activeTasks[songID] else { return }
+        guard let task = activeTasksManager.tasks[songID] else { return }
 
         task.cancel()
-        activeTasks.removeValue(forKey: songID)
+        activeTasksManager.tasks.removeValue(forKey: songID)
         downloadProgress.removeValue(forKey: songID)
 
         // Actualizar flag de descarga
-        isDownloading = !activeTasks.isEmpty
+        isDownloading = !activeTasksManager.tasks.isEmpty
 
         print("⏸️ Descarga cancelada: \(songID)")
     }
 
     /// Cancela todas las descargas en progreso
     func cancelAllDownloads() {
-        for (songID, task) in activeTasks {
+        for (songID, task) in activeTasksManager.tasks {
             task.cancel()
             downloadProgress.removeValue(forKey: songID)
             print("⏸️ Descarga cancelada: \(songID)")
         }
 
-        activeTasks.removeAll()
+        activeTasksManager.tasks.removeAll()
         isDownloading = false
     }
 
@@ -171,7 +176,7 @@ final class DownloadViewModel {
     /// - Parameter songID: ID de la canción
     /// - Returns: true si está en progreso
     func isDownloading(songID: UUID) -> Bool {
-        return activeTasks[songID] != nil
+        return activeTasksManager.tasks[songID] != nil
     }
 
     /// Obtiene el progreso de una canción específica
@@ -183,12 +188,15 @@ final class DownloadViewModel {
 
     // MARK: - Cleanup
 
+    
     deinit {
-        // Cancelar todas las tareas activas
-        for (_, task) in activeTasks {
-            task.cancel()
+        // Capturar las tareas activas antes de crear el Task para evitar capturar 'self'
+        let tasksToCancel = activeTasksManager.tasks
+        Task { @MainActor in
+            for (_, task) in tasksToCancel {
+                task.cancel()
+            }
+            print("🗑️ DownloadViewModel deinicializado - tareas canceladas")
         }
-        activeTasks.removeAll()
-        print("🗑️ DownloadViewModel deinicializado - tareas canceladas")
     }
 }

@@ -64,7 +64,7 @@ struct MainAppView: View {
                     songID: currentSong.id,
                     title: currentSong.title,
                     artist: currentSong.artist,
-                    dominantColor: currentSong.dominantColor,
+                    dominantColor: currentSong.dominantColor ?? .appPurple,
                     namespace: animation
                 )
                 .padding(.horizontal, 8)

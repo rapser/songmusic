@@ -48,14 +48,14 @@ final class PlaylistUseCases {
     // MARK: - Playlist Management
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?) async throws -> PlaylistEntity {
+    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> PlaylistEntity {
         let newPlaylist = PlaylistEntity(
             id: UUID(),
             name: name,
             description: description ?? "",
             createdAt: Date(),
             updatedAt: Date(),
-            coverImageData: nil,
+            coverImageData: coverImageData,
             songs: []
         )
 

@@ -50,7 +50,7 @@ final class PlaylistViewModel {
     }
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?) async {
+    func createPlaylist(name: String, description: String?, coverImageData: Data?) async {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "El nombre de la playlist no puede estar vacío"
             return
@@ -58,7 +58,7 @@ final class PlaylistViewModel {
 
         isLoading = true
         do {
-            _ = try await playlistUseCases.createPlaylist(name: name, description: description)
+            _ = try await playlistUseCases.createPlaylist(name: name, description: description, coverImageData: coverImageData)
             await loadPlaylists()
             errorMessage = nil
         } catch {
@@ -203,7 +203,7 @@ final class PlaylistViewModel {
     /// Verifica si una canción está en alguna playlist
     func isSongInAnyPlaylist(songID: UUID) -> Bool {
         return playlists.contains { playlist in
-            playlist.songIDs.contains(songID)
+            playlist.containsSong(id: songID)
         }
     }
 

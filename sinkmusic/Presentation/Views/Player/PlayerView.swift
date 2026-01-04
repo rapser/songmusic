@@ -52,7 +52,7 @@ struct PlayerView: View {
                     duration: playerViewModel.songDuration,
                     formatTime: playerViewModel.formatTime,
                     onSeek: { time in
-                        playerViewModel.seek(to: time)
+                        Task {await playerViewModel.seek(to: time)}
                     }
                 )
 
@@ -62,9 +62,9 @@ struct PlayerView: View {
                     isShuffleEnabled: playerViewModel.isShuffleEnabled,
                     repeatMode: playerViewModel.repeatMode,
                     onToggleShuffle: { playerViewModel.toggleShuffle() },
-                    onPrevious: { playerViewModel.playPrevious },
-                    onPlayPause: { playerViewModel.togglePlayPause() },
-                    onNext: { playerViewModel.playNext },
+                    onPrevious: { Task { await playerViewModel.playPrevious() } },
+                    onPlayPause: { Task { await playerViewModel.togglePlayPause() } },
+                    onNext: { Task { await playerViewModel.playNext() } },
                     onToggleRepeat: { playerViewModel.toggleRepeat() }
                 )
 

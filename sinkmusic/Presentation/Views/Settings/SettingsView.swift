@@ -31,7 +31,9 @@ struct SettingsView: View {
                     SectionHeaderView(title: "Descargas")
                     DownloadsSectionView(
                         pendingCount: pendingSongsCount,
-                        isGoogleDriveConfigured: viewModel.hasCredentials()
+                        isGoogleDriveConfigured: viewModel.hasCredentials,
+                        libraryViewModel: libraryViewModel,
+                        settingsViewModel: viewModel
                     )
 
                     SectionHeaderView(title: "Almacenamiento")
@@ -78,16 +80,17 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    private func makeUserProfile() -> UserProfile? {
+    private func makeUserProfile() -> UserProfileData? {
         guard let fullName = authManager.userFullName,
               let email = authManager.userEmail,
               let userID = authManager.userID else {
             return nil
         }
-        return UserProfile(
+        return UserProfileData(
             fullName: fullName,
             email: email,
-            userID: userID
+            userID: userID,
+            isAppleAccount: true
         )
     }
 

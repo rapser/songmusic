@@ -62,8 +62,9 @@ final class StorageManagementService: SettingsServiceProtocol {
             try? googleDriveService.deleteDownload(for: song.id)
 
             // Buscar el DTO correspondiente en el ModelContext y actualizar
+            let songID = song.id
             let descriptor = FetchDescriptor<SongDTO>(
-                predicate: #Predicate { $0.id == song.id }
+                predicate: #Predicate { $0.id == songID }
             )
             if let songDTO = try? modelContext.fetch(descriptor).first {
                 songDTO.isDownloaded = false

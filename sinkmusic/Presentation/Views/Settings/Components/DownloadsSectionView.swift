@@ -12,6 +12,8 @@ import SwiftUI
 struct DownloadsSectionView: View {
     let pendingCount: Int
     let isGoogleDriveConfigured: Bool
+    let libraryViewModel: LibraryViewModel
+    let settingsViewModel: SettingsViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +42,10 @@ struct DownloadsSectionView: View {
             }
 
             // Google Drive Config Button
-            NavigationLink(destination: GoogleDriveConfigView()) {
+            NavigationLink(destination: GoogleDriveConfigView(
+                libraryViewModel: libraryViewModel,
+                settingsViewModel: settingsViewModel
+            )) {
                 HStack(spacing: 16) {
                     Image(systemName: "cloud.fill")
                         .foregroundColor(.textGray)

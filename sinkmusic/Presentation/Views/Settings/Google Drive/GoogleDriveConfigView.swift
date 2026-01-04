@@ -9,8 +9,9 @@ import SwiftUI
 
 struct GoogleDriveConfigView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(LibraryViewModel.self) private var libraryViewModel
-    @Environment(SettingsViewModel.self) private var settingsViewModel
+
+    let libraryViewModel: LibraryViewModel
+    let settingsViewModel: SettingsViewModel
     
     var body: some View {
         ZStack {
@@ -90,7 +91,12 @@ struct GoogleDriveConfigView: View {
                     VStack(spacing: 12) {
                         // Botón Guardar
                         Button(action: {
-                            settingsViewModel.saveCredentials(modelContext: modelContext, libraryViewModel: libraryViewModel)
+                            Task {
+                                let success = await settingsViewModel.saveCredentialsAsync()
+                                if success {
+                                    await libraryViewModel.loadSongs()
+                                }
+                            }
                         }) {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
@@ -146,7 +152,10 @@ struct GoogleDriveConfigView: View {
         .alert("Eliminar Credenciales", isPresented: $settingsViewModel.showDeleteCredentialsAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
-                settingsViewModel.deleteCredentials(modelContext: modelContext, libraryViewModel: libraryViewModel)
+                Task {
+                    await settingsViewModel.deleteCredentialsAsync()
+                    await libraryViewModel.clearLocalSongs()
+                }
             }
         } message: {
             Text("Se eliminarán las credenciales de Google Drive y todas las canciones descargadas. Esta acción no se puede deshacer.")
@@ -156,10 +165,14 @@ struct GoogleDriveConfigView: View {
 
 #Preview {
     PreviewWrapper(
-        libraryVM: PreviewViewModels.libraryVM()
+        libraryVM: PreviewViewModels.libraryVM(),
+        settingsVM: PreviewViewModels.settingsVM()
     ) {
         NavigationStack {
-            GoogleDriveConfigView()
+            GoogleDriveConfigView(
+                libraryViewModel: PreviewViewModels.libraryVM(),
+                settingsViewModel: PreviewViewModels.settingsVM()
+            )
         }
     }
 }
