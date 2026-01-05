@@ -13,6 +13,7 @@ struct DownloadMusicView: View {
     @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
     @Environment(PlaylistViewModel.self) private var playlistViewModel
+    @Environment(SettingsViewModel.self) private var settingsViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var songForPlaylistSheet: SongEntity?
@@ -201,6 +202,7 @@ struct DownloadMusicView: View {
     PreviewWrapper(
         libraryVM: PreviewViewModels.libraryVM(),
         playerVM: PreviewViewModels.playerVM(),
+        settingsVM: PreviewViewModels.settingsVM(),
         modelContainer: PreviewData.container(with: PreviewSongs.generate())
     ) { DownloadMusicView() }
 }

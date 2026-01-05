@@ -44,5 +44,5 @@ protocol PlaylistRepositoryProtocol: Sendable {
     // MARK: - Observability
 
     /// Observa cambios en las playlists
-    func observeChanges(onChange: @escaping @MainActor ([PlaylistEntity]) -> Void)
+    @MainActor func observeChanges(onChange: @escaping @MainActor ([PlaylistEntity]) -> Void)
 }

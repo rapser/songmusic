@@ -48,16 +48,16 @@ protocol AudioPlayerRepositoryProtocol: Sendable {
     // MARK: - Callbacks
 
     /// Callback cuando cambia el estado de reproducción
-    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
+    @MainActor var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
 
     /// Callback cuando cambia el tiempo de reproducción
-    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? { get set }
+    @MainActor var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? { get set }
 
     /// Callback cuando termina una canción
-    var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
+    @MainActor var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
 
     /// Callbacks para controles remotos
-    var onRemotePlayPause: (@MainActor () -> Void)? { get set }
-    var onRemoteNext: (@MainActor () -> Void)? { get set }
-    var onRemotePrevious: (@MainActor () -> Void)? { get set }
+    @MainActor var onRemotePlayPause: (@MainActor () -> Void)? { get set }
+    @MainActor var onRemoteNext: (@MainActor () -> Void)? { get set }
+    @MainActor var onRemotePrevious: (@MainActor () -> Void)? { get set }
 }

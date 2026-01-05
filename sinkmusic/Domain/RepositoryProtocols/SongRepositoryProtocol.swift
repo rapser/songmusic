@@ -67,5 +67,5 @@ protocol SongRepositoryProtocol: Sendable {
     // MARK: - Observability
 
     /// Observa cambios en las canciones
-    func observeChanges(onChange: @escaping @MainActor ([SongEntity]) -> Void)
+    @MainActor func observeChanges(onChange: @escaping @MainActor ([SongEntity]) -> Void)
 }

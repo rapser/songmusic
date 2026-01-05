@@ -9,11 +9,15 @@ import SwiftUI
 
 struct GoogleDriveConfigView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(LibraryViewModel.self) private var libraryViewModel
+    @Environment(SettingsViewModel.self) private var settingsVM
 
-    let libraryViewModel: LibraryViewModel
-    let settingsViewModel: SettingsViewModel
-    
+    private var settingsViewModel: SettingsViewModel {
+        settingsVM
+    }
+
     var body: some View {
+        @Bindable var settings = settingsVM
         ZStack {
             Color.appDark.edgesIgnoringSafeArea(.all)
             
@@ -47,7 +51,7 @@ struct GoogleDriveConfigView: View {
                                 .foregroundColor(.appPurple)
                         }
                         
-                        TextField("", text: $settingsViewModel.apiKey, prompt: Text("Ingresa tu API Key").foregroundColor(.textGray))
+                        TextField("", text: $settings.apiKey, prompt: Text("Ingresa tu API Key").foregroundColor(.textGray))
                             .textFieldStyle(CustomTextFieldStyle())
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -65,7 +69,7 @@ struct GoogleDriveConfigView: View {
                                 .foregroundColor(.appPurple)
                         }
                         
-                        TextField("", text: $settingsViewModel.folderId, prompt: Text("Ingresa el ID de la carpeta").foregroundColor(.textGray))
+                        TextField("", text: $settings.folderId, prompt: Text("Ingresa el ID de la carpeta").foregroundColor(.textGray))
                             .textFieldStyle(CustomTextFieldStyle())
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -144,17 +148,17 @@ struct GoogleDriveConfigView: View {
         .onAppear {
             settingsViewModel.loadCredentials()
         }
-        .alert("Configuración Guardada", isPresented: $settingsViewModel.showSaveConfirmation) {
+        .alert("Configuración Guardada", isPresented: $settings.showSaveConfirmation) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Las credenciales se han guardado de forma segura en Keychain")
         }
-        .alert("Eliminar Credenciales", isPresented: $settingsViewModel.showDeleteCredentialsAlert) {
+        .alert("Eliminar Credenciales", isPresented: $settings.showDeleteCredentialsAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
                 Task {
                     await settingsViewModel.deleteCredentialsAsync()
-                    await libraryViewModel.clearLocalSongs()
+                    await libraryViewModel.clearLibrary()
                 }
             }
         } message: {
@@ -169,10 +173,7 @@ struct GoogleDriveConfigView: View {
         settingsVM: PreviewViewModels.settingsVM()
     ) {
         NavigationStack {
-            GoogleDriveConfigView(
-                libraryViewModel: PreviewViewModels.libraryVM(),
-                settingsViewModel: PreviewViewModels.settingsVM()
-            )
+            GoogleDriveConfigView()
         }
     }
 }

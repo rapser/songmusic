@@ -42,10 +42,7 @@ struct DownloadsSectionView: View {
             }
 
             // Google Drive Config Button
-            NavigationLink(destination: GoogleDriveConfigView(
-                libraryViewModel: libraryViewModel,
-                settingsViewModel: settingsViewModel
-            )) {
+            NavigationLink(destination: GoogleDriveConfigView()) {
                 HStack(spacing: 16) {
                     Image(systemName: "cloud.fill")
                         .foregroundColor(.textGray)
