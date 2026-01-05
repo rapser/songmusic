@@ -37,7 +37,7 @@ final class SongLocalDataSource {
 
     /// Obtiene canciones con un predicado personalizado
     func fetch(with predicate: Predicate<SongDTO>?, sortBy: [SortDescriptor<SongDTO>] = []) throws -> [SongDTO] {
-        var descriptor = FetchDescriptor<SongDTO>(
+        let descriptor = FetchDescriptor<SongDTO>(
             predicate: predicate,
             sortBy: sortBy
         )
