@@ -26,115 +26,147 @@ struct AddToPlaylistView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.appDark.edgesIgnoringSafeArea(.all)
-
-                VStack(spacing: 0) {
-                    // Search Bar
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.textGray)
-
-                        TextField("Buscar playlist", text: $searchText)
-                            .font(.system(size: 15))
-                            .foregroundColor(.white)
-                            .autocorrectionDisabled()
-
-                        if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.textGray)
-                            }
-                        }
+            mainContent
+                .navigationTitle("Agregar a playlist")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        closeButton
                     }
-                    .padding(12)
-                    .background(Color.appGray)
-                    .cornerRadius(8)
+                }
+        }
+    }
+
+    private var mainContent: some View {
+        ZStack {
+            Color.appDark.edgesIgnoringSafeArea(.all)
+
+            VStack(spacing: 0) {
+                searchBar
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
 
-                    // New Playlist Button
-                    Button(action: {
-                        // TODO: Implement create playlist flow
-                    }) {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.appGray)
-                                    .frame(width: 50, height: 50)
+                newPlaylistButton
 
-                                Image(systemName: "plus")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.white)
-                            }
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                    .padding(.vertical, 8)
 
-                            Text("Nueva playlist")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white)
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background(Color.clear)
-                    }
-
-                    Divider()
-                        .background(Color.white.opacity(0.1))
-                        .padding(.vertical, 8)
-
-                    // Playlists List
-                    if filteredPlaylists.isEmpty {
-                        VStack(spacing: 16) {
-                            Spacer()
-
-                            Image(systemName: "music.note.list")
-                                .font(.system(size: 50))
-                                .foregroundColor(.textGray)
-
-                            Text(searchText.isEmpty ? "No hay playlists" : "No se encontraron playlists")
-                                .font(.system(size: 16))
-                                .foregroundColor(.textGray)
-
-                            Spacer()
-                        }
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(filteredPlaylists, id: \.id) { playlist in
-                                    PlaylistSelectRow(
-                                        playlist: playlist,
-                                        song: song,
-                                        isAdded: playlist.songIDs.contains(song.id)
-                                    )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        addToPlaylist(playlist)
-                                    }
-
-                                    if playlist.id != filteredPlaylists.last?.id {
-                                        Divider()
-                                            .background(Color.white.opacity(0.1))
-                                            .padding(.leading, 80)
-                                    }
-                                }
-                            }
-                            .padding(.bottom, 20)
-                        }
-                    }
-                }
+                playlistsList
             }
-            .navigationTitle("Agregar a playlist")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cerrar") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
+        }
+    }
+
+    private var searchBar: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.textGray)
+
+            TextField("Buscar playlist", text: $searchText)
+                .font(.system(size: 15))
+                .foregroundColor(.white)
+                .autocorrectionDisabled()
+
+            if !searchText.isEmpty {
+                Button(action: { searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.textGray)
                 }
             }
         }
+        .padding(12)
+        .background(Color.appGray)
+        .cornerRadius(8)
+    }
+
+    private var newPlaylistButton: some View {
+        Button(action: {
+            // TODO: Implement create playlist flow
+        }) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.appGray)
+                        .frame(width: 50, height: 50)
+
+                    Image(systemName: "plus")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                }
+
+                Text("Nueva playlist")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.white)
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(Color.clear)
+        }
+    }
+
+    @ViewBuilder
+    private var playlistsList: some View {
+        if filteredPlaylists.isEmpty {
+            emptyState
+        } else {
+            playlistsScrollView
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            Image(systemName: "music.note.list")
+                .font(.system(size: 50))
+                .foregroundColor(.textGray)
+
+            Text(searchText.isEmpty ? "No hay playlists" : "No se encontraron playlists")
+                .font(.system(size: 16))
+                .foregroundColor(.textGray)
+
+            Spacer()
+        }
+    }
+
+    private var playlistsScrollView: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(filteredPlaylists, id: \.id) { playlist in
+                    playlistRow(playlist)
+                }
+            }
+            .padding(.bottom, 20)
+        }
+    }
+
+    private func playlistRow(_ playlist: PlaylistEntity) -> some View {
+        Group {
+            PlaylistSelectRow(
+                playlist: playlist,
+                song: song,
+                isAdded: playlist.songs.contains(where: { $0.id == song.id })
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                addToPlaylist(playlist)
+            }
+
+            if playlist.id != filteredPlaylists.last?.id {
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                    .padding(.leading, 80)
+            }
+        }
+    }
+
+    private var closeButton: some View {
+        Button("Cerrar") {
+            dismiss()
+        }
+        .foregroundColor(.white)
     }
 
     private func addToPlaylist(_ playlist: PlaylistEntity) {
