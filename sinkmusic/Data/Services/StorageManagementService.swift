@@ -11,7 +11,7 @@ import SwiftData
 // MARK: - Storage Management Service (Single Responsibility)
 
 /// Servicio responsable de gestionar el almacenamiento de canciones descargadas
-final class StorageManagementService: SettingsServiceProtocol {
+final class StorageManagementService: StorageManagementServiceProtocol, SettingsServiceProtocol {
     nonisolated(unsafe) private let googleDriveService: GoogleDriveServiceProtocol
 
     nonisolated init(googleDriveService: GoogleDriveServiceProtocol = GoogleDriveService()) {

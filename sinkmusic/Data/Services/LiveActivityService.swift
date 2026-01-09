@@ -11,7 +11,7 @@ import UIKit
 
 /// Servicio para manejar Live Activities (Dynamic Island)
 @MainActor
-class LiveActivityService {
+class LiveActivityService: LiveActivityServiceProtocol {
     private var currentActivity: Activity<MusicPlayerActivityAttributes>?
 
     /// Inicia una Live Activity para la canción actual

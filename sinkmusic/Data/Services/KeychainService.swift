@@ -9,7 +9,7 @@ import Foundation
 import Security
 
 /// Servicio para almacenar y recuperar credenciales de forma segura usando Keychain
-final class KeychainService {
+final class KeychainService: KeychainServiceProtocol {
     static let shared = KeychainService()
 
     private init() {}

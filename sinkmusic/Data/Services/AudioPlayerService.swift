@@ -3,7 +3,7 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 
-final class AudioPlayerService: NSObject, AudioPlayerProtocol, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate {
 
     // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
     var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?

@@ -9,7 +9,7 @@ import Foundation
 import AuthenticationServices
 
 @MainActor
-final class AuthenticationManager: NSObject, ObservableObject {
+final class AuthenticationManager: NSObject, ObservableObject, AuthenticationServiceProtocol {
     @Published var isAuthenticated: Bool = false
     @Published var isCheckingAuth: Bool = true  // Nuevo estado para evitar flash de login
     @Published var userID: String?

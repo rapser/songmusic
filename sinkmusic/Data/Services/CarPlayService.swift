@@ -14,7 +14,7 @@ import Foundation
 /// El Now Playing Info y Remote Command Center están configurados en AudioPlayerService,
 /// por lo que CarPlay los usa automáticamente sin necesidad de suscripciones adicionales.
 @MainActor
-class CarPlayService {
+class CarPlayService: CarPlayServiceProtocol {
     static let shared = CarPlayService()
 
     // CRÍTICO: weak para evitar memory leak
