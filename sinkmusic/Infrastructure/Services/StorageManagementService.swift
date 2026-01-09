@@ -14,7 +14,7 @@ import SwiftData
 final class StorageManagementService: StorageManagementServiceProtocol, SettingsServiceProtocol {
     nonisolated(unsafe) private let googleDriveService: GoogleDriveServiceProtocol
 
-    nonisolated init(googleDriveService: GoogleDriveServiceProtocol = GoogleDriveService()) {
+    nonisolated init(googleDriveService: GoogleDriveServiceProtocol = GoogleDriveDataSource()) {
         self.googleDriveService = googleDriveService
     }
 

@@ -4,11 +4,14 @@
 //
 //  Created by miguel tomairo on 3/01/26.
 //
+// DEPRECATED: Usar CloudStorageRepositoryProtocol en su lugar
+//
 
 import Foundation
 
 /// Protocolo de repositorio para Google Drive
 /// Abstrae GoogleDriveService de la capa de dominio
+/// DEPRECATED: Usar CloudStorageRepositoryProtocol en su lugar
 protocol GoogleDriveRepositoryProtocol: Sendable {
 
     // MARK: - Remote Operations
@@ -31,29 +34,6 @@ protocol GoogleDriveRepositoryProtocol: Sendable {
 
     /// Obtiene la URL local de una canción descargada
     func localURL(for songID: UUID) -> URL?
-}
-
-/// Estructura para archivos de Google Drive
-struct GoogleDriveFile: Codable, Identifiable, Sendable {
-    let id: String
-    let name: String
-    let mimeType: String
-
-    var title: String {
-        let components = name.components(separatedBy: " - ")
-        return components.count > 1 ? components[1].replacingOccurrences(of: ".m4a", with: "") : name
-    }
-
-    var artist: String {
-        let components = name.components(separatedBy: " - ")
-        return components.first ?? "Artista Desconocido"
-    }
-}
-
-/// Respuesta de Google Drive API
-struct GoogleDriveResponse: Codable {
-    let files: [GoogleDriveFile]
-    let nextPageToken: String?
 }
 
 /// Errores de Google Drive

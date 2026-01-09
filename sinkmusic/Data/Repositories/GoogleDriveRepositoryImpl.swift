@@ -15,12 +15,12 @@ final class GoogleDriveRepositoryImpl: GoogleDriveRepositoryProtocol {
 
     // MARK: - Dependencies
 
-    private let googleDriveService: GoogleDriveService
+    private let googleDriveService: GoogleDriveServiceProtocol
     private let songLocalDataSource: SongLocalDataSource
 
     // MARK: - Initialization
 
-    init(googleDriveService: GoogleDriveService, songLocalDataSource: SongLocalDataSource) {
+    init(googleDriveService: GoogleDriveServiceProtocol, songLocalDataSource: SongLocalDataSource) {
         self.googleDriveService = googleDriveService
         self.songLocalDataSource = songLocalDataSource
     }

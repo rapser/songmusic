@@ -40,7 +40,10 @@ final class DIContainer {
 
     private(set) lazy var audioPlayerRepository: AudioPlayerRepositoryProtocol = makeAudioPlayerRepository()
 
+    // DEPRECATED: Usar cloudStorageRepository en su lugar
     private(set) lazy var googleDriveRepository: GoogleDriveRepositoryProtocol = makeGoogleDriveRepository()
+
+    private(set) lazy var cloudStorageRepository: CloudStorageRepositoryProtocol = makeCloudStorageRepository()
 
     private(set) lazy var credentialsRepository: CredentialsRepositoryProtocol = makeCredentialsRepository()
 
@@ -91,9 +94,21 @@ final class DIContainer {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
         let songLocalDataSource = SongLocalDataSource(modelContext: context)
-        let googleDriveService = GoogleDriveService()
+        let googleDriveDataSource = GoogleDriveDataSource()
         return GoogleDriveRepositoryImpl(
-            googleDriveService: googleDriveService,
+            googleDriveService: googleDriveDataSource,
+            songLocalDataSource: songLocalDataSource
+        )
+    }
+
+    private func makeCloudStorageRepository() -> CloudStorageRepositoryProtocol {
+        guard let context = modelContext else {
+            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
+        }
+        let songLocalDataSource = SongLocalDataSource(modelContext: context)
+        let googleDriveDataSource = GoogleDriveDataSource()
+        return CloudStorageRepositoryImpl(
+            googleDriveDataSource: googleDriveDataSource,
             songLocalDataSource: songLocalDataSource
         )
     }

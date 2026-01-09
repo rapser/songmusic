@@ -1,19 +1,21 @@
 //
-//  GoogleDriveService.swift
+//  GoogleDriveDataSource.swift
 //  sinkmusic
 //
-//  Created by miguel tomairo on 6/09/25.
+//  Created by Claude Code
+//  Clean Architecture - Data Layer - Remote DataSource
 //
 
 import Foundation
 import AVFoundation
 
 // Typealias para compatibilidad con código existente
-typealias DownloadService = GoogleDriveService
+typealias DownloadService = GoogleDriveDataSource
 typealias DownloadServiceProtocol = GoogleDriveServiceProtocol
 
-/// Servicio consolidado para interactuar con Google Drive API y manejar descargas
-final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
+/// DataSource remoto para Google Drive API
+/// Implementa GoogleDriveServiceProtocol para abstraer el acceso a archivos en la nube
+final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
     private let keychainService = KeychainService.shared
 
     private lazy var urlSession: URLSession = {
@@ -210,7 +212,7 @@ final class GoogleDriveService: NSObject, GoogleDriveServiceProtocol {
 
 // MARK: - URLSessionDownloadDelegate
 
-extension GoogleDriveService: URLSessionDownloadDelegate {
+extension GoogleDriveDataSource: URLSessionDownloadDelegate {
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         downloadsLock.lock()
