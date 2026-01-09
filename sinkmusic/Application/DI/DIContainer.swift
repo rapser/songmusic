@@ -22,15 +22,15 @@ final class DIContainer {
         self.modelContext = modelContext
     }
 
-    // MARK: - Infrastructure Services (Singleton)
+    // MARK: - Infrastructure Services (Singleton - Protocol types for DI)
 
-    private(set) lazy var audioPlayerService: AudioPlayerService = AudioPlayerService()
+    private(set) lazy var audioPlayerService: AudioPlayerServiceProtocol = AudioPlayerService()
 
-    private(set) lazy var liveActivityService: LiveActivityService = LiveActivityService()
+    private(set) lazy var liveActivityService: LiveActivityServiceProtocol = LiveActivityService()
 
-    private(set) lazy var keychainService: KeychainService = KeychainService.shared
+    private(set) lazy var keychainService: KeychainServiceProtocol = KeychainService.shared
 
-    private(set) lazy var authManager: AuthenticationManager = AuthenticationManager.shared
+    private(set) lazy var authManager: AuthenticationServiceProtocol = AuthenticationManager.shared
 
     // MARK: - Repositories (Lazy initialization)
 

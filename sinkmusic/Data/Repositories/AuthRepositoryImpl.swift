@@ -15,11 +15,11 @@ final class AuthRepositoryImpl: AuthRepositoryProtocol {
 
     // MARK: - Dependencies
 
-    private let authManager: AuthenticationManager
+    private let authManager: AuthenticationServiceProtocol
 
     // MARK: - Initialization
 
-    init(authManager: AuthenticationManager) {
+    init(authManager: AuthenticationServiceProtocol) {
         self.authManager = authManager
     }
 

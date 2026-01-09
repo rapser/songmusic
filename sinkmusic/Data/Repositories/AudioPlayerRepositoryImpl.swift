@@ -15,7 +15,7 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     // MARK: - Dependencies
 
-    private let audioPlayerService: AudioPlayerService
+    private var audioPlayerService: AudioPlayerServiceProtocol
 
     // MARK: - Callbacks
 
@@ -51,7 +51,7 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     // MARK: - Initialization
 
-    init(audioPlayerService: AudioPlayerService) {
+    init(audioPlayerService: AudioPlayerServiceProtocol) {
         self.audioPlayerService = audioPlayerService
     }
 

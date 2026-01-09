@@ -15,11 +15,11 @@ final class CredentialsRepositoryImpl: CredentialsRepositoryProtocol {
 
     // MARK: - Dependencies
 
-    private let keychainService: KeychainService
+    private let keychainService: KeychainServiceProtocol
 
     // MARK: - Initialization
 
-    init(keychainService: KeychainService) {
+    init(keychainService: KeychainServiceProtocol) {
         self.keychainService = keychainService
     }
 
