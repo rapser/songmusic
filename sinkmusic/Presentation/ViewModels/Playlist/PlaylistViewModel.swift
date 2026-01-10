@@ -15,11 +15,11 @@ import SwiftUI
 @Observable
 final class PlaylistViewModel {
 
-    // MARK: - Published State
+    // MARK: - Published State (Clean Architecture - UIModels only)
 
-    var playlists: [PlaylistEntity] = []
-    var selectedPlaylist: PlaylistEntity?
-    var songsInPlaylist: [SongEntity] = []
+    var playlists: [PlaylistUIModel] = []
+    var selectedPlaylist: PlaylistUIModel?
+    var songsInPlaylist: [SongUIModel] = []
     var playlistStats: PlaylistStats?
     var isLoading = false
     var errorMessage: String?
@@ -43,7 +43,8 @@ final class PlaylistViewModel {
     /// Carga todas las playlists
     func loadPlaylists() async {
         do {
-            playlists = try await playlistUseCases.getAllPlaylists()
+            let entities = try await playlistUseCases.getAllPlaylists()
+            playlists = entities.map { PlaylistMapper.toUIModel($0) }
         } catch {
             errorMessage = "Error al cargar playlists: \(error.localizedDescription)"
         }
@@ -95,7 +96,7 @@ final class PlaylistViewModel {
             try await playlistUseCases.renamePlaylist(id, newName: newName)
             await loadPlaylists()
             if let playlist = try? await playlistUseCases.getPlaylistByID(id) {
-                selectedPlaylist = playlist
+                selectedPlaylist = PlaylistMapper.toUIModel(playlist)
             }
             errorMessage = nil
         } catch {
@@ -174,14 +175,15 @@ final class PlaylistViewModel {
     /// Carga las canciones de una playlist
     func loadSongsInPlaylist(_ playlistID: UUID) async {
         do {
-            songsInPlaylist = try await playlistUseCases.getSongsInPlaylist(playlistID)
+            let entities = try await playlistUseCases.getSongsInPlaylist(playlistID)
+            songsInPlaylist = entities.map { SongMapper.toUIModel($0) }
         } catch {
             errorMessage = "Error al cargar canciones: \(error.localizedDescription)"
         }
     }
 
     /// Selecciona una playlist para ver en detalle
-    func selectPlaylist(_ playlist: PlaylistEntity) async {
+    func selectPlaylist(_ playlist: PlaylistUIModel) async {
         selectedPlaylist = playlist
         await loadSongsInPlaylist(playlist.id)
         await loadPlaylistStats(playlist.id)
@@ -203,7 +205,7 @@ final class PlaylistViewModel {
     /// Verifica si una canción está en alguna playlist
     func isSongInAnyPlaylist(songID: UUID) -> Bool {
         return playlists.contains { playlist in
-            playlist.containsSong(id: songID)
+            playlist.songs.contains(where: { $0.id == songID })
         }
     }
 
@@ -213,12 +215,12 @@ final class PlaylistViewModel {
         // Observar cambios en playlists
         playlistUseCases.observePlaylistChanges { [weak self] updatedPlaylists in
             guard let self = self else { return }
-            self.playlists = updatedPlaylists
+            self.playlists = updatedPlaylists.map { PlaylistMapper.toUIModel($0) }
 
             // Si hay una playlist seleccionada, actualizarla
             if let selectedID = self.selectedPlaylist?.id,
                let updatedPlaylist = updatedPlaylists.first(where: { $0.id == selectedID }) {
-                self.selectedPlaylist = updatedPlaylist
+                self.selectedPlaylist = PlaylistMapper.toUIModel(updatedPlaylist)
                 Task {
                     await self.loadSongsInPlaylist(selectedID)
                     await self.loadPlaylistStats(selectedID)

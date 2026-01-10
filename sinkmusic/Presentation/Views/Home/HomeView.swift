@@ -5,7 +5,7 @@ struct HomeView: View {
     @Environment(HomeViewModel.self) private var viewModel
     @Environment(PlayerViewModel.self) private var playerViewModel
 
-    var topSongs: [SongEntity] {
+    var topSongs: [SongUIModel] {
         // Ya viene ordenado por playCount desde el ViewModel
         Array(viewModel.mostPlayedSongs.prefix(6))
     }

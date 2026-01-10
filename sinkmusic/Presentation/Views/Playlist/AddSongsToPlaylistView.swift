@@ -13,7 +13,7 @@ struct AddSongsToPlaylistView: View {
     @Environment(PlaylistViewModel.self) private var viewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
 
-    let playlist: PlaylistEntity
+    let playlist: PlaylistUIModel
 
     // Paginación
     @State private var displayedSongsCount = 30 // Mostrar 30 canciones inicialmente
@@ -22,14 +22,14 @@ struct AddSongsToPlaylistView: View {
     // Búsqueda
     @State private var searchText = ""
 
-    private var availableSongs: [SongEntity] {
+    private var availableSongs: [SongUIModel] {
         // Filtrar solo canciones descargadas que NO están en ninguna playlist
         let baseSongs = libraryViewModel.songs.filter { song in
             song.isDownloaded && !viewModel.isSongInAnyPlaylist(songID: song.id)
         }
 
         // Aplicar filtro de búsqueda si hay texto
-        let filteredSongs: [SongEntity]
+        let filteredSongs: [SongUIModel]
         if searchText.isEmpty {
             filteredSongs = baseSongs
         } else {
@@ -43,7 +43,7 @@ struct AddSongsToPlaylistView: View {
         return filteredSongs.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    private var displayedSongs: [SongEntity] {
+    private var displayedSongs: [SongUIModel] {
         Array(availableSongs.prefix(displayedSongsCount))
     }
 
@@ -55,66 +55,96 @@ struct AddSongsToPlaylistView: View {
         NavigationView {
             ZStack {
                 Color.appDark.edgesIgnoringSafeArea(.all)
-
-                VStack(spacing: 0) {
-                    // Barra de búsqueda
-                    SearchBar(text: $searchText, placeholder: "Buscar por título o artista")
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 8)
-
-                    if availableSongs.isEmpty {
-                        if searchText.isEmpty {
-                            EmptyAvailableSongsView()
-                        } else {
-                            SearchEmptyView(searchText: searchText)
-                        }
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(displayedSongs) { song in
-                                    VStack(spacing: 0) {
-                                        AddSongRow(song: song) {
-                                            Task {
-                                                await viewModel.addSongToPlaylist(songID: song.id, playlistID: playlist.id)
-                                            }
-                                        }
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 8)
-
-                                        Divider()
-                                            .background(Color.white.opacity(0.1))
-                                    }
-                                }
-
-                                // Trigger para cargar más canciones
-                                if hasMoreSongs {
-                                    HStack {
-                                        Spacer()
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        Spacer()
-                                    }
-                                    .padding()
-                                    .onAppear {
-                                        loadMoreSongs()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                mainContent
             }
             .navigationTitle("Agregar a esta playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .foregroundColor(.white)
-                    }
+                    closeButton
                 }
             }
+        }
+    }
+
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            searchBar
+            contentView
+        }
+    }
+
+    private var searchBar: some View {
+        SearchBar(text: $searchText, placeholder: "Buscar por título o artista")
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if availableSongs.isEmpty {
+            emptyStateView
+        } else {
+            songsListView
+        }
+    }
+
+    @ViewBuilder
+    private var emptyStateView: some View {
+        if searchText.isEmpty {
+            EmptyAvailableSongsView()
+        } else {
+            SearchEmptyView(searchText: searchText)
+        }
+    }
+
+    private var songsListView: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(displayedSongs) { song in
+                    songRowItem(song: song)
+                }
+
+                if hasMoreSongs {
+                    loadMoreIndicator
+                }
+            }
+        }
+    }
+
+    private func songRowItem(song: SongUIModel) -> some View {
+        VStack(spacing: 0) {
+            AddSongRow(song: song) {
+                Task {
+                    await viewModel.addSongToPlaylist(songID: song.id, playlistID: playlist.id)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            Divider()
+                .background(Color.white.opacity(0.1))
+        }
+    }
+
+    private var loadMoreIndicator: some View {
+        HStack {
+            Spacer()
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+            Spacer()
+        }
+        .padding()
+        .onAppear {
+            loadMoreSongs()
+        }
+    }
+
+    private var closeButton: some View {
+        Button(action: { dismiss() }) {
+            Image(systemName: "xmark")
+                .foregroundColor(.white)
         }
     }
 

@@ -15,12 +15,12 @@ import SwiftUI
 @Observable
 final class HomeViewModel {
 
-    // MARK: - Published State
+    // MARK: - Published State (Clean Architecture - UIModels only)
 
-    var playlists: [PlaylistEntity] = []
-    var recentSongs: [SongEntity] = []
-    var mostPlayedSongs: [SongEntity] = []
-    var downloadedSongs: [SongEntity] = []
+    var playlists: [PlaylistUIModel] = []
+    var recentSongs: [SongUIModel] = []
+    var mostPlayedSongs: [SongUIModel] = []
+    var downloadedSongs: [SongUIModel] = []
 
     var libraryStats: LibraryStats?
     var isLoading: Bool = false
@@ -63,7 +63,8 @@ final class HomeViewModel {
     /// Carga playlists
     private func loadPlaylists() async {
         do {
-            playlists = try await playlistUseCases.getAllPlaylists()
+            let entities = try await playlistUseCases.getAllPlaylists()
+            playlists = entities.map { PlaylistMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar playlists: \(error)")
         }
@@ -77,7 +78,7 @@ final class HomeViewModel {
                 .filter { $0.lastPlayedAt != nil }
                 .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
                 .prefix(10)
-                .map { $0 }
+                .map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones recientes: \(error)")
         }
@@ -91,7 +92,7 @@ final class HomeViewModel {
                 .filter { $0.playCount > 0 }
                 .sorted { $0.playCount > $1.playCount }
                 .prefix(10)
-                .map { $0 }
+                .map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones más reproducidas: \(error)")
         }
@@ -101,7 +102,9 @@ final class HomeViewModel {
     private func loadDownloadedSongs() async {
         do {
             let allSongs = try await songRepository.getAll()
-            downloadedSongs = allSongs.filter { $0.isDownloaded }
+            downloadedSongs = allSongs
+                .filter { $0.isDownloaded }
+                .map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones descargadas: \(error)")
         }
@@ -120,7 +123,7 @@ final class HomeViewModel {
         // Observar cambios en playlists
         playlistUseCases.observePlaylistChanges { [weak self] updatedPlaylists in
             guard let self = self else { return }
-            self.playlists = updatedPlaylists
+            self.playlists = updatedPlaylists.map { PlaylistMapper.toUIModel($0) }
         }
 
         // Observar cambios en canciones

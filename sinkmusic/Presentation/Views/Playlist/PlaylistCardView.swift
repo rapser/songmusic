@@ -3,13 +3,13 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 21/12/25.
-//  Refactored to Clean Architecture - Uses PlaylistEntity
+//  Refactored to Clean Architecture - Uses PlaylistUIModel
 //
 
 import SwiftUI
 
 struct PlaylistCardView: View {
-    let playlist: PlaylistEntity
+    let playlist: PlaylistUIModel
     @State private var cachedImage: UIImage?
 
     var body: some View {

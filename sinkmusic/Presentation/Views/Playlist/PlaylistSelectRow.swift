@@ -9,8 +9,8 @@
 import SwiftUI
 
 struct PlaylistSelectRow: View {
-    let playlist: PlaylistEntity
-    let song: SongEntity
+    let playlist: PlaylistUIModel
+    let song: SongUIModel
     let isAdded: Bool
 
     @State private var cachedImage: UIImage?

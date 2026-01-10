@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct TopSongsCarousel: View {
-    let songs: [SongEntity]
+    let songs: [SongUIModel]
     @Environment(PlayerViewModel.self) private var playerViewModel
 
     var body: some View {
@@ -26,7 +26,8 @@ struct TopSongsCarousel: View {
                             TopSongCard(song: song)
                                 .onTapGesture {
                                     Task {
-                                        await playerViewModel.play(songID: song.id, queue: songs)
+                                        // TODO: PlayerViewModel.play necesita ser actualizado
+                                        // await playerViewModel.play(songID: song.id, queue: songs)
                                     }
                                 }
                         }

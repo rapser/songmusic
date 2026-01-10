@@ -12,11 +12,11 @@ struct AddToPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PlaylistViewModel.self) private var viewModel
 
-    let song: SongEntity
+    let song: SongUIModel
 
     @State private var searchText = ""
 
-    var filteredPlaylists: [PlaylistEntity] {
+    var filteredPlaylists: [PlaylistUIModel] {
         if searchText.isEmpty {
             return viewModel.playlists
         } else {
@@ -142,7 +142,7 @@ struct AddToPlaylistView: View {
         }
     }
 
-    private func playlistRow(_ playlist: PlaylistEntity) -> some View {
+    private func playlistRow(_ playlist: PlaylistUIModel) -> some View {
         Group {
             PlaylistSelectRow(
                 playlist: playlist,
@@ -169,7 +169,7 @@ struct AddToPlaylistView: View {
         .foregroundColor(.white)
     }
 
-    private func addToPlaylist(_ playlist: PlaylistEntity) {
+    private func addToPlaylist(_ playlist: PlaylistUIModel) {
         Task {
             await viewModel.addSongToPlaylist(songID: song.id, playlistID: playlist.id)
 

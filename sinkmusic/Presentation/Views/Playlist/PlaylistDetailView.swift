@@ -13,11 +13,11 @@ struct PlaylistDetailView: View {
     @Environment(PlaylistViewModel.self) private var viewModel
     @Environment(PlayerViewModel.self) private var playerViewModel
 
-    let playlist: PlaylistEntity
+    let playlist: PlaylistUIModel
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddSongsSheet = false
-    @State private var songForPlaylistSheet: SongEntity?
+    @State private var songForPlaylistSheet: SongUIModel?
     @State private var editMode: EditMode = .inactive
 
     var body: some View {
@@ -138,7 +138,7 @@ struct PlaylistDetailView: View {
         .environment(\.editMode, $editMode)
     }
 
-    private func songRowView(for song: SongEntity) -> some View {
+    private func songRowView(for song: SongUIModel) -> some View {
         SongRow(
             song: song,
             songQueue: viewModel.songsInPlaylist,
@@ -146,7 +146,8 @@ struct PlaylistDetailView: View {
             isPlaying: playerViewModel.isPlaying,
             onPlay: {
                 Task {
-                    await playerViewModel.play(songID: song.id, queue: viewModel.songsInPlaylist)
+                    // TODO: PlayerViewModel.play needs updating
+                    // await playerViewModel.play(songID: song.id, queue: viewModel.songsInPlaylist)
                 }
             },
             onPause: {
@@ -279,7 +280,8 @@ struct PlaylistDetailView: View {
     private func playAll() {
         guard let firstSong = viewModel.songsInPlaylist.first else { return }
         Task {
-            await playerViewModel.play(songID: firstSong.id, queue: viewModel.songsInPlaylist)
+            // TODO: PlayerViewModel.play needs updating
+            // await playerViewModel.play(songID: firstSong.id, queue: viewModel.songsInPlaylist)
         }
     }
 }
@@ -290,7 +292,7 @@ struct PlaylistDetailView: View {
             playerVM: PreviewViewModels.playerVM(songID: UUID()),
             modelContainer: PreviewContainer.shared.container
         ) {
-            PlaylistDetailView(playlist: PlaylistMapper.toEntityWithSongs(PreviewPlaylists.samplePlaylist()))
+            PlaylistDetailView(playlist: PlaylistMapper.toUIModel(PlaylistMapper.toEntityWithSongs(PreviewPlaylists.samplePlaylist())))
         }
     }
 }

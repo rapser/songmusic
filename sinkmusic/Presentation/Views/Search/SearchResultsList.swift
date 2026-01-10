@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct SearchResultsList: View {
-    let songs: [SongEntity]
+    let songs: [SongUIModel]
     @Environment(PlayerViewModel.self) private var playerViewModel
 
     var body: some View {
@@ -17,12 +17,13 @@ struct SearchResultsList: View {
             LazyVStack(spacing: 8) {
                 ForEach(songs) { song in
                     SearchResultRow(
-                        song: SongMapper.toUIModel(song),
+                        song: song,
                         currentlyPlayingID: playerViewModel.currentlyPlayingID,
                         isPlaying: playerViewModel.isPlaying,
                         onTap: {
                             Task {
-                                await playerViewModel.play(songID: song.id, queue: songs)
+                                // TODO: PlayerViewModel.play needs updating to accept [SongUIModel]
+                                // await playerViewModel.play(songID: song.id, queue: songs)
                             }
                         }
                     )

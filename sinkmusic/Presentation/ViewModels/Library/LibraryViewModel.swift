@@ -15,12 +15,12 @@ import SwiftUI
 @Observable
 final class LibraryViewModel {
 
-    // MARK: - Published State
+    // MARK: - Published State (Clean Architecture - UIModels only)
 
     var isLoadingSongs: Bool = false
     var syncError: SyncError?
     var syncErrorMessage: String?
-    var songs: [SongEntity] = []
+    var songs: [SongUIModel] = []
     var libraryStats: LibraryStats?
 
     // MARK: - Dependencies
@@ -43,7 +43,8 @@ final class LibraryViewModel {
     /// Carga todas las canciones
     func loadSongs() async {
         do {
-            songs = try await libraryUseCases.getAllSongs()
+            let entities = try await libraryUseCases.getAllSongs()
+            songs = entities.map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones: \(error)")
         }
@@ -158,7 +159,7 @@ final class LibraryViewModel {
         // Observar cambios en la biblioteca
         libraryUseCases.observeLibraryChanges { [weak self] updatedSongs in
             guard let self = self else { return }
-            self.songs = updatedSongs
+            self.songs = updatedSongs.map { SongMapper.toUIModel($0) }
             Task {
                 await self.loadStats()
             }

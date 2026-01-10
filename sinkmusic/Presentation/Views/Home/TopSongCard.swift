@@ -9,13 +9,13 @@
 import SwiftUI
 
 struct TopSongCard: View {
-    let song: SongEntity
+    let song: SongUIModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Artwork
             ZStack {
-                if let artworkData = song.artworkData,
+                if let artworkData = song.artworkThumbnail,
                    let uiImage = UIImage(data: artworkData) {
                     Image(uiImage: uiImage)
                         .resizable()

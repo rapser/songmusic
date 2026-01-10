@@ -3,8 +3,8 @@ import SwiftUI
 struct PlayerView: View {
     @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(MetadataCacheViewModel.self) private var metadataViewModel
-    var songs: [SongEntity]
-    var currentSong: SongEntity
+    var songs: [SongUIModel]
+    var currentSong: SongUIModel
     var namespace: Namespace.ID
 
     @State private var sliderValue: Double = 0
@@ -13,7 +13,7 @@ struct PlayerView: View {
     @State private var dragOffset: CGFloat = 0
 
     private var dominantColor: Color {
-        Color.dominantColor(from: currentSong.artworkData)
+        currentSong.backgroundColor
     }
 
     var body: some View {
@@ -33,7 +33,7 @@ struct PlayerView: View {
 
                 // Artwork de la canción
                 PlayerArtwork(
-                    artworkData: currentSong.artworkData,
+                    artworkData: currentSong.artworkThumbnail,
                     cachedImage: metadataViewModel.cachedArtwork,
                     namespace: namespace
                 )

@@ -3,12 +3,12 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo
-//  Refactored to Clean Architecture - Uses PlaylistEntity
+//  Refactored to Clean Architecture - Uses PlaylistUIModel
 
 import SwiftUI
 
 struct PlaylistGridView: View {
-    let playlists: [PlaylistEntity]
+    let playlists: [PlaylistUIModel]
     @State private var showCreatePlaylist = false
 
     private let columns = [
@@ -45,7 +45,7 @@ struct PlaylistGridView: View {
 }
 
 struct PlaylistGridCard: View {
-    let playlist: PlaylistEntity
+    let playlist: PlaylistUIModel
 
     var body: some View {
         HStack(spacing: 8) {

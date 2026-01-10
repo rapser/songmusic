@@ -9,17 +9,17 @@
 import SwiftUI
 
 struct SongRow: View {
-    let song: SongEntity
-    let songQueue: [SongEntity]
+    let song: SongUIModel
+    let songQueue: [SongUIModel]
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
     let onPlay: () -> Void
     let onPause: () -> Void
 
-    @Binding var showAddToPlaylistForSong: SongEntity?
+    @Binding var showAddToPlaylistForSong: SongUIModel?
     @Environment(DownloadViewModel.self) private var downloadViewModel
 
-    var playlist: PlaylistEntity? = nil
+    var playlist: PlaylistUIModel? = nil
     var onRemoveFromPlaylist: (() -> Void)? = nil
 
     @State private var showSongMenu = false
@@ -103,29 +103,3 @@ struct SongRow: View {
     }
 }
 
-#Preview(traits: .sizeThatFitsLayout) {
-    struct SongRowPreview: View {
-        @State private var songForPlaylistSheet: SongEntity?
-
-        var body: some View {
-            PreviewWrapper(
-                playerVM: PreviewViewModels.playerVM(),
-                modelContainer: PreviewData.container(with: [PreviewSongs.single()])
-            ) {
-                SongRow(
-                    song: SongMapper.toEntity(PreviewSongs.single()),
-                    songQueue: [SongMapper.toEntity(PreviewSongs.single())],
-                    isCurrentlyPlaying: true,
-                    isPlaying: true,
-                    onPlay: { print("Play tapped") },
-                    onPause: { print("Pause tapped") },
-                    showAddToPlaylistForSong: $songForPlaylistSheet
-                )
-                .padding()
-                .background(Color.appDark)
-            }
-        }
-    }
-
-    return SongRowPreview()
-}
