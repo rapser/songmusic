@@ -33,8 +33,8 @@ final class PlayerViewModel {
 
     // MARK: - Private State
 
-    private var allSongEntities: [SongEntity] = []
-    private var currentSongEntity: SongEntity?
+    private var queueSongIDs: [UUID] = []  // Solo almacenamos IDs, no entities
+    private var currentSongEntity: SongEntity?  // Mantenemos temporalmente para Live Activity
     private var lastNowPlayingUpdateTime: TimeInterval = 0
     private var lastPlaybackTime: TimeInterval = 0
 
@@ -53,12 +53,14 @@ final class PlayerViewModel {
     // MARK: - Playback Control
 
     /// Reproduce una canción y establece la cola de reproducción
-    func play(songID: UUID, queue: [SongEntity]) async {
+    func play(songID: UUID, queue: [SongUIModel]) async {
         do {
-            // Establecer la cola (solo canciones descargadas)
-            self.allSongEntities = queue.filter { $0.isDownloaded }
+            // Establecer la cola (solo canciones descargadas) - ahora solo guardamos IDs
+            self.queueSongIDs = queue
+                .filter { $0.isDownloaded }
+                .map { $0.id }
 
-            // Obtener la canción
+            // Obtener la canción del repository
             guard let song = try await songRepository.getByID(songID),
                   song.isDownloaded else {
                 return
@@ -130,84 +132,82 @@ final class PlayerViewModel {
     }
 
     func playNext() async {
-        guard let currentSong = currentSongEntity else { return }
-        await playNextSong(after: currentSong)
+        guard let currentSongID = currentlyPlayingID else { return }
+        await playNextSong(afterSongID: currentSongID)
     }
 
     func playPrevious() async {
-        guard let currentSong = currentSongEntity else { return }
-        await playPreviousSong(before: currentSong)
+        guard let currentSongID = currentlyPlayingID else { return }
+        await playPreviousSong(beforeSongID: currentSongID)
     }
 
-    private func playNextSong(after currentSong: SongEntity) async {
-        guard !allSongEntities.isEmpty else { return }
+    private func playNextSong(afterSongID: UUID) async {
+        guard !queueSongIDs.isEmpty else { return }
 
-        var nextSong: SongEntity?
+        var nextSongID: UUID?
 
         if isShuffleEnabled {
             // Modo aleatorio: canción diferente a la actual
-            let otherSongs = allSongEntities.filter { $0.id != currentSong.id }
-            nextSong = otherSongs.randomElement() ?? allSongEntities.first
+            let otherSongIDs = queueSongIDs.filter { $0 != afterSongID }
+            nextSongID = otherSongIDs.randomElement() ?? queueSongIDs.first
         } else {
             // Modo secuencial
-            guard let idx = allSongEntities.firstIndex(where: { $0.id == currentSong.id }) else { return }
-            let nextIdx = (idx + 1) % allSongEntities.count
-            nextSong = allSongEntities[nextIdx]
+            guard let idx = queueSongIDs.firstIndex(where: { $0 == afterSongID }) else { return }
+            let nextIdx = (idx + 1) % queueSongIDs.count
+            nextSongID = queueSongIDs[nextIdx]
         }
 
-        if let songToPlay = nextSong {
-            await play(songID: songToPlay.id, queue: allSongEntities)
+        if let songID = nextSongID {
+            // Obtener todas las canciones de la cola para pasarlas a play()
+            let queueUIModels = await getQueueUIModels()
+            await play(songID: songID, queue: queueUIModels)
         }
     }
 
-    private func playPreviousSong(before currentSong: SongEntity) async {
-        guard !allSongEntities.isEmpty else { return }
+    private func playPreviousSong(beforeSongID: UUID) async {
+        guard !queueSongIDs.isEmpty else { return }
 
-        var prevSong: SongEntity?
+        var prevSongID: UUID?
 
         if isShuffleEnabled {
             // Modo aleatorio
-            let otherSongs = allSongEntities.filter { $0.id != currentSong.id }
-            prevSong = otherSongs.randomElement() ?? allSongEntities.first
+            let otherSongIDs = queueSongIDs.filter { $0 != beforeSongID }
+            prevSongID = otherSongIDs.randomElement() ?? queueSongIDs.first
         } else {
             // Modo secuencial
-            guard let idx = allSongEntities.firstIndex(where: { $0.id == currentSong.id }) else { return }
-            let prevIdx = (idx - 1 + allSongEntities.count) % allSongEntities.count
-            prevSong = allSongEntities[prevIdx]
+            guard let idx = queueSongIDs.firstIndex(where: { $0 == beforeSongID }) else { return }
+            let prevIdx = (idx - 1 + queueSongIDs.count) % queueSongIDs.count
+            prevSongID = queueSongIDs[prevIdx]
         }
 
-        if let songToPlay = prevSong {
-            await play(songID: songToPlay.id, queue: allSongEntities)
+        if let songID = prevSongID {
+            // Obtener todas las canciones de la cola para pasarlas a play()
+            let queueUIModels = await getQueueUIModels()
+            await play(songID: songID, queue: queueUIModels)
         }
     }
 
     private func playNextAutomatically(finishedSongID: UUID) async {
-        guard let currentSong = allSongEntities.first(where: { $0.id == finishedSongID }) else {
-            print("⚠️ Canción terminada no encontrada. ID: \(finishedSongID)")
-            return
-        }
-
-        let downloadedSongs = allSongEntities.filter { $0.isDownloaded }
-
-        guard !downloadedSongs.isEmpty else {
-            print("⚠️ No hay canciones descargadas disponibles")
+        guard !queueSongIDs.isEmpty else {
+            print("⚠️ No hay canciones en la cola")
             return
         }
 
         switch repeatMode {
         case .repeatOne:
             // Repetir la misma canción
-            print("🔁 Repeat One: Repitiendo '\(currentSong.title)'")
-            await play(songID: currentSong.id, queue: allSongEntities)
+            print("🔁 Repeat One: Repitiendo canción")
+            let queueUIModels = await getQueueUIModels()
+            await play(songID: finishedSongID, queue: queueUIModels)
 
         case .repeatAll:
             // Continuar y volver al inicio si es la última
             print("🔁 Repeat All: Siguiente canción")
-            await playNextSong(after: currentSong)
+            await playNextSong(afterSongID: finishedSongID)
 
         case .off:
             // Continuar hasta la última canción
-            guard let idx = downloadedSongs.firstIndex(where: { $0.id == currentSong.id }) else {
+            guard let idx = queueSongIDs.firstIndex(where: { $0 == finishedSongID }) else {
                 print("⚠️ No se encontró el índice de la canción")
                 return
             }
@@ -215,12 +215,12 @@ final class PlayerViewModel {
             if isShuffleEnabled {
                 // Shuffle sin repeat: continuar con aleatorias
                 print("🔀 Shuffle: Siguiente canción aleatoria")
-                await playNextSong(after: currentSong)
+                await playNextSong(afterSongID: finishedSongID)
             } else {
                 // Secuencial sin repeat: continuar hasta la última
-                if idx < downloadedSongs.count - 1 {
-                    print("▶️ Modo normal: Siguiente canción (\(idx + 1)/\(downloadedSongs.count))")
-                    await playNextSong(after: currentSong)
+                if idx < queueSongIDs.count - 1 {
+                    print("▶️ Modo normal: Siguiente canción (\(idx + 1)/\(queueSongIDs.count))")
+                    await playNextSong(afterSongID: finishedSongID)
                 } else {
                     // Última canción, detener
                     print("⏹️ Última canción alcanzada. Deteniendo reproducción.")
@@ -368,6 +368,23 @@ final class PlayerViewModel {
     }
 
     // MARK: - Helpers
+
+    /// Obtiene las canciones de la cola desde el repository y las convierte a UIModels
+    private func getQueueUIModels() async -> [SongUIModel] {
+        var uiModels: [SongUIModel] = []
+
+        for songID in queueSongIDs {
+            do {
+                if let entity = try await songRepository.getByID(songID) {
+                    uiModels.append(SongMapper.toUIModel(entity))
+                }
+            } catch {
+                print("⚠️ Error al obtener canción \(songID): \(error)")
+            }
+        }
+
+        return uiModels
+    }
 
     func formatTime(_ time: TimeInterval) -> String {
         let minutes = Int(time) / 60

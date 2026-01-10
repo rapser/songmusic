@@ -51,7 +51,28 @@ final class PlaylistViewModel {
     }
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?, coverImageData: Data?) async {
+    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> UUID {
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+            errorMessage = "El nombre de la playlist no puede estar vacío"
+            throw PlaylistError.emptyName
+        }
+
+        isLoading = true
+        do {
+            let playlist = try await playlistUseCases.createPlaylist(name: name, description: description, coverImageData: coverImageData)
+            await loadPlaylists()
+            errorMessage = nil
+            isLoading = false
+            return playlist.id
+        } catch {
+            errorMessage = "Error al crear playlist: \(error.localizedDescription)"
+            isLoading = false
+            throw error
+        }
+    }
+
+    /// Actualiza una playlist existente
+    func updatePlaylist(id: UUID, name: String, description: String?, coverImageData: Data?) async {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "El nombre de la playlist no puede estar vacío"
             return
@@ -59,11 +80,35 @@ final class PlaylistViewModel {
 
         isLoading = true
         do {
-            _ = try await playlistUseCases.createPlaylist(name: name, description: description, coverImageData: coverImageData)
+            // Obtener la playlist actual para mantener otros datos
+            guard let currentPlaylist = try await playlistUseCases.getPlaylistByID(id) else {
+                errorMessage = "Playlist no encontrada"
+                isLoading = false
+                return
+            }
+
+            // Crear una nueva entidad con los valores actualizados
+            let updatedPlaylist = PlaylistEntity(
+                id: currentPlaylist.id,
+                name: name,
+                description: description ?? "",
+                createdAt: currentPlaylist.createdAt,
+                updatedAt: Date(),
+                coverImageData: coverImageData,
+                songs: currentPlaylist.songs
+            )
+
+            try await playlistUseCases.updatePlaylist(updatedPlaylist)
             await loadPlaylists()
+
+            // Actualizar la playlist seleccionada si es la que se editó
+            if selectedPlaylist?.id == id {
+                selectedPlaylist = PlaylistMapper.toUIModel(updatedPlaylist)
+            }
+
             errorMessage = nil
         } catch {
-            errorMessage = "Error al crear playlist: \(error.localizedDescription)"
+            errorMessage = "Error al actualizar playlist: \(error.localizedDescription)"
         }
         isLoading = false
     }

@@ -1,24 +1,34 @@
 //
-//  CreatePlaylistView.swift
+//  EditPlaylistView.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture
+//  Vista para editar información de una playlist existente
 //
 
 import SwiftUI
 import PhotosUI
 
-struct CreatePlaylistView: View {
+struct EditPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PlaylistViewModel.self) private var viewModel
 
-    var songToAdd: SongUIModel? = nil
+    let playlist: PlaylistUIModel
 
-    @State private var playlistName = ""
-    @State private var playlistDescription = ""
+    @State private var playlistName: String
+    @State private var playlistDescription: String
     @State private var selectedImage: PhotosPickerItem?
     @State private var coverImageData: Data?
     @State private var cachedCoverImage: UIImage?
+
+    init(playlist: PlaylistUIModel) {
+        self.playlist = playlist
+        _playlistName = State(initialValue: playlist.name)
+        _playlistDescription = State(initialValue: playlist.description)
+        _coverImageData = State(initialValue: playlist.coverImageData)
+        if let imageData = playlist.coverImageData {
+            _cachedCoverImage = State(initialValue: UIImage(data: imageData))
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -118,7 +128,7 @@ struct CreatePlaylistView: View {
                     .padding(.top, 30)
                 }
             }
-            .navigationTitle("Nueva playlist")
+            .navigationTitle("Editar playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.appDark, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -132,8 +142,8 @@ struct CreatePlaylistView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Crear") {
-                        createPlaylist()
+                    Button("Guardar") {
+                        updatePlaylist()
                     }
                     .foregroundColor(playlistName.isEmpty ? .gray : .appPurple)
                     .disabled(playlistName.isEmpty)
@@ -142,29 +152,15 @@ struct CreatePlaylistView: View {
         }
     }
 
-    private func createPlaylist() {
+    private func updatePlaylist() {
         Task {
-            let newPlaylistID = try? await viewModel.createPlaylist(
+            await viewModel.updatePlaylist(
+                id: playlist.id,
                 name: playlistName,
                 description: playlistDescription.isEmpty ? nil : playlistDescription,
                 coverImageData: coverImageData
             )
-
-            // Si se creó la playlist y hay una canción para agregar, agregarla
-            if let playlistID = newPlaylistID, let song = songToAdd {
-                await viewModel.addSongToPlaylist(songID: song.id, playlistID: playlistID)
-            }
-
             dismiss()
         }
-    }
-}
-
-#Preview {
-    PreviewWrapper(
-        playlistVM: PreviewViewModels.playlistVM(),
-        modelContainer: PreviewData.container(with: PreviewSongs.generate())
-    ) {
-        CreatePlaylistView()
     }
 }

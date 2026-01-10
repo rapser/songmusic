@@ -232,8 +232,7 @@ private struct PendingSongsListView: View {
             isPlaying: playerViewModel.isPlaying,
             onPlay: {
                 Task {
-                    // TODO: PlayerViewModel.play needs updating to accept [SongUIModel]
-                    // await playerViewModel.play(songID: song.id, queue: pendingSongs)
+                    await playerViewModel.play(songID: song.id, queue: pendingSongs)
                 }
             },
             onPause: {

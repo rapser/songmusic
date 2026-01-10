@@ -22,8 +22,7 @@ struct SearchResultsList: View {
                         isPlaying: playerViewModel.isPlaying,
                         onTap: {
                             Task {
-                                // TODO: PlayerViewModel.play needs updating to accept [SongUIModel]
-                                // await playerViewModel.play(songID: song.id, queue: songs)
+                                await playerViewModel.play(songID: song.id, queue: songs)
                             }
                         }
                     )

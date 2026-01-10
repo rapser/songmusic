@@ -15,6 +15,7 @@ struct AddToPlaylistView: View {
     let song: SongUIModel
 
     @State private var searchText = ""
+    @State private var showCreatePlaylist = false
 
     var filteredPlaylists: [PlaylistUIModel] {
         if searchText.isEmpty {
@@ -33,6 +34,9 @@ struct AddToPlaylistView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         closeButton
                     }
+                }
+                .sheet(isPresented: $showCreatePlaylist) {
+                    CreatePlaylistView(songToAdd: song)
                 }
         }
     }
@@ -81,7 +85,7 @@ struct AddToPlaylistView: View {
 
     private var newPlaylistButton: some View {
         Button(action: {
-            // TODO: Implement create playlist flow
+            showCreatePlaylist = true
         }) {
             HStack(spacing: 12) {
                 ZStack {

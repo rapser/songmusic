@@ -26,8 +26,7 @@ struct TopSongsCarousel: View {
                             TopSongCard(song: song)
                                 .onTapGesture {
                                     Task {
-                                        // TODO: PlayerViewModel.play necesita ser actualizado
-                                        // await playerViewModel.play(songID: song.id, queue: songs)
+                                        await playerViewModel.play(songID: song.id, queue: songs)
                                     }
                                 }
                         }

@@ -15,6 +15,7 @@ struct PlaylistDetailView: View {
 
     let playlist: PlaylistUIModel
     @State private var showEditSheet = false
+    @State private var showEditPlaylistSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddSongsSheet = false
     @State private var songForPlaylistSheet: SongUIModel?
@@ -30,6 +31,9 @@ struct PlaylistDetailView: View {
             }
             .sheet(item: $songForPlaylistSheet) { song in
                 AddToPlaylistView(song: song)
+            }
+            .sheet(isPresented: $showEditPlaylistSheet) {
+                EditPlaylistView(playlist: playlist)
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -69,7 +73,7 @@ struct PlaylistDetailView: View {
     @ViewBuilder
     private var editDialogButtons: some View {
         Button("Editar información") {
-            // TODO: Implement edit functionality
+            showEditPlaylistSheet = true
         }
         Button("Eliminar playlist", role: .destructive) {
             showDeleteAlert = true
@@ -146,8 +150,7 @@ struct PlaylistDetailView: View {
             isPlaying: playerViewModel.isPlaying,
             onPlay: {
                 Task {
-                    // TODO: PlayerViewModel.play needs updating
-                    // await playerViewModel.play(songID: song.id, queue: viewModel.songsInPlaylist)
+                    await playerViewModel.play(songID: song.id, queue: viewModel.songsInPlaylist)
                 }
             },
             onPause: {
@@ -280,8 +283,7 @@ struct PlaylistDetailView: View {
     private func playAll() {
         guard !viewModel.songsInPlaylist.isEmpty else { return }
         Task {
-            // TODO: PlayerViewModel.play needs updating
-            // await playerViewModel.play(songID: viewModel.songsInPlaylist[0].id, queue: viewModel.songsInPlaylist)
+            await playerViewModel.play(songID: viewModel.songsInPlaylist[0].id, queue: viewModel.songsInPlaylist)
         }
     }
 }
