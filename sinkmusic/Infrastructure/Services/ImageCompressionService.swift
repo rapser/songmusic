@@ -8,7 +8,7 @@
 import UIKit
 
 /// Servicio para comprimir y crear thumbnails de imágenes
-class ImageCompressionService: ImageCompressionServiceProtocol {
+final class ImageCompressionService: ImageCompressionServiceProtocol, Sendable {
 
     /// Crea un thumbnail pequeño optimizado para Live Activities (< 1KB)
     /// - Parameter imageData: Datos de la imagen original

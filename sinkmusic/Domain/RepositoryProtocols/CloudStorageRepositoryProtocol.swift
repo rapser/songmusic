@@ -25,13 +25,13 @@ protocol CloudStorageRepositoryProtocol: Sendable {
     ) async throws -> URL
 
     /// Obtiene la duración de un archivo de audio local
-    func getDuration(for url: URL) -> TimeInterval?
+    @MainActor func getDuration(for url: URL) -> TimeInterval?
 
     /// Elimina el archivo descargado localmente
-    func deleteDownload(for songID: UUID) throws
+    @MainActor func deleteDownload(for songID: UUID) throws
 
     /// Obtiene la URL local de un archivo descargado
-    func localURL(for songID: UUID) -> URL?
+    @MainActor func localURL(for songID: UUID) -> URL?
 }
 
 /// Errores de almacenamiento en la nube

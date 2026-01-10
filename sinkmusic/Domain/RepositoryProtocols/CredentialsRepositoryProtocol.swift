@@ -12,14 +12,14 @@ import Foundation
 protocol CredentialsRepositoryProtocol: Sendable {
 
     /// Carga las credenciales de Google Drive
-    func loadGoogleDriveCredentials() -> (apiKey: String, folderId: String, hasCredentials: Bool)
+    @MainActor func loadGoogleDriveCredentials() -> (apiKey: String, folderId: String, hasCredentials: Bool)
 
     /// Guarda las credenciales de Google Drive
-    func saveGoogleDriveCredentials(apiKey: String, folderId: String) -> Bool
+    @MainActor func saveGoogleDriveCredentials(apiKey: String, folderId: String) -> Bool
 
     /// Elimina las credenciales de Google Drive
-    func deleteGoogleDriveCredentials()
+    @MainActor func deleteGoogleDriveCredentials()
 
     /// Verifica si hay credenciales de Google Drive configuradas
-    func hasGoogleDriveCredentials() -> Bool
+    @MainActor func hasGoogleDriveCredentials() -> Bool
 }

@@ -3,9 +3,10 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 
-final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate, @unchecked Sendable {
 
     // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
+    // Using @unchecked Sendable because we manually ensure thread-safety with locks
     var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
     var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)?
     var onSongFinished: (@MainActor (UUID) -> Void)?

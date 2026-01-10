@@ -379,8 +379,9 @@ final class PlayerViewModel {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        let service = liveActivityService
         Task { @MainActor in
-            liveActivityService.endActivity()
+            service.endActivity()
         }
     }
 }

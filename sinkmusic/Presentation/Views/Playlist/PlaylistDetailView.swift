@@ -278,10 +278,10 @@ struct PlaylistDetailView: View {
     }
 
     private func playAll() {
-        guard let firstSong = viewModel.songsInPlaylist.first else { return }
+        guard !viewModel.songsInPlaylist.isEmpty else { return }
         Task {
             // TODO: PlayerViewModel.play needs updating
-            // await playerViewModel.play(songID: firstSong.id, queue: viewModel.songsInPlaylist)
+            // await playerViewModel.play(songID: viewModel.songsInPlaylist[0].id, queue: viewModel.songsInPlaylist)
         }
     }
 }
