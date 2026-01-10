@@ -16,7 +16,7 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    HeaderView()
+                    SettingsHeaderView()
 
                     // User Profile Section
                     if let profile = makeUserProfile() {
@@ -110,18 +110,6 @@ struct SettingsView: View {
 
         // Recargar información
         await viewModel.loadAllInfo()
-    }
-}
-
-private struct HeaderView: View {
-    var body: some View {
-        Text("Configuración")
-            .font(.largeTitle)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.top, 20)
-            .padding(.bottom, 10)
     }
 }
 
