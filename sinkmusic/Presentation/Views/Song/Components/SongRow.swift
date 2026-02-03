@@ -9,17 +9,17 @@
 import SwiftUI
 
 struct SongRow: View {
-    let song: SongUIModel
-    let songQueue: [SongUIModel]
+    let song: SongUI
+    let songQueue: [SongUI]
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
     let onPlay: () -> Void
     let onPause: () -> Void
 
-    @Binding var showAddToPlaylistForSong: SongUIModel?
+    @Binding var showAddToPlaylistForSong: SongUI?
     @Environment(DownloadViewModel.self) private var downloadViewModel
 
-    var playlist: PlaylistUIModel? = nil
+    var playlist: PlaylistUI? = nil
     var onRemoveFromPlaylist: (() -> Void)? = nil
 
     @State private var showSongMenu = false

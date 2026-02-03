@@ -34,18 +34,18 @@ final class LibraryUseCases {
     // MARK: - Library Access
 
     /// Obtiene todas las canciones de la biblioteca local
-    func getAllSongs() async throws -> [SongEntity] {
+    func getAllSongs() async throws -> [Song] {
         return try await songRepository.getAll()
     }
 
     /// Obtiene una canción por ID
-    func getSongByID(_ id: UUID) async throws -> SongEntity? {
+    func getSongByID(_ id: UUID) async throws -> Song? {
         return try await songRepository.getByID(id)
     }
 
     /// Obtiene canciones reproducidas recientemente
     /// - Parameter limit: Número máximo de canciones a retornar
-    func getRecentlyPlayedSongs(limit: Int = 10) async throws -> [SongEntity] {
+    func getRecentlyPlayedSongs(limit: Int = 10) async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs
             .filter { $0.lastPlayedAt != nil }
@@ -56,12 +56,12 @@ final class LibraryUseCases {
 
     /// Obtiene las canciones más reproducidas
     /// - Parameter limit: Número máximo de canciones a retornar
-    func getMostPlayedSongs(limit: Int = 10) async throws -> [SongEntity] {
+    func getMostPlayedSongs(limit: Int = 10) async throws -> [Song] {
         return try await songRepository.getTopSongs(limit: limit)
     }
 
     /// Obtiene canciones descargadas
-    func getDownloadedSongs() async throws -> [SongEntity] {
+    func getDownloadedSongs() async throws -> [Song] {
         return try await songRepository.getDownloaded()
     }
 
@@ -75,7 +75,7 @@ final class LibraryUseCases {
             throw LibraryError.credentialsNotConfigured
         }
 
-        // Obtener archivos remotos (CloudFileEntity - entidad de dominio)
+        // Obtener archivos remotos (CloudFile - entidad de dominio)
         let remoteFiles = try await cloudStorageRepository.fetchSongsFromFolder()
 
         // Obtener canciones locales
@@ -88,7 +88,7 @@ final class LibraryUseCases {
         // Crear entidades para nuevas canciones
         var newSongsCount = 0
         for file in newFiles {
-            let newSong = SongEntity(
+            let newSong = Song(
                 id: UUID(),
                 title: file.title,
                 artist: file.artist,

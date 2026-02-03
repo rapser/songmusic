@@ -24,44 +24,44 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     // MARK: - Query Operations
 
-    func getAll() async throws -> [SongEntity] {
+    func getAll() async throws -> [Song] {
         let dtos = try localDataSource.getAll()
-        return SongMapper.toEntities(dtos)
+        return SongMapper.toDomain(dtos)
     }
 
-    func getByID(_ id: UUID) async throws -> SongEntity? {
+    func getByID(_ id: UUID) async throws -> Song? {
         guard let dto = try localDataSource.getByID(id) else { return nil }
-        return SongMapper.toEntity(dto)
+        return SongMapper.toDomain(dto)
     }
 
-    func getByFileID(_ fileID: String) async throws -> SongEntity? {
+    func getByFileID(_ fileID: String) async throws -> Song? {
         guard let dto = try localDataSource.getByFileID(fileID) else { return nil }
-        return SongMapper.toEntity(dto)
+        return SongMapper.toDomain(dto)
     }
 
-    func getDownloaded() async throws -> [SongEntity] {
+    func getDownloaded() async throws -> [Song] {
         let dtos = try localDataSource.getDownloaded()
-        return SongMapper.toEntities(dtos)
+        return SongMapper.toDomain(dtos)
     }
 
-    func getPending() async throws -> [SongEntity] {
+    func getPending() async throws -> [Song] {
         let dtos = try localDataSource.getPending()
-        return SongMapper.toEntities(dtos)
+        return SongMapper.toDomain(dtos)
     }
 
-    func getTopSongs(limit: Int = 10) async throws -> [SongEntity] {
+    func getTopSongs(limit: Int = 10) async throws -> [Song] {
         let dtos = try localDataSource.getTopSongs(limit: limit)
-        return SongMapper.toEntities(dtos)
+        return SongMapper.toDomain(dtos)
     }
 
     // MARK: - Mutation Operations
 
-    func create(_ song: SongEntity) async throws {
+    func create(_ song: Song) async throws {
         let dto = SongMapper.toDTO(song)
         try localDataSource.create(dto)
     }
 
-    func update(_ song: SongEntity) async throws {
+    func update(_ song: Song) async throws {
         let dto = SongMapper.toDTO(song)
         try localDataSource.update(dto)
     }

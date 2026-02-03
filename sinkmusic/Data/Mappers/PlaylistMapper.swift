@@ -7,14 +7,14 @@
 
 import Foundation
 
-/// Mapper para transformar entre las 3 capas: DTO ↔ Entity ↔ UIModel
+/// Mapper para transformar entre las 3 capas: PlaylistDTO ↔ Playlist ↔ PlaylistUI
 enum PlaylistMapper {
 
-    // MARK: - Layer 1: DTO → Entity (Data → Domain)
+    // MARK: - Layer 1: DTO → Domain (Data → Domain)
 
-    /// Convierte DTO de SwiftData a Entidad de Dominio pura
-    static func toEntity(_ dto: PlaylistDTO, songs: [SongEntity]) -> PlaylistEntity {
-        let entity: PlaylistEntity = PlaylistEntity(
+    /// Convierte DTO de SwiftData a modelo de Dominio puro
+    static func toDomain(_ dto: PlaylistDTO, songs: [Song]) -> Playlist {
+        Playlist(
             id: dto.id,
             name: dto.name,
             description: dto.desc,
@@ -23,57 +23,55 @@ enum PlaylistMapper {
             coverImageData: dto.coverImageData,
             songs: songs
         )
-        return entity
     }
 
-    /// Convierte DTO con sus canciones a Entity (mapea canciones también)
-    static func toEntityWithSongs(_ dto: PlaylistDTO) -> PlaylistEntity {
-        let songEntities = dto.songs.map { SongMapper.toEntity($0) }
-        return toEntity(dto, songs: songEntities)
+    /// Convierte DTO con sus canciones a Domain (mapea canciones también)
+    static func toDomainWithSongs(_ dto: PlaylistDTO) -> Playlist {
+        let songs = dto.songs.map { SongMapper.toDomain($0) }
+        return toDomain(dto, songs: songs)
     }
 
-    /// Convierte array de DTOs a Entities
-    static func toEntities(_ dtos: [PlaylistDTO]) -> [PlaylistEntity] {
-        dtos.map { toEntityWithSongs($0) }
+    /// Convierte array de DTOs a Domain
+    static func toDomain(_ dtos: [PlaylistDTO]) -> [Playlist] {
+        dtos.map { toDomainWithSongs($0) }
     }
 
-    // MARK: - Layer 2: Entity → DTO (Domain → Data)
+    // MARK: - Layer 2: Domain → DTO (Domain → Data)
 
-    /// Convierte Entidad de Dominio a DTO de SwiftData
+    /// Convierte modelo de Dominio a DTO de SwiftData
     /// Nota: Las relaciones song-playlist se manejan por separado en el repositorio
-    static func toDTO(_ entity: PlaylistEntity) -> PlaylistDTO {
-        let dto: PlaylistDTO = PlaylistDTO(
-            id: entity.id,
-            name: entity.name,
-            description: entity.description,
-            createdAt: entity.createdAt,
-            updatedAt: entity.updatedAt,
-            coverImageData: entity.coverImageData,
+    static func toDTO(_ playlist: Playlist) -> PlaylistDTO {
+        PlaylistDTO(
+            id: playlist.id,
+            name: playlist.name,
+            description: playlist.description,
+            createdAt: playlist.createdAt,
+            updatedAt: playlist.updatedAt,
+            coverImageData: playlist.coverImageData,
             songs: [] // Las relaciones se manejan por separado
         )
-        return dto
     }
 
-    // MARK: - Layer 3: Entity → UIModel (Domain → Presentation)
+    // MARK: - Layer 3: Domain → UI (Domain → Presentation)
 
-    /// Convierte Entidad a Modelo de UI para las vistas
-    static func toUIModel(_ entity: PlaylistEntity) -> PlaylistUIModel {
-        PlaylistUIModel(
-            id: entity.id,
-            name: entity.name,
-            description: entity.description,
-            songCount: entity.songCount,
-            formattedDuration: entity.formattedDuration,
-            displayInfo: entity.displayInfo,
-            coverImageData: entity.coverImageData,
-            songs: entity.songs.map { SongMapper.toUIModel($0) },
-            downloadProgress: entity.downloadProgress,
-            isEmpty: entity.isEmpty
+    /// Convierte modelo de Dominio a modelo de UI para las vistas
+    static func toUI(_ playlist: Playlist) -> PlaylistUI {
+        PlaylistUI(
+            id: playlist.id,
+            name: playlist.name,
+            description: playlist.description,
+            songCount: playlist.songCount,
+            formattedDuration: playlist.formattedDuration,
+            displayInfo: playlist.displayInfo,
+            coverImageData: playlist.coverImageData,
+            songs: playlist.songs.map { SongMapper.toUI($0) },
+            downloadProgress: playlist.downloadProgress,
+            isEmpty: playlist.isEmpty
         )
     }
 
-    /// Convierte array de Entities a UIModels
-    static func toUIModels(_ entities: [PlaylistEntity]) -> [PlaylistUIModel] {
-        entities.map { toUIModel($0) }
+    /// Convierte array de Domain a UI
+    static func toUI(_ playlists: [Playlist]) -> [PlaylistUI] {
+        playlists.map { toUI($0) }
     }
 }

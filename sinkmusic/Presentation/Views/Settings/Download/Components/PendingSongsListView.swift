@@ -8,9 +8,9 @@
 import SwiftUI
 
 struct PendingSongsListView: View {
-    let pendingSongs: [SongUIModel]
+    let pendingSongs: [SongUI]
     let playerViewModel: PlayerViewModel
-    @Binding var songForPlaylistSheet: SongUIModel?
+    @Binding var songForPlaylistSheet: SongUI?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,7 +42,7 @@ struct PendingSongsListView: View {
         }
     }
 
-    private func songRow(for song: SongUIModel) -> some View {
+    private func songRow(for song: SongUI) -> some View {
         SongRow(
             song: song,
             songQueue: pendingSongs,

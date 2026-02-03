@@ -9,7 +9,7 @@
 import Foundation
 
 /// Eventos de autenticación
-/// Emitidos por AuthRepositoryImpl (Features/Auth), consumidos por AuthViewModel
+/// Emitidos por AuthFacade (Features/Auth), consumidos por otros módulos
 enum AuthEvent: Sendable, Equatable {
     /// Usuario inició sesión exitosamente
     case signedIn(userID: String, email: String?, name: String?)
@@ -21,17 +21,4 @@ enum AuthEvent: Sendable, Equatable {
     case checkCompleted(isAuthenticated: Bool)
 }
 
-/// Estado actual de autenticación (observable)
-enum AuthState: Sendable, Equatable {
-    /// Estado desconocido (inicial)
-    case unknown
-
-    /// Verificando estado de autenticación
-    case checking
-
-    /// Usuario autenticado
-    case authenticated(userID: String)
-
-    /// Usuario no autenticado
-    case unauthenticated
-}
+// NOTA: AuthState ahora está definido en Features/Auth/AuthState.swift

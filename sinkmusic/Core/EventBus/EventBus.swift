@@ -47,8 +47,11 @@ final class EventBus: EventBusProtocol, @unchecked Sendable {
     /// Último evento de datos (para observación directa en SwiftUI)
     private(set) var lastDataEvent: DataChangeEvent?
 
-    /// Estado actual de autenticación
-    private(set) var authState: AuthState = .unknown
+    /// ID del usuario autenticado (nil si no hay sesión)
+    private(set) var authUserID: String?
+
+    /// Indica si hay un usuario autenticado
+    var isAuthenticated: Bool { authUserID != nil }
 
     /// Estado actual de reproducción
     private(set) var playbackState: PlaybackState = .idle
@@ -86,20 +89,14 @@ final class EventBus: EventBusProtocol, @unchecked Sendable {
     private func updateAuthState(from event: AuthEvent) {
         switch event {
         case .signedIn(let userID, _, _):
-            authState = .authenticated(userID: userID)
+            authUserID = userID
         case .signedOut:
-            authState = .unauthenticated
+            authUserID = nil
         case .checkCompleted(let isAuthenticated):
-            if isAuthenticated {
-                // Mantener el userID si ya estaba autenticado
-                if case .authenticated = authState {
-                    // Keep current state
-                } else {
-                    authState = .authenticated(userID: "")
-                }
-            } else {
-                authState = .unauthenticated
+            if !isAuthenticated {
+                authUserID = nil
             }
+            // Si isAuthenticated es true, mantener el userID actual
         }
     }
 
@@ -218,7 +215,7 @@ final class EventBus: EventBusProtocol, @unchecked Sendable {
     /// Reset all state (for testing only)
     func reset() {
         lastDataEvent = nil
-        authState = .unknown
+        authUserID = nil
         playbackState = .idle
         playbackTimeInfo = .zero
 

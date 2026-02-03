@@ -18,9 +18,9 @@ final class PlaylistViewModel {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
-    var playlists: [PlaylistUIModel] = []
-    var selectedPlaylist: PlaylistUIModel?
-    var songsInPlaylist: [SongUIModel] = []
+    var playlists: [PlaylistUI] = []
+    var selectedPlaylist: PlaylistUI?
+    var songsInPlaylist: [SongUI] = []
     var playlistStats: PlaylistStats?
     var isLoading = false
     var errorMessage: String?
@@ -52,7 +52,7 @@ final class PlaylistViewModel {
     func loadPlaylists() async {
         do {
             let entities = try await playlistUseCases.getAllPlaylists()
-            playlists = entities.map { PlaylistMapper.toUIModel($0) }
+            playlists = entities.map { PlaylistMapper.toUI($0) }
         } catch {
             errorMessage = "Error al cargar playlists: \(error.localizedDescription)"
         }
@@ -96,7 +96,7 @@ final class PlaylistViewModel {
             }
 
             // Crear una nueva entidad con los valores actualizados
-            let updatedPlaylist = PlaylistEntity(
+            let updatedPlaylist = Playlist(
                 id: currentPlaylist.id,
                 name: name,
                 description: description ?? "",
@@ -111,7 +111,7 @@ final class PlaylistViewModel {
 
             // Actualizar la playlist seleccionada si es la que se editó
             if selectedPlaylist?.id == id {
-                selectedPlaylist = PlaylistMapper.toUIModel(updatedPlaylist)
+                selectedPlaylist = PlaylistMapper.toUI(updatedPlaylist)
             }
 
             errorMessage = nil
@@ -149,7 +149,7 @@ final class PlaylistViewModel {
             try await playlistUseCases.renamePlaylist(id, newName: newName)
             await loadPlaylists()
             if let playlist = try? await playlistUseCases.getPlaylistByID(id) {
-                selectedPlaylist = PlaylistMapper.toUIModel(playlist)
+                selectedPlaylist = PlaylistMapper.toUI(playlist)
             }
             errorMessage = nil
         } catch {
@@ -229,14 +229,14 @@ final class PlaylistViewModel {
     func loadSongsInPlaylist(_ playlistID: UUID) async {
         do {
             let entities = try await playlistUseCases.getSongsInPlaylist(playlistID)
-            songsInPlaylist = entities.map { SongMapper.toUIModel($0) }
+            songsInPlaylist = entities.map { SongMapper.toUI($0) }
         } catch {
             errorMessage = "Error al cargar canciones: \(error.localizedDescription)"
         }
     }
 
     /// Selecciona una playlist para ver en detalle
-    func selectPlaylist(_ playlist: PlaylistUIModel) async {
+    func selectPlaylist(_ playlist: PlaylistUI) async {
         selectedPlaylist = playlist
         await loadSongsInPlaylist(playlist.id)
         await loadPlaylistStats(playlist.id)

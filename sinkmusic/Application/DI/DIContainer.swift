@@ -3,7 +3,7 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 3/01/26.
-//  Refactored: Sin singletons, DI puro
+//  Refactored: Facade + Strategy para Auth
 //
 
 import Foundation
@@ -30,7 +30,7 @@ final class DIContainer {
     func configure(with modelContext: ModelContext) {
         self.modelContext = modelContext
         // Iniciar verificación de autenticación después de configurar
-        authDIContainer.authRepository.checkAuthenticationState()
+        authViewModel.checkAuth()
     }
 
     // MARK: - Core Services (Creados una sola vez)
@@ -53,10 +53,25 @@ final class DIContainer {
     /// CarPlayService - Creado una sola vez
     private(set) lazy var carPlayService: CarPlayServiceProtocol = CarPlayService()
 
-    // MARK: - Feature Modules
+    // MARK: - Auth Module (Facade + Strategy)
 
-    /// Auth Module DI Container
-    private(set) lazy var authDIContainer: AuthDIContainer = AuthDIContainer(eventBus: eventBus)
+    /// Proveedor de autenticación configurado
+    private let authProvider: AuthStrategyFactory.Provider = .apple
+
+    /// Estrategia de autenticación (creada según ambiente)
+    private lazy var authStrategy: AuthStrategy = {
+        AuthStrategyFactory.makeStrategy(for: authProvider)
+    }()
+
+    /// Facade de autenticación (interno - no exponer directamente)
+    private lazy var authFacade: AuthFacade = {
+        AuthFacade(strategy: authStrategy, eventBus: eventBus)
+    }()
+
+    /// ViewModel de autenticación (único punto de acceso público)
+    private(set) lazy var authViewModel: AuthViewModel = {
+        AuthViewModel(facade: authFacade)
+    }()
 
     // MARK: - Repositories (Lazy initialization)
 
@@ -228,8 +243,9 @@ final class DIContainer {
         DownloadViewModel(downloadUseCases: downloadUseCases, eventBus: eventBus)
     }
 
-    /// Factory para AuthViewModel (nuevo módulo Auth)
+    /// Factory para AuthViewModel (Facade + Strategy)
+    /// Nota: Usar authViewModel directamente en lugar de crear nuevas instancias
     func makeAuthViewModel() -> AuthViewModel {
-        authDIContainer.makeAuthViewModel()
+        authViewModel
     }
 }

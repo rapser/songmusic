@@ -83,7 +83,7 @@ final class PlayerUseCases {
 
     // MARK: - Now Playing Info
 
-    private func updateNowPlayingInfo(for song: SongEntity) async {
+    private func updateNowPlayingInfo(for song: Song) async {
         await audioPlayerRepository.updateNowPlayingInfo(
             title: song.title,
             artist: song.artist,
@@ -113,13 +113,13 @@ final class PlayerUseCases {
     // MARK: - Song Access
 
     /// Obtiene una canción por ID (para acceso desde ViewModel)
-    func getSongByID(_ id: UUID) async throws -> SongEntity? {
+    func getSongByID(_ id: UUID) async throws -> Song? {
         return try await songRepository.getByID(id)
     }
 
     /// Obtiene múltiples canciones por IDs
-    func getSongsByIDs(_ ids: [UUID]) async throws -> [SongEntity] {
-        var songs: [SongEntity] = []
+    func getSongsByIDs(_ ids: [UUID]) async throws -> [Song] {
+        var songs: [Song] = []
         for id in ids {
             if let song = try await songRepository.getByID(id) {
                 songs.append(song)

@@ -2,8 +2,8 @@
 //  AuthLoginView.swift
 //  sinkmusic
 //
-//  Features/Auth - Presentation Layer View
-//  Clean Architecture: Vista de login
+//  Features/Auth - Vista de login
+//  Facade + Strategy Pattern
 //
 
 import SwiftUI
@@ -75,19 +75,17 @@ struct AuthLoginView: View {
 
                 // Sign In with Apple Button
                 VStack(spacing: 16) {
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.fullName, .email]
-                    } onCompletion: { result in
-                        switch result {
-                        case .success(let authorization):
-                            authViewModel.handleSuccessfulAuthorization(authorization)
-                        case .failure(let error):
-                            print("Sign In error: \(error)")
-                        }
+                    Button {
+                        authViewModel.signIn()
+                    } label: {
+                        SignInWithAppleButton(.signIn) { request in
+                            request.requestedScopes = [.fullName, .email]
+                        } onCompletion: { _ in }
+                            .signInWithAppleButtonStyle(.white)
+                            .frame(height: 50)
+                            .cornerRadius(25)
+                            .allowsHitTesting(false)
                     }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 50)
-                    .cornerRadius(25)
                     .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
 
                     Text("Toca para iniciar sesión con Apple")

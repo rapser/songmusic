@@ -8,15 +8,15 @@
 import Foundation
 import SwiftUI
 
-/// Mapper para transformar entre las 3 capas: DTO ↔ Entity ↔ UIModel
+/// Mapper para transformar entre las 3 capas: SongDTO ↔ Song ↔ SongUI
 /// PATRÓN CRÍTICO que se replica en toda la app
 enum SongMapper {
 
-    // MARK: - Layer 1: DTO → Entity (Data → Domain)
+    // MARK: - Layer 1: DTO → Domain (Data → Domain)
 
-    /// Convierte DTO de SwiftData a Entidad de Dominio pura
-    static func toEntity(_ dto: SongDTO) -> SongEntity {
-        SongEntity(
+    /// Convierte DTO de SwiftData a modelo de Dominio puro
+    static func toDomain(_ dto: SongDTO) -> Song {
+        Song(
             id: dto.id,
             title: dto.title,
             artist: dto.artist,
@@ -34,61 +34,63 @@ enum SongMapper {
         )
     }
 
-    /// Convierte array de DTOs a Entities
-    static func toEntities(_ dtos: [SongDTO]) -> [SongEntity] {
-        dtos.map { toEntity($0) }
+    /// Convierte array de DTOs a Domain
+    static func toDomain(_ dtos: [SongDTO]) -> [Song] {
+        dtos.map { toDomain($0) }
     }
 
-    // MARK: - Layer 2: Entity → DTO (Domain → Data)
+    // MARK: - Layer 2: Domain → DTO (Domain → Data)
 
-    /// Convierte Entidad de Dominio a DTO de SwiftData
-    static func toDTO(_ entity: SongEntity) -> SongDTO {
+    /// Convierte modelo de Dominio a DTO de SwiftData
+    static func toDTO(_ song: Song) -> SongDTO {
         let dto = SongDTO(
-            id: entity.id,
-            title: entity.title,
-            artist: entity.artist,
-            album: entity.album,
-            author: entity.author,
-            fileID: entity.fileID,
-            isDownloaded: entity.isDownloaded,
-            duration: entity.duration,
-            artworkData: entity.artworkData
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            author: song.author,
+            fileID: song.fileID,
+            isDownloaded: song.isDownloaded,
+            duration: song.duration,
+            artworkData: song.artworkData
         )
 
         // Propiedades adicionales que no están en el init
-        dto.artworkThumbnail = entity.artworkThumbnail
-        dto.artworkMediumThumbnail = entity.artworkMediumThumbnail
-        dto.playCount = entity.playCount
-        dto.lastPlayedAt = entity.lastPlayedAt
+        dto.artworkThumbnail = song.artworkThumbnail
+        dto.artworkMediumThumbnail = song.artworkMediumThumbnail
+        dto.playCount = song.playCount
+        dto.lastPlayedAt = song.lastPlayedAt
 
         // Almacenar dominant color como componentes RGB
-        storeRGBColor(entity.dominantColor, in: dto)
+        storeRGBColor(song.dominantColor, in: dto)
 
         return dto
     }
 
-    // MARK: - Layer 3: Entity → UIModel (Domain → Presentation)
+    // MARK: - Layer 3: Domain → UI (Domain → Presentation)
 
-    /// Convierte Entidad a Modelo de UI para las vistas
-    static func toUIModel(_ entity: SongEntity) -> SongUIModel {
-        SongUIModel(
-            id: entity.id,
-            title: entity.title,
-            artist: entity.artist,
-            album: entity.album ?? "Álbum Desconocido",
-            duration: entity.formattedDuration,
-            artworkThumbnail: entity.artworkMediumThumbnail,
-            isDownloaded: entity.isDownloaded,
-            playCount: entity.playCount,
-            playCountText: entity.playCountText,
-            dominantColor: toSwiftUIColor(entity.dominantColor),
-            artistAlbumInfo: entity.artistAlbumInfo
+    /// Convierte modelo de Dominio a modelo de UI para las vistas
+    static func toUI(_ song: Song) -> SongUI {
+        SongUI(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album ?? "Álbum Desconocido",
+            duration: song.formattedDuration,
+            durationSeconds: song.duration ?? 0,
+            artworkThumbnail: song.artworkMediumThumbnail,
+            artworkSmallThumbnail: song.artworkThumbnail,
+            isDownloaded: song.isDownloaded,
+            playCount: song.playCount,
+            playCountText: song.playCountText,
+            dominantColor: toSwiftUIColor(song.dominantColor),
+            artistAlbumInfo: song.artistAlbumInfo
         )
     }
 
-    /// Convierte array de Entities a UIModels
-    static func toUIModels(_ entities: [SongEntity]) -> [SongUIModel] {
-        entities.map { toUIModel($0) }
+    /// Convierte array de Domain a UI
+    static func toUI(_ songs: [Song]) -> [SongUI] {
+        songs.map { toUI($0) }
     }
 
     // MARK: - Helpers Privados

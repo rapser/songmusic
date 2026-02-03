@@ -3,13 +3,13 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 19/12/25.
-//  Refactored to Clean Architecture - Uses SongUIModel
+//  Refactored to Clean Architecture - Uses SongUI
 //
 
 import SwiftUI
 
 struct SearchResultRow: View, Equatable {
-    let song: SongUIModel
+    let song: SongUI
     let currentlyPlayingID: UUID?
     let isPlaying: Bool
     let onTap: () -> Void

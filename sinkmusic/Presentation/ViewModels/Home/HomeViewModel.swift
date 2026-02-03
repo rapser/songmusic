@@ -18,10 +18,10 @@ final class HomeViewModel {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
-    var playlists: [PlaylistUIModel] = []
-    var recentSongs: [SongUIModel] = []
-    var mostPlayedSongs: [SongUIModel] = []
-    var downloadedSongs: [SongUIModel] = []
+    var playlists: [PlaylistUI] = []
+    var recentSongs: [SongUI] = []
+    var mostPlayedSongs: [SongUI] = []
+    var downloadedSongs: [SongUI] = []
 
     var libraryStats: LibraryStats?
     var isLoading: Bool = false
@@ -73,7 +73,7 @@ final class HomeViewModel {
     private func loadPlaylists() async {
         do {
             let entities = try await playlistUseCases.getAllPlaylists()
-            playlists = entities.map { PlaylistMapper.toUIModel($0) }
+            playlists = entities.map { PlaylistMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar playlists: \(error)")
         }
@@ -83,7 +83,7 @@ final class HomeViewModel {
     private func loadRecentSongs() async {
         do {
             let entities = try await libraryUseCases.getRecentlyPlayedSongs(limit: 10)
-            recentSongs = entities.map { SongMapper.toUIModel($0) }
+            recentSongs = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar canciones recientes: \(error)")
         }
@@ -93,7 +93,7 @@ final class HomeViewModel {
     private func loadMostPlayedSongs() async {
         do {
             let entities = try await libraryUseCases.getMostPlayedSongs(limit: 10)
-            mostPlayedSongs = entities.map { SongMapper.toUIModel($0) }
+            mostPlayedSongs = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar canciones más reproducidas: \(error)")
         }
@@ -103,7 +103,7 @@ final class HomeViewModel {
     private func loadDownloadedSongs() async {
         do {
             let entities = try await libraryUseCases.getDownloadedSongs()
-            downloadedSongs = entities.map { SongMapper.toUIModel($0) }
+            downloadedSongs = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar canciones descargadas: \(error)")
         }

@@ -32,8 +32,11 @@ protocol EventBusProtocol: AnyObject, Sendable {
     /// Último evento de datos emitido
     var lastDataEvent: DataChangeEvent? { get }
 
-    /// Estado actual de autenticación
-    var authState: AuthState { get }
+    /// ID del usuario autenticado (nil si no hay sesión)
+    var authUserID: String? { get }
+
+    /// Indica si hay un usuario autenticado
+    var isAuthenticated: Bool { get }
 
     /// Estado actual de reproducción
     var playbackState: PlaybackState { get }

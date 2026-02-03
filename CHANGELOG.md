@@ -5,34 +5,117 @@ Todos los cambios notables en este proyecto seran documentados en este archivo.
 El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (13) - 2026-02-03
+
+### 🏗️ Arquitectura - Migracion Auth a Facade + Strategy
+
+#### Simplificacion del Modulo Auth
+Migracion de Clean Architecture (12 archivos) a **Facade + Strategy Pattern** (7 archivos):
+
+**Antes (Clean Architecture):**
+- 12 archivos con capas Domain/Data/Presentation/DI
+- 3 modelos: AuthUserDTO, AuthUserEntity, AuthUserUIModel
+- Mappers para convertir entre capas
+- Over-engineering para un solo proveedor (Apple)
+
+**Despues (Facade + Strategy):**
+- 7 archivos en estructura plana
+- 1 modelo unico: AuthUser (Codable + computed props para UI)
+- Sin mappers
+- Extensible via nuevas Strategies
+
+#### Nueva Estructura (Features/Auth/)
+
+| Archivo | Responsabilidad |
+|---------|-----------------|
+| `AuthState.swift` | Estados, AuthUser, AuthProvider, AuthError |
+| `AuthStrategy.swift` | Protocol + AppleAuthStrategy |
+| `AuthFacade.swift` | Orquesta Strategy + Storage + EventBus |
+| `AuthEnvironment.swift` | Configuracion dev/qa/staging/prod |
+| `AuthStrategyFactory.swift` | Factory para crear estrategias |
+| `AuthViewModel.swift` | ViewModel delgado para SwiftUI |
+| `AuthLoginView.swift` | Vista de login |
+
+#### Patron Facade
+```swift
+@MainActor
+@Observable
+final class AuthFacade {
+    private let strategy: AuthStrategy
+    private let storage: UserDefaults
+    private let eventBus: EventBusProtocol
+
+    func signIn() async { ... }
+    func signOut() { ... }
+    func checkAuth() async { ... }
+}
+```
+
+#### Patron Strategy
+```swift
+@MainActor
+protocol AuthStrategy: Sendable {
+    func signIn() async throws -> AuthUser
+    func checkCredentialState(userID: String) async -> Bool
+}
+
+// Implementaciones disponibles (extensible)
+final class AppleAuthStrategy: AuthStrategy { ... }
+// Futuro: GoogleAuthStrategy, SupabaseAuthStrategy, RESTAPIStrategy
+```
+
+### Archivos Eliminados (10)
+- `Features/Auth/Domain/Entities/AuthUserEntity.swift`
+- `Features/Auth/Domain/Protocols/AuthRepositoryProtocol.swift`
+- `Features/Auth/Domain/UseCases/AuthUseCases.swift`
+- `Features/Auth/Data/DTOs/AuthUserDTO.swift`
+- `Features/Auth/Data/DataSources/AuthLocalDataSource.swift`
+- `Features/Auth/Data/DataSources/AppleAuthDataSource.swift`
+- `Features/Auth/Data/Mappers/AuthMapper.swift`
+- `Features/Auth/Data/Repositories/AuthRepositoryImpl.swift`
+- `Features/Auth/Presentation/Models/AuthUserUIModel.swift`
+- `Features/Auth/DI/AuthDIContainer.swift`
+
+### Archivos Creados (6)
+- `Features/Auth/AuthState.swift`
+- `Features/Auth/AuthStrategy.swift`
+- `Features/Auth/AuthFacade.swift`
+- `Features/Auth/AuthEnvironment.swift`
+- `Features/Auth/AuthStrategyFactory.swift`
+- `Features/Auth/AuthViewModel.swift` (reescrito)
+
+### Archivos Modificados
+- `Application/DI/DIContainer.swift`: Usa Facade + Strategy en lugar de AuthDIContainer
+- `Core/EventBus/EventBus.swift`: authUserID (String?) en lugar de AuthState enum
+- `Core/EventBus/EventBusProtocol.swift`: authUserID, isAuthenticated
+- `Core/EventBus/Events/AuthEvent.swift`: Removido AuthState duplicado
+- `Presentation/Views/Login/LoginView.swift`: Usa signIn() en lugar de handleSuccessfulAuthorization()
+
+### Metricas
+
+| Metrica | Antes | Despues | Cambio |
+|---------|-------|---------|--------|
+| Archivos Auth | 12 | 7 | -42% |
+| Lineas de codigo | ~1,245 | ~400 | -68% |
+| Modelos de datos | 3 | 1 | -67% |
+| Mappers | 1 | 0 | -100% |
+
+### Beneficios
+
+1. **Menos complejidad**: Sin capas de abstraccion innecesarias
+2. **Un modelo unico**: AuthUser sirve para persistencia y UI
+3. **Extensible**: Agregar nuevo proveedor = nueva Strategy
+4. **Testeable**: Mock de AuthStrategy para tests
+5. **iOS 18+ ready**: Usa async/await, @Observable, @MainActor
+
+---
+
 ## [1.0.0] (12) - 2026-02-03
 
-### Arquitectura - Clean Architecture + DI Puro
+### Arquitectura - Clean Architecture + DI Puro (Reemplazado en v13)
 
-#### Modulo Auth Aislado (Features/Auth/)
-Creacion de modulo de autenticacion completamente aislado siguiendo Clean Architecture:
-
-**Domain Layer:**
-- `AuthUserEntity`: Entidad de negocio pura con id, email, fullName, createdAt
-- `AuthenticationState`: Enum para estados (unknown, checking, authenticated, unauthenticated)
-- `AuthRepositoryProtocol`: Abstraccion del repositorio de autenticacion
-- `AuthUseCases`: Casos de uso (signIn, signOut, handleAuthorization, checkAuthenticationState)
-
-**Data Layer:**
-- `AuthUserDTO`: Data Transfer Object para persistencia en UserDefaults (Codable)
-- `AuthLocalDataSource`: Persistencia local de datos de usuario
-- `AppleAuthDataSource`: Interaccion con Sign In with Apple SDK
-- `AppleCredentialProtocol`: Abstraccion para credenciales (permite testing)
-- `AuthMapper`: Conversiones entre DTO, Entity y UIModel
-- `AuthRepositoryImpl`: Implementacion coordinando DataSources y EventBus
-
-**Presentation Layer:**
-- `AuthUserUIModel`: Modelo optimizado para UI con displayName, initials, memberSinceFormatted
-- `AuthViewModel`: ViewModel con @Observable escuchando eventos del EventBus
-- `AuthLoginView`: Vista de login con Sign In with Apple
-
-**DI:**
-- `AuthDIContainer`: Contenedor de DI aislado para el modulo Auth
+> **Nota**: Esta version fue reemplazada por Facade + Strategy en v13.
+> Se mantiene documentacion para referencia historica.
 
 #### Eliminacion de Singletons
 
@@ -41,7 +124,7 @@ Creacion de modulo de autenticacion completamente aislado siguiendo Clean Archit
 | `EventBus.shared` | `DIContainer.eventBus` (inyectado) |
 | `KeychainService.shared` | `DIContainer.keychainService` (inyectado) |
 | `CarPlayService.shared` | `DIContainer.carPlayService` (inyectado) |
-| `AuthenticationManager.shared` | `AuthDIContainer.authRepository` (inyectado) |
+| `AuthenticationManager.shared` | Modulo Auth (inyectado) |
 
 **Unico singleton permitido:** `DIContainer.shared` como punto de entrada de DI
 
@@ -59,62 +142,6 @@ Creacion de modulo de autenticacion completamente aislado siguiendo Clean Archit
 #### Inyeccion en Services
 - `AudioPlayerService`: Recibe `eventBus` por constructor
 - `CarPlayService`: Init publico para DI, sin singleton
-
-### Archivos Eliminados
-- `Infrastructure/Services/AuthenticationManager.swift` (reemplazado por modulo Auth)
-- `Infrastructure/Protocols/AuthenticationServiceProtocol.swift` (reemplazado por AuthRepositoryProtocol)
-- `Presentation/ViewModels/Authentication/AuthenticationViewModel.swift` (reemplazado por AuthViewModel)
-- `Domain/RepositoryProtocols/AuthRepositoryProtocol.swift` (movido a Features/Auth)
-- `Data/Repositories/AuthRepositoryImpl.swift` (movido a Features/Auth)
-
-### Archivos Creados
-- `Features/Auth/Domain/Entities/AuthUserEntity.swift`
-- `Features/Auth/Domain/Protocols/AuthRepositoryProtocol.swift`
-- `Features/Auth/Domain/UseCases/AuthUseCases.swift`
-- `Features/Auth/Data/DTOs/AuthUserDTO.swift`
-- `Features/Auth/Data/DataSources/AuthLocalDataSource.swift`
-- `Features/Auth/Data/DataSources/AppleAuthDataSource.swift`
-- `Features/Auth/Data/Mappers/AuthMapper.swift`
-- `Features/Auth/Data/Repositories/AuthRepositoryImpl.swift`
-- `Features/Auth/Presentation/Models/AuthUserUIModel.swift`
-- `Features/Auth/Presentation/ViewModels/AuthViewModel.swift`
-- `Features/Auth/Presentation/Views/AuthLoginView.swift`
-- `Features/Auth/DI/AuthDIContainer.swift`
-- `Core/EventBus/EventBusProtocol.swift`
-
-### Archivos Modificados
-- `Application/DI/DIContainer.swift`: Integra AuthDIContainer, expone carPlayService
-- `Application/sinkmusicApp.swift`: Usa AuthViewModel y carPlayService del DIContainer
-- `Core/EventBus/EventBus.swift`: Init publico, elimina singleton
-- `Infrastructure/Services/KeychainService.swift`: Init publico, elimina singleton
-- `Infrastructure/Services/CarPlayService.swift`: Init publico, elimina singleton
-- `Infrastructure/Services/AudioPlayerService.swift`: Requiere eventBus (sin default)
-- `Data/DataSources/Local/SongLocalDataSource.swift`: Requiere eventBus
-- `Data/DataSources/Local/PlaylistLocalDataSource.swift`: Requiere eventBus
-- `Data/DataSources/Local/SwiftDataNotificationService.swift`: Requiere eventBus
-- `Data/DataSources/Remote/GoogleDriveDataSource.swift`: Requiere eventBus
-- `Presentation/Views/Login/LoginView.swift`: Usa AuthViewModel
-- `Presentation/Views/Settings/SettingsView.swift`: Usa AuthViewModel
-- `Core/Utils/PreviewData.swift`: Agrega authVM() para previews
-
-### Metricas
-
-| Metrica | Valor |
-|---------|-------|
-| Singletons en produccion | 1 (DIContainer.shared) |
-| Modulos aislados | 1 (Auth) |
-| Protocolos de DI | EventBusProtocol, AuthRepositoryProtocol, AppleCredentialProtocol |
-| Archivos eliminados | 5 |
-| Archivos creados | 12 |
-| Archivos modificados | 15 |
-
-### Principios SOLID Aplicados
-
-- **S** - Single Responsibility: Cada capa tiene responsabilidad unica (DTO persiste, Entity es negocio, UIModel es UI)
-- **O** - Open/Closed: Nuevos modulos se agregan sin modificar existentes
-- **L** - Liskov Substitution: AppleCredentialProtocol permite usar credenciales reales o simuladas
-- **I** - Interface Segregation: EventBusProtocol, AuthRepositoryProtocol son especificos
-- **D** - Dependency Inversion: Todas las dependencias se inyectan, no se crean internamente
 
 ---
 

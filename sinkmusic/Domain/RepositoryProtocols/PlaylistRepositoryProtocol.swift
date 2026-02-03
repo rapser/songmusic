@@ -14,18 +14,18 @@ protocol PlaylistRepositoryProtocol: Sendable {
     // MARK: - Query Operations
 
     /// Obtiene todas las playlists
-    func getAll() async throws -> [PlaylistEntity]
+    func getAll() async throws -> [Playlist]
 
     /// Obtiene una playlist por ID
-    func getByID(_ id: UUID) async throws -> PlaylistEntity?
+    func getByID(_ id: UUID) async throws -> Playlist?
 
     // MARK: - Mutation Operations
 
     /// Crea una nueva playlist
-    func create(_ playlist: PlaylistEntity) async throws -> PlaylistEntity
+    func create(_ playlist: Playlist) async throws -> Playlist
 
     /// Actualiza una playlist existente
-    func update(_ playlist: PlaylistEntity) async throws
+    func update(_ playlist: Playlist) async throws
 
     /// Elimina una playlist
     func delete(_ id: UUID) async throws

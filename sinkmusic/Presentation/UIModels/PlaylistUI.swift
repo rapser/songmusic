@@ -1,5 +1,5 @@
 //
-//  PlaylistUIModel.swift
+//  PlaylistUI.swift
 //  sinkmusic
 //
 //  Created by miguel tomairo on 3/01/26.
@@ -9,7 +9,7 @@ import Foundation
 
 /// Modelo de UI para presentar playlists en las vistas
 /// Contiene solo datos necesarios para la UI, ya formateados
-struct PlaylistUIModel: Identifiable, Hashable, Sendable {
+struct PlaylistUI: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
     let description: String
@@ -17,7 +17,7 @@ struct PlaylistUIModel: Identifiable, Hashable, Sendable {
     let formattedDuration: String // Ya formateado (ej: "2 h 35 min")
     let displayInfo: String // Ya formateado (ej: "15 canciones • 1 h 20 min")
     let coverImageData: Data?
-    let songs: [SongUIModel]
+    let songs: [SongUI]
     let downloadProgress: Double // 0.0 a 1.0
     let isEmpty: Bool
 

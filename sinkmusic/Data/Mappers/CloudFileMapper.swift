@@ -8,26 +8,26 @@
 
 import Foundation
 
-/// Mapper para convertir entre CloudFileDTO (Data Layer) y CloudFileEntity (Domain Layer)
+/// Mapper para convertir entre CloudFileDTO (Data Layer) y CloudFile (Domain Layer)
 enum CloudFileMapper {
 
-    // MARK: - DTO → Entity
+    // MARK: - DTO → Domain
 
-    /// Convierte CloudFileDTO a CloudFileEntity
-    static func toEntity(from dto: CloudFileDTO) -> CloudFileEntity {
-        CloudFileEntity(
+    /// Convierte CloudFileDTO a CloudFile
+    static func toDomain(from dto: CloudFileDTO) -> CloudFile {
+        CloudFile(
             id: dto.id,
             name: dto.name,
             size: dto.size,
             mimeType: dto.mimeType,
             downloadURL: dto.downloadURL.flatMap { URL(string: $0) },
-            provider: toEntityProvider(from: dto.provider)
+            provider: toDomainProvider(from: dto.provider)
         )
     }
 
-    /// Convierte GoogleDriveFile a CloudFileEntity
-    static func toEntity(from googleDriveFile: GoogleDriveFile) -> CloudFileEntity {
-        CloudFileEntity(
+    /// Convierte GoogleDriveFile a CloudFile
+    static func toDomain(from googleDriveFile: GoogleDriveFile) -> CloudFile {
+        CloudFile(
             id: googleDriveFile.id,
             name: googleDriveFile.name,
             size: nil,
@@ -37,28 +37,28 @@ enum CloudFileMapper {
         )
     }
 
-    /// Convierte array de GoogleDriveFile a array de CloudFileEntity
-    static func toEntities(from googleDriveFiles: [GoogleDriveFile]) -> [CloudFileEntity] {
-        googleDriveFiles.map { toEntity(from: $0) }
+    /// Convierte array de GoogleDriveFile a array de CloudFile
+    static func toDomain(from googleDriveFiles: [GoogleDriveFile]) -> [CloudFile] {
+        googleDriveFiles.map { toDomain(from: $0) }
     }
 
-    // MARK: - Entity → DTO
+    // MARK: - Domain → DTO
 
-    /// Convierte CloudFileEntity a CloudFileDTO
-    static func toDTO(from entity: CloudFileEntity) -> CloudFileDTO {
+    /// Convierte CloudFile a CloudFileDTO
+    static func toDTO(from cloudFile: CloudFile) -> CloudFileDTO {
         CloudFileDTO(
-            id: entity.id,
-            name: entity.name,
-            size: entity.size,
-            mimeType: entity.mimeType,
-            downloadURL: entity.downloadURL?.absoluteString,
-            provider: toDTOProvider(from: entity.provider)
+            id: cloudFile.id,
+            name: cloudFile.name,
+            size: cloudFile.size,
+            mimeType: cloudFile.mimeType,
+            downloadURL: cloudFile.downloadURL?.absoluteString,
+            provider: toDTOProvider(from: cloudFile.provider)
         )
     }
 
     // MARK: - Provider Mapping
 
-    private static func toEntityProvider(from dtoProvider: CloudFileDTO.CloudProvider) -> CloudFileEntity.CloudProvider {
+    private static func toDomainProvider(from dtoProvider: CloudFileDTO.CloudProvider) -> CloudFile.CloudProvider {
         switch dtoProvider {
         case .googleDrive: return .googleDrive
         case .oneDrive: return .oneDrive
@@ -67,8 +67,8 @@ enum CloudFileMapper {
         }
     }
 
-    private static func toDTOProvider(from entityProvider: CloudFileEntity.CloudProvider) -> CloudFileDTO.CloudProvider {
-        switch entityProvider {
+    private static func toDTOProvider(from domainProvider: CloudFile.CloudProvider) -> CloudFileDTO.CloudProvider {
+        switch domainProvider {
         case .googleDrive: return .googleDrive
         case .oneDrive: return .oneDrive
         case .mega: return .mega

@@ -18,7 +18,7 @@ final class SearchViewModel {
     // MARK: - Published State (Clean Architecture - UIModels only)
 
     var searchQuery: String = ""
-    var searchResults: [SongUIModel] = []
+    var searchResults: [SongUI] = []
     var selectedArtist: String?
     var selectedAlbum: String?
     var downloadedOnly: Bool = false
@@ -27,8 +27,8 @@ final class SearchViewModel {
 
     var artists: [String] = []
     var albums: [String] = []
-    var mostPlayedSongs: [SongUIModel] = []
-    var recentlyPlayedSongs: [SongUIModel] = []
+    var mostPlayedSongs: [SongUI] = []
+    var recentlyPlayedSongs: [SongUI] = []
 
     // MARK: - Dependencies
 
@@ -51,7 +51,7 @@ final class SearchViewModel {
         isSearching = true
 
         do {
-            let entities: [SongEntity]
+            let entities: [Song]
             if searchQuery.isEmpty && selectedArtist == nil && selectedAlbum == nil {
                 // Sin filtros: mostrar todas las canciones
                 entities = try await searchUseCases.advancedSearch(
@@ -71,7 +71,7 @@ final class SearchViewModel {
                     sortBy: sortOption
                 )
             }
-            searchResults = entities.map { SongMapper.toUIModel($0) }
+            searchResults = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error en búsqueda: \(error)")
             searchResults = []
@@ -127,7 +127,7 @@ final class SearchViewModel {
     func getDownloadedSongs() async {
         do {
             let entities = try await searchUseCases.getDownloadedSongs()
-            searchResults = entities.map { SongMapper.toUIModel($0) }
+            searchResults = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al obtener descargadas: \(error)")
         }
@@ -137,7 +137,7 @@ final class SearchViewModel {
     func getNotDownloadedSongs() async {
         do {
             let entities = try await searchUseCases.getNotDownloadedSongs()
-            searchResults = entities.map { SongMapper.toUIModel($0) }
+            searchResults = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al obtener no descargadas: \(error)")
         }
@@ -163,8 +163,8 @@ final class SearchViewModel {
             let mostPlayed = try await searchUseCases.getMostPlayedSongs(limit: 10)
             let recentlyPlayed = try await searchUseCases.getRecentlyPlayedSongs(limit: 10)
 
-            mostPlayedSongs = mostPlayed.map { SongMapper.toUIModel($0) }
-            recentlyPlayedSongs = recentlyPlayed.map { SongMapper.toUIModel($0) }
+            mostPlayedSongs = mostPlayed.map { SongMapper.toUI($0) }
+            recentlyPlayedSongs = recentlyPlayed.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar recomendaciones: \(error)")
         }

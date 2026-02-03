@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AddSongRow: View {
-    let song: SongUIModel
+    let song: SongUI
     let onAdd: () -> Void
     
     @State private var wasAdded = false

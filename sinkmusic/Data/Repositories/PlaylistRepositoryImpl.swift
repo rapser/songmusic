@@ -26,26 +26,26 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
 
     // MARK: - Query Operations
 
-    func getAll() async throws -> [PlaylistEntity] {
+    func getAll() async throws -> [Playlist] {
         let dtos = try localDataSource.getAll()
-        return PlaylistMapper.toEntities(dtos)
+        return PlaylistMapper.toDomain(dtos)
     }
 
-    func getByID(_ id: UUID) async throws -> PlaylistEntity? {
+    func getByID(_ id: UUID) async throws -> Playlist? {
         guard let dto = try localDataSource.getByID(id) else { return nil }
-        return PlaylistMapper.toEntityWithSongs(dto)
+        return PlaylistMapper.toDomainWithSongs(dto)
     }
 
     // MARK: - Mutation Operations
 
-    func create(_ playlist: PlaylistEntity) async throws -> PlaylistEntity {
+    func create(_ playlist: Playlist) async throws -> Playlist {
         let dto = PlaylistMapper.toDTO(playlist)
         try localDataSource.create(dto)
         // Retornar la entidad creada con su ID
         return playlist
     }
 
-    func update(_ playlist: PlaylistEntity) async throws {
+    func update(_ playlist: Playlist) async throws {
         guard let dto = try localDataSource.getByID(playlist.id) else {
             throw PlaylistError.notFound
         }

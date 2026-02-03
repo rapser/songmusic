@@ -13,7 +13,7 @@ struct AddSongsToPlaylistView: View {
     @Environment(PlaylistViewModel.self) private var viewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
 
-    let playlist: PlaylistUIModel
+    let playlist: PlaylistUI
 
     // Paginación
     @State private var displayedSongsCount = 30 // Mostrar 30 canciones inicialmente
@@ -22,14 +22,14 @@ struct AddSongsToPlaylistView: View {
     // Búsqueda
     @State private var searchText = ""
 
-    private var availableSongs: [SongUIModel] {
+    private var availableSongs: [SongUI] {
         // Filtrar solo canciones descargadas que NO están en ninguna playlist
         let baseSongs = libraryViewModel.songs.filter { song in
             song.isDownloaded && !viewModel.isSongInAnyPlaylist(songID: song.id)
         }
 
         // Aplicar filtro de búsqueda si hay texto
-        let filteredSongs: [SongUIModel]
+        let filteredSongs: [SongUI]
         if searchText.isEmpty {
             filteredSongs = baseSongs
         } else {
@@ -43,7 +43,7 @@ struct AddSongsToPlaylistView: View {
         return filteredSongs.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    private var displayedSongs: [SongUIModel] {
+    private var displayedSongs: [SongUI] {
         Array(availableSongs.prefix(displayedSongsCount))
     }
 
@@ -113,7 +113,7 @@ struct AddSongsToPlaylistView: View {
         }
     }
 
-    private func songRowItem(song: SongUIModel) -> some View {
+    private func songRowItem(song: SongUI) -> some View {
         VStack(spacing: 0) {
             AddSongRow(song: song) {
                 Task {

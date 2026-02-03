@@ -55,7 +55,7 @@ final class DownloadUseCases {
         // Extraer metadata
         if let metadata = await metadataRepository.extractMetadata(from: localURL) {
             // Actualizar canción con metadata
-            song = SongEntity(
+            song = Song(
                 id: song.id,
                 title: metadata.title.isEmpty ? song.title : metadata.title,
                 artist: metadata.artist.isEmpty ? song.artist : metadata.artist,
@@ -74,7 +74,7 @@ final class DownloadUseCases {
         } else {
             // Metadata extraction falló, solo marcar como descargada
             let duration = cloudStorageRepository.getDuration(for: localURL)
-            song = SongEntity(
+            song = Song(
                 id: song.id,
                 title: song.title,
                 artist: song.artist,
@@ -124,7 +124,7 @@ final class DownloadUseCases {
         try cloudStorageRepository.deleteDownload(for: songID)
 
         // Actualizar canción (marcar como no descargada, limpiar metadata local)
-        song = SongEntity(
+        song = Song(
             id: song.id,
             title: song.title,
             artist: song.artist,

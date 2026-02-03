@@ -35,7 +35,7 @@ final class PlayerViewModel {
     // MARK: - Private State
 
     private var queueSongIDs: [UUID] = []
-    private var currentSongEntity: SongEntity?
+    private var currentSong: SongUI?
     private var lastNowPlayingUpdateTime: TimeInterval = 0
     private var lastPlaybackTime: TimeInterval = 0
 
@@ -56,20 +56,20 @@ final class PlayerViewModel {
     // MARK: - Playback Control
 
     /// Reproduce una canción y establece la cola de reproducción
-    func play(songID: UUID, queue: [SongUIModel]) async {
+    func play(songID: UUID, queue: [SongUI]) async {
         do {
             // Establecer la cola (solo canciones descargadas)
             self.queueSongIDs = queue
                 .filter { $0.isDownloaded }
                 .map { $0.id }
 
-            // Obtener la canción via UseCase
-            guard let song = try await playerUseCases.getSongByID(songID),
-                  song.isDownloaded else {
+            // Obtener la canción via UseCase y convertir a UIModel
+            guard let songEntity = try await playerUseCases.getSongByID(songID),
+                  songEntity.isDownloaded else {
                 return
             }
 
-            currentSongEntity = song
+            currentSong = SongMapper.toUI(songEntity)
 
             // Comportamiento estilo Spotify: si presionas la canción actual, reinicia
             if currentlyPlayingID == songID && isPlaying {
@@ -292,8 +292,8 @@ final class PlayerViewModel {
     // MARK: - Live Activity
 
     private func updateLiveActivity() {
-        guard let song = currentSongEntity else { return }
-        let duration = songDuration > 0 ? songDuration : (song.duration ?? 0)
+        guard let song = currentSong else { return }
+        let duration = songDuration > 0 ? songDuration : song.durationSeconds
 
         if isPlaying {
             liveActivityService.startActivity(
@@ -303,7 +303,7 @@ final class PlayerViewModel {
                 isPlaying: isPlaying,
                 currentTime: playbackTime,
                 duration: duration,
-                artworkThumbnail: song.artworkThumbnail
+                artworkThumbnail: song.artworkSmallThumbnail
             )
         } else if !isPlaying && liveActivityService.hasActiveActivity {
             liveActivityService.updateActivity(
@@ -312,7 +312,7 @@ final class PlayerViewModel {
                 isPlaying: false,
                 currentTime: playbackTime,
                 duration: duration,
-                artworkThumbnail: song.artworkThumbnail
+                artworkThumbnail: song.artworkSmallThumbnail
             )
         }
     }
@@ -357,10 +357,10 @@ final class PlayerViewModel {
 
     // MARK: - Helpers
 
-    private func getQueueUIModels() async -> [SongUIModel] {
+    private func getQueueUIModels() async -> [SongUI] {
         do {
             let entities = try await playerUseCases.getSongsByIDs(queueSongIDs)
-            return entities.map { SongMapper.toUIModel($0) }
+            return entities.map { SongMapper.toUI($0) }
         } catch {
             print("⚠️ Error al obtener canciones de la cola: \(error)")
             return []

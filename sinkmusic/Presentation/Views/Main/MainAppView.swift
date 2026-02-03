@@ -8,8 +8,8 @@ struct MainAppView: View {
 
     @Namespace private var animation
 
-    @State private var currentSongEntity: SongUIModel? = nil
-    @State private var songsLookup: [UUID: SongUIModel] = [:]
+    @State private var currentSong: SongUI? = nil
+    @State private var songsLookup: [UUID: SongUI] = [:]
 
     init() {
         let tabBarAppearance = UITabBarAppearance()
@@ -64,7 +64,7 @@ struct MainAppView: View {
 
     @ViewBuilder
     private var fullPlayerView: some View {
-        if let currentSong = currentSongEntity, playerViewModel.showPlayerView {
+        if let currentSong = currentSong, playerViewModel.showPlayerView {
             PlayerView(
                 songs: libraryViewModel.songs,
                 currentSong: currentSong,
@@ -76,7 +76,7 @@ struct MainAppView: View {
 
     @ViewBuilder
     private var miniPlayerView: some View {
-        if let currentSong = currentSongEntity,
+        if let currentSong = currentSong,
            playerViewModel.currentlyPlayingID != nil,
            !playerViewModel.showPlayerView {
 
@@ -103,20 +103,20 @@ struct MainAppView: View {
                     from: song.artworkThumbnail,
                     thumbnail: song.artworkThumbnail
                 )
-                currentSongEntity = song
+                currentSong = song
             }
         } else {
             metadataViewModel.clearCache()
-            currentSongEntity = nil
+            currentSong = nil
         }
     }
 
-    private func handleLibrarySongsChange(_ newValue: [SongUIModel]) {
+    private func handleLibrarySongsChange(_ newValue: [SongUI]) {
         updateSongsLookup()
 
         if let playingID = playerViewModel.currentlyPlayingID,
            let updatedSong = newValue.first(where: { $0.id == playingID }) {
-            currentSongEntity = updatedSong
+            currentSong = updatedSong
         }
     }
 

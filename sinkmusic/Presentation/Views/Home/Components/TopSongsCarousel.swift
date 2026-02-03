@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct TopSongsCarousel: View {
-    let songs: [SongUIModel]
+    let songs: [SongUI]
     @Environment(PlayerViewModel.self) private var playerViewModel
 
     var body: some View {

@@ -1,5 +1,5 @@
 //
-//  PlaylistEntity.swift
+//  Playlist.swift
 //  sinkmusic
 //
 //  Created by miguel tomairo on 3/01/26.
@@ -9,14 +9,14 @@ import Foundation
 
 /// Entidad de dominio PURA - Sin dependencia de SwiftData
 /// Representa una playlist en la lógica de negocio
-struct PlaylistEntity: Identifiable, Hashable, Sendable {
+struct Playlist: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
     let description: String
     let createdAt: Date
     let updatedAt: Date
     let coverImageData: Data?
-    let songs: [SongEntity]
+    let songs: [Song]
 
     // MARK: - Computed Properties (Lógica de Dominio)
 
@@ -54,12 +54,12 @@ struct PlaylistEntity: Identifiable, Hashable, Sendable {
     }
 
     /// Canciones descargadas en la playlist
-    var downloadedSongs: [SongEntity] {
+    var downloadedSongs: [Song] {
         songs.filter { $0.isDownloaded }
     }
 
     /// Canciones pendientes de descarga
-    var pendingSongs: [SongEntity] {
+    var pendingSongs: [Song] {
         songs.filter { !$0.isDownloaded }
     }
 

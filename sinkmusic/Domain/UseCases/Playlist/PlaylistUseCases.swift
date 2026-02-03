@@ -31,20 +31,20 @@ final class PlaylistUseCases {
     // MARK: - Playlist Access
 
     /// Obtiene todas las playlists
-    func getAllPlaylists() async throws -> [PlaylistEntity] {
+    func getAllPlaylists() async throws -> [Playlist] {
         return try await playlistRepository.getAll()
     }
 
     /// Obtiene una playlist por ID
-    func getPlaylistByID(_ id: UUID) async throws -> PlaylistEntity? {
+    func getPlaylistByID(_ id: UUID) async throws -> Playlist? {
         return try await playlistRepository.getByID(id)
     }
 
     // MARK: - Playlist Management
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> PlaylistEntity {
-        let newPlaylist = PlaylistEntity(
+    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> Playlist {
+        let newPlaylist = Playlist(
             id: UUID(),
             name: name,
             description: description ?? "",
@@ -58,7 +58,7 @@ final class PlaylistUseCases {
     }
 
     /// Actualiza una playlist existente
-    func updatePlaylist(_ playlist: PlaylistEntity) async throws {
+    func updatePlaylist(_ playlist: Playlist) async throws {
         try await playlistRepository.update(playlist)
     }
 
@@ -73,7 +73,7 @@ final class PlaylistUseCases {
             throw PlaylistError.notFound
         }
 
-        playlist = PlaylistEntity(
+        playlist = Playlist(
             id: playlist.id,
             name: newName,
             description: playlist.description,
@@ -111,7 +111,7 @@ final class PlaylistUseCases {
     }
 
     /// Obtiene las canciones de una playlist
-    func getSongsInPlaylist(_ playlistID: UUID) async throws -> [SongEntity] {
+    func getSongsInPlaylist(_ playlistID: UUID) async throws -> [Song] {
         guard let playlist = try await playlistRepository.getByID(playlistID) else {
             throw PlaylistError.notFound
         }
@@ -130,7 +130,7 @@ final class PlaylistUseCases {
         var songs = playlist.songs
         songs.move(fromOffsets: fromOffsets, toOffset: toOffset)
 
-        playlist = PlaylistEntity(
+        playlist = Playlist(
             id: playlist.id,
             name: playlist.name,
             description: playlist.description,
@@ -149,7 +149,7 @@ final class PlaylistUseCases {
             throw PlaylistError.notFound
         }
 
-        playlist = PlaylistEntity(
+        playlist = Playlist(
             id: playlist.id,
             name: playlist.name,
             description: playlist.description,

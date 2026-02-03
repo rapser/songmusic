@@ -30,11 +30,11 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
 
     // MARK: - CloudStorageRepositoryProtocol
 
-    func fetchSongsFromFolder() async throws -> [CloudFileEntity] {
+    func fetchSongsFromFolder() async throws -> [CloudFile] {
         // Por ahora solo soporta Google Drive
         // En el futuro se puede agregar lógica para elegir el proveedor
         let googleDriveFiles = try await googleDriveDataSource.fetchSongsFromFolder()
-        return CloudFileMapper.toEntities(from: googleDriveFiles)
+        return CloudFileMapper.toDomain(from: googleDriveFiles)
     }
 
     func download(

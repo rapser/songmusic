@@ -21,7 +21,7 @@ final class StorageManagementService: StorageManagementServiceProtocol, Settings
 
     // MARK: - SettingsServiceProtocol
 
-    func calculateStorageUsed(for songs: [SongEntity]) -> String {
+    func calculateStorageUsed(for songs: [Song]) -> String {
         let fileManager = FileManager.default
         var totalSize: Int64 = 0
 
@@ -43,17 +43,17 @@ final class StorageManagementService: StorageManagementServiceProtocol, Settings
         return formatBytes(totalSize)
     }
 
-    func filterPendingSongs(_ songs: [SongEntity]) -> [SongEntity] {
+    func filterPendingSongs(_ songs: [Song]) -> [Song] {
         songs.filter { !$0.isDownloaded }
     }
 
-    func filterDownloadedSongs(_ songs: [SongEntity]) -> [SongEntity] {
+    func filterDownloadedSongs(_ songs: [Song]) -> [Song] {
         songs.filter { $0.isDownloaded }
     }
 
     @MainActor
     func deleteAllDownloads(
-        songs: [SongEntity],
+        songs: [Song],
         modelContext: ModelContext
     ) async throws {
         let downloadedSongs = filterDownloadedSongs(songs)

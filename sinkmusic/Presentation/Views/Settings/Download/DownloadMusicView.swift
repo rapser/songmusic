@@ -16,9 +16,9 @@ struct DownloadMusicView: View {
     @Environment(SettingsViewModel.self) private var settingsViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var songForPlaylistSheet: SongUIModel?
+    @State private var songForPlaylistSheet: SongUI?
 
-    var pendingSongs: [SongUIModel] {
+    var pendingSongs: [SongUI] {
         libraryViewModel.songs.filter { !$0.isDownloaded }
     }
 

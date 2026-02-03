@@ -21,7 +21,7 @@ final class LibraryViewModel {
     var isLoadingSongs: Bool = false
     var syncError: SyncError?
     var syncErrorMessage: String?
-    var songs: [SongUIModel] = []
+    var songs: [SongUI] = []
     var libraryStats: LibraryStats?
 
     // MARK: - Dependencies
@@ -52,7 +52,7 @@ final class LibraryViewModel {
     func loadSongs() async {
         do {
             let entities = try await libraryUseCases.getAllSongs()
-            songs = entities.map { SongMapper.toUIModel($0) }
+            songs = entities.map { SongMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar canciones: \(error)")
         }

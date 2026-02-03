@@ -12,7 +12,7 @@ struct EditPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PlaylistViewModel.self) private var viewModel
 
-    let playlist: PlaylistUIModel
+    let playlist: PlaylistUI
 
     @State private var playlistName: String
     @State private var playlistDescription: String
@@ -20,7 +20,7 @@ struct EditPlaylistView: View {
     @State private var coverImageData: Data?
     @State private var cachedCoverImage: UIImage?
 
-    init(playlist: PlaylistUIModel) {
+    init(playlist: PlaylistUI) {
         self.playlist = playlist
         _playlistName = State(initialValue: playlist.name)
         _playlistDescription = State(initialValue: playlist.description)

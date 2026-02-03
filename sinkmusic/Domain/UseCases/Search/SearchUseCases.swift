@@ -26,7 +26,7 @@ final class SearchUseCases {
     // MARK: - Search Operations
 
     /// Busca canciones por query de texto
-    func searchSongs(query: String) async throws -> [SongEntity] {
+    func searchSongs(query: String) async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
 
         guard !query.isEmpty else {
@@ -43,31 +43,31 @@ final class SearchUseCases {
     }
 
     /// Filtra canciones por artista
-    func filterByArtist(_ artist: String) async throws -> [SongEntity] {
+    func filterByArtist(_ artist: String) async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs.filter { $0.artist == artist }
     }
 
     /// Filtra canciones por álbum
-    func filterByAlbum(_ album: String) async throws -> [SongEntity] {
+    func filterByAlbum(_ album: String) async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs.filter { $0.album == album }
     }
 
     /// Filtra canciones descargadas
-    func getDownloadedSongs() async throws -> [SongEntity] {
+    func getDownloadedSongs() async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs.filter { $0.isDownloaded }
     }
 
     /// Filtra canciones no descargadas
-    func getNotDownloadedSongs() async throws -> [SongEntity] {
+    func getNotDownloadedSongs() async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs.filter { !$0.isDownloaded }
     }
 
     /// Obtiene canciones más reproducidas
-    func getMostPlayedSongs(limit: Int = 20) async throws -> [SongEntity] {
+    func getMostPlayedSongs(limit: Int = 20) async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs
             .filter { $0.playCount > 0 }
@@ -77,7 +77,7 @@ final class SearchUseCases {
     }
 
     /// Obtiene canciones reproducidas recientemente
-    func getRecentlyPlayedSongs(limit: Int = 20) async throws -> [SongEntity] {
+    func getRecentlyPlayedSongs(limit: Int = 20) async throws -> [Song] {
         let allSongs = try await songRepository.getAll()
         return allSongs
             .filter { $0.lastPlayedAt != nil }
@@ -95,7 +95,7 @@ final class SearchUseCases {
         album: String?,
         downloadedOnly: Bool = false,
         sortBy: SortOption = .title
-    ) async throws -> [SongEntity] {
+    ) async throws -> [Song] {
         var results = try await songRepository.getAll()
 
         // Aplicar filtro de texto
@@ -130,7 +130,7 @@ final class SearchUseCases {
     // MARK: - Sorting
 
     /// Ordena canciones según la opción especificada
-    func sortSongs(_ songs: [SongEntity], by option: SortOption) -> [SongEntity] {
+    func sortSongs(_ songs: [Song], by option: SortOption) -> [Song] {
         switch option {
         case .title:
             return songs.sorted { $0.title < $1.title }

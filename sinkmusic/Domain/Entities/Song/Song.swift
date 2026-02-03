@@ -1,5 +1,5 @@
 //
-//  SongEntity.swift
+//  Song.swift
 //  sinkmusic
 //
 //  Created by miguel tomairo on 3/01/26.
@@ -16,7 +16,7 @@ struct RGBColor: Hashable, Sendable {
 
 /// Entidad de dominio PURA - Sin dependencia de SwiftData ni SwiftUI
 /// Representa una canción en la lógica de negocio
-struct SongEntity: Identifiable, Hashable, Sendable {
+struct Song: Identifiable, Hashable, Sendable {
     let id: UUID
     let title: String
     let artist: String

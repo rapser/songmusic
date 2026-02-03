@@ -13,12 +13,12 @@ struct PlaylistDetailView: View {
     @Environment(PlaylistViewModel.self) private var viewModel
     @Environment(PlayerViewModel.self) private var playerViewModel
 
-    let playlist: PlaylistUIModel
+    let playlist: PlaylistUI
     @State private var showEditSheet = false
     @State private var showEditPlaylistSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddSongsSheet = false
-    @State private var songForPlaylistSheet: SongUIModel?
+    @State private var songForPlaylistSheet: SongUI?
     @State private var editMode: EditMode = .inactive
 
     var body: some View {
@@ -142,7 +142,7 @@ struct PlaylistDetailView: View {
         .environment(\.editMode, $editMode)
     }
 
-    private func songRowView(for song: SongUIModel) -> some View {
+    private func songRowView(for song: SongUI) -> some View {
         SongRow(
             song: song,
             songQueue: viewModel.songsInPlaylist,
@@ -294,7 +294,7 @@ struct PlaylistDetailView: View {
             playerVM: PreviewViewModels.playerVM(songID: UUID()),
             modelContainer: PreviewContainer.shared.container
         ) {
-            PlaylistDetailView(playlist: PlaylistMapper.toUIModel(PlaylistMapper.toEntityWithSongs(PreviewPlaylists.samplePlaylist())))
+            PlaylistDetailView(playlist: PlaylistMapper.toUI(PlaylistMapper.toDomainWithSongs(PreviewPlaylists.samplePlaylist())))
         }
     }
 }

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct PlaylistGridCard: View {
-    let playlist: PlaylistUIModel
+    let playlist: PlaylistUI
 
     var body: some View {
         HStack(spacing: 8) {

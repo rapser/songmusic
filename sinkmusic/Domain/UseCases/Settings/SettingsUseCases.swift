@@ -92,7 +92,7 @@ final class SettingsUseCases {
 
         // Limpiar artwork de canciones no descargadas
         for song in songs where !song.isDownloaded {
-            let updatedSong = SongEntity(
+            let updatedSong = Song(
                 id: song.id,
                 title: song.title,
                 artist: song.artist,

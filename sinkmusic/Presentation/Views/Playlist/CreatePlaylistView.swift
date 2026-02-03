@@ -12,7 +12,7 @@ struct CreatePlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PlaylistViewModel.self) private var viewModel
 
-    var songToAdd: SongUIModel? = nil
+    var songToAdd: SongUI? = nil
 
     @State private var playlistName = ""
     @State private var playlistDescription = ""

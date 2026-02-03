@@ -1,5 +1,5 @@
 //
-//  CloudFileEntity.swift
+//  CloudFile.swift
 //  sinkmusic
 //
 //  Created by Claude Code
@@ -10,7 +10,7 @@ import Foundation
 
 /// Entidad de dominio que representa un archivo de almacenamiento en la nube
 /// Es agnóstico al proveedor específico (Google Drive, OneDrive, Mega, etc.)
-struct CloudFileEntity: Identifiable, Sendable {
+struct CloudFile: Identifiable, Sendable {
 
     /// ID único del archivo
     let id: String
@@ -90,15 +90,15 @@ struct CloudFileEntity: Identifiable, Sendable {
 
 // MARK: - Equatable
 
-extension CloudFileEntity: Equatable {
-    static func == (lhs: CloudFileEntity, rhs: CloudFileEntity) -> Bool {
+extension CloudFile: Equatable {
+    static func == (lhs: CloudFile, rhs: CloudFile) -> Bool {
         lhs.id == rhs.id && lhs.provider == rhs.provider
     }
 }
 
 // MARK: - Hashable
 
-extension CloudFileEntity: Hashable {
+extension CloudFile: Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(provider)

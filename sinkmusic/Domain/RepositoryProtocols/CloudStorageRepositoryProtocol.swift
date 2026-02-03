@@ -15,7 +15,7 @@ protocol CloudStorageRepositoryProtocol: Sendable {
     // MARK: - Remote Operations
 
     /// Obtiene lista de archivos de música desde el servicio cloud
-    func fetchSongsFromFolder() async throws -> [CloudFileEntity]
+    func fetchSongsFromFolder() async throws -> [CloudFile]
 
     /// Descarga un archivo desde el servicio cloud
     /// El progreso se emite via EventBus como DownloadEvent.progress

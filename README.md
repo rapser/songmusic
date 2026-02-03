@@ -106,10 +106,6 @@ Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injectio
 |  |                      DIContainer                            |  |
 |  |  (Unico punto de entrada - Crea todas las dependencias)    |  |
 |  +------------------------------------------------------------+  |
-|  +------------------------------------------------------------+  |
-|  |                    Feature Modules DI                       |  |
-|  |              (AuthDIContainer, etc.)                        |  |
-|  +------------------------------------------------------------+  |
 +------------------------------------------------------------------+
 ```
 
@@ -249,33 +245,14 @@ sinkmusic/
 |           +-- LoginView.swift
 |
 +-- Features/                       # Modulos de funcionalidad aislados
-    +-- Auth/                       # Modulo de Autenticacion (Clean Architecture)
-        +-- DI/
-        |   +-- AuthDIContainer.swift
-        +-- Domain/
-        |   +-- Entities/
-        |   |   +-- AuthUserEntity.swift
-        |   +-- Protocols/
-        |   |   +-- AuthRepositoryProtocol.swift
-        |   +-- UseCases/
-        |       +-- AuthUseCases.swift
-        +-- Data/
-        |   +-- DTOs/
-        |   |   +-- AuthUserDTO.swift
-        |   +-- DataSources/
-        |   |   +-- AuthLocalDataSource.swift
-        |   |   +-- AppleAuthDataSource.swift
-        |   +-- Mappers/
-        |   |   +-- AuthMapper.swift
-        |   +-- Repositories/
-        |       +-- AuthRepositoryImpl.swift
-        +-- Presentation/
-            +-- Models/
-            |   +-- AuthUserUIModel.swift
-            +-- ViewModels/
-            |   +-- AuthViewModel.swift
-            +-- Views/
-                +-- AuthLoginView.swift
+    +-- Auth/                       # Modulo de Autenticacion (Facade + Strategy)
+        +-- AuthState.swift         # Estados, AuthUser, AuthProvider, AuthError
+        +-- AuthStrategy.swift      # Protocol + AppleAuthStrategy
+        +-- AuthFacade.swift        # Facade principal (orquesta todo)
+        +-- AuthEnvironment.swift   # Configuracion de ambientes (dev/qa/prod)
+        +-- AuthStrategyFactory.swift # Factory para crear estrategias
+        +-- AuthViewModel.swift     # ViewModel simplificado para SwiftUI
+        +-- AuthLoginView.swift     # Vista de login con Sign In with Apple
 ```
 
 ### Flujo de Datos
@@ -316,8 +293,8 @@ final class DIContainer {
     var audioPlayerService: AudioPlayerServiceProtocol
     var carPlayService: CarPlayServiceProtocol
 
-    // Feature Modules
-    var authDIContainer: AuthDIContainer
+    // Auth Module (Facade + Strategy)
+    var authViewModel: AuthViewModel  // Singleton compartido
 
     // Repositories (lazy)
     var songRepository: SongRepositoryProtocol
@@ -332,7 +309,7 @@ final class DIContainer {
     // ViewModel Factories
     func makePlayerViewModel() -> PlayerViewModel
     func makeLibraryViewModel() -> LibraryViewModel
-    func makeAuthViewModel() -> AuthViewModel
+    func makeAuthViewModel() -> AuthViewModel  // Retorna singleton
     // ...
 }
 ```
@@ -367,32 +344,42 @@ init(useCases: UseCases, eventBus: EventBusProtocol) {
 }
 ```
 
-### Modulo Auth (Feature Module)
+### Modulo Auth (Facade + Strategy Pattern)
 
-Ejemplo de modulo aislado con Clean Architecture completa:
+Modulo simplificado usando **Facade + Strategy** en lugar de Clean Architecture completa:
 
 ```
-Auth Module
-+-- Domain Layer
-|   +-- AuthUserEntity        # Entidad de negocio
-|   +-- AuthRepositoryProtocol # Abstraccion
-|   +-- AuthUseCases          # Logica de negocio
+Auth Module (7 archivos)
++-- AuthState.swift           # Estados (unknown, checking, authenticated, unauthenticated)
+|                             # AuthUser (modelo unico Codable)
+|                             # AuthProvider (apple, google, supabase, restAPI)
+|                             # AuthError (errores tipados)
 |
-+-- Data Layer
-|   +-- AuthUserDTO           # Modelo de persistencia
-|   +-- AuthLocalDataSource   # UserDefaults
-|   +-- AppleAuthDataSource   # Sign In with Apple
-|   +-- AuthMapper            # DTO <-> Entity <-> UIModel
-|   +-- AuthRepositoryImpl    # Implementacion
++-- AuthStrategy.swift        # Protocol AuthStrategy
+|                             # AppleAuthStrategy (Sign In with Apple)
+|                             # (Extensible: GoogleStrategy, SupabaseStrategy, etc.)
 |
-+-- Presentation Layer
-|   +-- AuthUserUIModel       # Modelo para UI
-|   +-- AuthViewModel         # ViewModel
-|   +-- AuthLoginView         # Vista
++-- AuthFacade.swift          # Facade principal
+|                             # Coordina: Strategy + Storage + EventBus
+|                             # API simple: signIn(), signOut(), checkAuth()
 |
-+-- DI
-    +-- AuthDIContainer       # DI aislado del modulo
++-- AuthEnvironment.swift     # AppEnvironment (dev, qa, staging, prod)
+|                             # Configuraciones por proveedor
+|
++-- AuthStrategyFactory.swift # Factory que crea estrategias segun ambiente
+|
++-- AuthViewModel.swift       # ViewModel delgado (@Observable)
+|                             # Delega a AuthFacade
+|                             # Expone: isAuthenticated, displayName, etc.
+|
++-- AuthLoginView.swift       # Vista SwiftUI con SignInWithAppleButton
 ```
+
+**Ventajas sobre Clean Architecture:**
+- 7 archivos vs 12 archivos (42% reduccion)
+- Sin mappers (modelo unico AuthUser)
+- Sin capas de abstraccion innecesarias
+- Extensible via nuevas Strategies
 
 ### Principios SOLID
 

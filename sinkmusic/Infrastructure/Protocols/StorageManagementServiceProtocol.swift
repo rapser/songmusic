@@ -18,19 +18,19 @@ protocol StorageManagementServiceProtocol: Sendable {
     /// Calcula el espacio usado por las canciones descargadas
     /// - Parameter songs: Lista de canciones a evaluar
     /// - Returns: String formateado con el tamaño (ej: "150 MB")
-    func calculateStorageUsed(for songs: [SongEntity]) -> String
+    func calculateStorageUsed(for songs: [Song]) -> String
 
     // MARK: - Filtering
 
     /// Filtra canciones pendientes de descarga
     /// - Parameter songs: Lista de canciones
     /// - Returns: Canciones que no están descargadas
-    func filterPendingSongs(_ songs: [SongEntity]) -> [SongEntity]
+    func filterPendingSongs(_ songs: [Song]) -> [Song]
 
     /// Filtra canciones descargadas
     /// - Parameter songs: Lista de canciones
     /// - Returns: Canciones que están descargadas
-    func filterDownloadedSongs(_ songs: [SongEntity]) -> [SongEntity]
+    func filterDownloadedSongs(_ songs: [Song]) -> [Song]
 
     // MARK: - Deletion
 
@@ -39,5 +39,5 @@ protocol StorageManagementServiceProtocol: Sendable {
     ///   - songs: Lista de canciones
     ///   - modelContext: Contexto de SwiftData para actualizar el estado
     @MainActor
-    func deleteAllDownloads(songs: [SongEntity], modelContext: ModelContext) async throws
+    func deleteAllDownloads(songs: [Song], modelContext: ModelContext) async throws
 }
