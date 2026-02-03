@@ -32,8 +32,9 @@ final class PlaylistViewModel {
 
     // MARK: - Tasks
 
-    /// Task para observación de eventos (nonisolated para acceso en deinit)
-    nonisolated(unsafe) private var dataEventTask: Task<Void, Never>?
+    /// Task para observación de eventos
+    @ObservationIgnored
+    private var dataEventTask: Task<Void, Never>?
 
     // MARK: - Initialization
 

@@ -41,8 +41,9 @@ final class DownloadViewModel {
     /// Gestor de tareas de descarga activas para cancelación
     private let activeTasksManager = ActiveTasksManager()
 
-    /// Task para observación de eventos de descarga (nonisolated para acceso en deinit)
-    nonisolated(unsafe) private var downloadEventTask: Task<Void, Never>?
+    /// Task para observación de eventos de descarga
+    @ObservationIgnored
+    private var downloadEventTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
