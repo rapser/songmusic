@@ -1,462 +1,496 @@
-# 🎵 SinkMusic
+# SinkMusic
 
-Una aplicación de música moderna para iOS con reproducción de audio de alta calidad, gestión de playlists, integración con CarPlay y sincronización con Google Drive.
+Una aplicacion de musica moderna para iOS con reproduccion de audio de alta calidad, gestion de playlists, integracion con CarPlay y sincronizacion con Google Drive.
 
-## ✨ Características
+## Caracteristicas
 
-### 🎵 Reproducción de Audio
-- Reproducción con AVAudioEngine y ecualizador de 6 bandas
-- Controles de reproducción avanzados (play/pause, siguiente, anterior)
-- Modo aleatorio y tres modos de repetición (off, all, one)
-- Soporte para reproducción en background
-- Integración con Lock Screen y Control Center
-- **Reanudación automática después de llamadas telefónicas** (comportamiento tipo Spotify)
-- Pausa automática al desconectar auriculares
+### Reproduccion de Audio
+- Reproduccion con AVAudioEngine y ecualizador de 6 bandas
+- Controles de reproduccion avanzados (play/pause, siguiente, anterior)
+- Modo aleatorio y tres modos de repeticion (off, all, one)
+- Soporte para reproduccion en background
+- Integracion con Lock Screen y Control Center
+- Reanudacion automatica despues de llamadas telefonicas (comportamiento tipo Spotify)
+- Pausa automatica al desconectar auriculares
 - Manejo robusto de interrupciones de audio (llamadas, alarmas, Siri, etc.)
 
-### 🚗 CarPlay
-- Integración nativa con CarPlay
-- Navegación por biblioteca y playlists desde el auto
-- Controles de reproducción seguros mientras conduces
+### CarPlay
+- Integracion nativa con CarPlay
+- Navegacion por biblioteca y playlists desde el auto
+- Controles de reproduccion seguros mientras conduces
 
-### 📱 Live Activities & Dynamic Island
+### Live Activities & Dynamic Island
 - Reproductor en vivo con Dynamic Island (iPhone 14 Pro+)
-- Controles de reproducción desde Lock Screen
+- Controles de reproduccion desde Lock Screen
 - Artwork y metadatos en tiempo real
 
-### 📥 Google Drive
-- Sincronización automática con carpeta de Google Drive
-- Descarga de canciones para reproducción offline
-- Extracción automática de metadatos (ID3, artwork)
-- Gestión de caché de imágenes (3 tamaños: 32x32, 64x64, full)
+### Google Drive
+- Sincronizacion automatica con carpeta de Google Drive
+- Descarga de canciones para reproduccion offline
+- Extraccion automatica de metadatos (ID3, artwork)
+- Gestion de cache de imagenes (3 tamanos: 32x32, 64x64, full)
 
-### 📋 Playlists
-- Creación y gestión de playlists personalizadas
+### Playlists
+- Creacion y gestion de playlists personalizadas
 - Agregar/remover canciones con gestos intuitivos
-- Contador de reproducciones y últimas canciones reproducidas
+- Contador de reproducciones y ultimas canciones reproducidas
 - Grid view estilo Spotify con top songs carousel
 
-### 🎚️ Ecualizador
+### Ecualizador
 - 6 bandas ajustables (60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 15kHz)
-- Presets predefinidos (Rock, Pop, Jazz, Clásica, etc.)
-- Aplicación en tiempo real sin interrumpir reproducción
+- Presets predefinidos (Rock, Pop, Jazz, Clasica, etc.)
+- Aplicacion en tiempo real sin interrumpir reproduccion
 
-### 🔍 Búsqueda
-- Búsqueda en tiempo real con debouncing (300ms)
-- Filtrado por título, artista y álbum
-- Resultados instantáneos
+### Busqueda
+- Busqueda en tiempo real con debouncing (300ms)
+- Filtrado por titulo, artista y album
+- Resultados instantaneos
 
-## 🏗️ Arquitectura
+## Arquitectura
 
-Este proyecto implementa **MVVM + Protocol-Oriented Programming** siguiendo los principios **SOLID** y usando **Swift 6** con concurrencia moderna.
+Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con concurrencia moderna.
 
-### Arquitectura Modular
+### Diagrama de Arquitectura
 
 ```
-┌─────────────────────────────────────────┐
-│          Presentation Layer             │
-│  ┌─────────────┐      ┌──────────────┐ │
-│  │   Views     │◄─────┤  ViewModels  │ │
-│  │  (SwiftUI)  │      │ (@MainActor) │ │
-│  └─────────────┘      └──────┬───────┘ │
-└────────────────────────────┬─┬──────────┘
-                             │ │
-                ┌────────────┘ └─────────────┐
-                │                             │
-┌───────────────▼──────┐      ┌──────────────▼────┐
-│   Service Layer      │      │   Data Layer      │
-│  ┌────────────────┐  │      │  ┌─────────────┐  │
-│  │   Services     │  │      │  │   Models    │  │
-│  │  (Protocols)   │  │      │  │ (@Model)    │  │
-│  └────────────────┘  │      │  └─────────────┘  │
-└──────────────────────┘      └───────────────────┘
++------------------------------------------------------------------+
+|                        PRESENTATION LAYER                         |
+|  +------------------+     +-----------------------------------+   |
+|  |      Views       |<----|           ViewModels              |   |
+|  |    (SwiftUI)     |     |   (@Observable + @MainActor)      |   |
+|  +------------------+     +----------------+------------------+   |
++-----------------------------------|-------------------------------+
+                                    |
+                                    | UseCases
+                                    v
++------------------------------------------------------------------+
+|                         DOMAIN LAYER                              |
+|  +------------------+     +-----------------------------------+   |
+|  |     Entities     |     |            UseCases               |   |
+|  | (Business Models)|     |      (Business Logic)             |   |
+|  +------------------+     +----------------+------------------+   |
+|  +------------------+                      |                      |
+|  |    Protocols     |<---------------------+                      |
+|  | (Repository Abs) |                                             |
+|  +------------------+                                             |
++-----------------------------------|-------------------------------+
+                                    |
+                                    | Repositories
+                                    v
++------------------------------------------------------------------+
+|                          DATA LAYER                               |
+|  +------------------+     +-----------------------------------+   |
+|  |      DTOs        |     |          Repositories             |   |
+|  | (Data Transfer)  |     |      (Implementations)            |   |
+|  +------------------+     +----------------+------------------+   |
+|  +------------------+                      |                      |
+|  |    DataSources   |<---------------------+                      |
+|  | (Local/Remote)   |                                             |
+|  +------------------+                                             |
++------------------------------------------------------------------+
+                                    |
+                                    v
++------------------------------------------------------------------+
+|                      INFRASTRUCTURE LAYER                         |
+|  +------------------+     +-----------------------------------+   |
+|  |    Services      |     |           Protocols               |   |
+|  | (AudioPlayer,    |     |    (Service Abstractions)         |   |
+|  |  Keychain, etc)  |     |                                   |   |
+|  +------------------+     +-----------------------------------+   |
++------------------------------------------------------------------+
+                                    |
+                                    v
++------------------------------------------------------------------+
+|                      DEPENDENCY INJECTION                         |
+|  +------------------------------------------------------------+  |
+|  |                      DIContainer                            |  |
+|  |  (Unico punto de entrada - Crea todas las dependencias)    |  |
+|  +------------------------------------------------------------+  |
+|  +------------------------------------------------------------+  |
+|  |                    Feature Modules DI                       |  |
+|  |              (AuthDIContainer, etc.)                        |  |
+|  +------------------------------------------------------------+  |
++------------------------------------------------------------------+
 ```
 
-### Capas Principales
+### Estructura de Carpetas
 
-#### Presentation Layer
-- **Views**: Componentes SwiftUI declarativos y reutilizables
-- **ViewModels**: Lógica de presentación con `@MainActor` para thread-safety
-  - `PlayerViewModel`: Reproducción de audio
-  - `LibraryViewModel`: Gestión de biblioteca
-  - `PlaylistViewModel`: Gestión de playlists
-  - `EqualizerViewModel`: Control de ecualizador
-  - `MetadataCacheViewModel`: Caché de artwork
-  - `RefactoredSettingsViewModel`: Configuración con Swift 6 @Observable
+```
+sinkmusic/
+|
++-- Application/                    # Punto de entrada de la app
+|   +-- DI/
+|   |   +-- DIContainer.swift       # Contenedor principal de DI
+|   +-- sinkmusicApp.swift          # Entry point SwiftUI
+|   +-- CarPlaySceneDelegate.swift  # Delegado de CarPlay
+|
++-- Core/                           # Utilidades compartidas
+|   +-- Errors/                     # Errores de dominio
+|   |   +-- AppError.swift
+|   |   +-- SyncError.swift
+|   +-- EventBus/                   # Sistema de eventos reactivo
+|   |   +-- EventBus.swift          # Implementacion
+|   |   +-- EventBusProtocol.swift  # Abstraccion
+|   |   +-- Events/
+|   |       +-- AuthEvent.swift
+|   |       +-- DataChangeEvent.swift
+|   |       +-- DownloadEvent.swift
+|   |       +-- PlaybackEvent.swift
+|   +-- Extensions/
+|   |   +-- Color+Extension.swift
+|   +-- Utils/
+|       +-- PreviewData.swift       # Datos para SwiftUI Previews
+|
++-- Domain/                         # Capa de Dominio (Reglas de Negocio)
+|   +-- Entities/                   # Entidades de negocio puras
+|   |   +-- Cloud/
+|   |   |   +-- CloudFileEntity.swift
+|   |   +-- Song/
+|   |   |   +-- SongEntity.swift
+|   |   |   +-- SongError.swift
+|   |   +-- Playlist/
+|   |       +-- PlaylistEntity.swift
+|   |       +-- PlaylistError.swift
+|   +-- RepositoryProtocols/        # Abstracciones de repositorios
+|   |   +-- SongRepositoryProtocol.swift
+|   |   +-- PlaylistRepositoryProtocol.swift
+|   |   +-- AudioPlayerRepositoryProtocol.swift
+|   |   +-- CloudStorageRepositoryProtocol.swift
+|   |   +-- CredentialsRepositoryProtocol.swift
+|   |   +-- MetadataRepositoryProtocol.swift
+|   +-- UseCases/                   # Casos de uso
+|   |   +-- Player/
+|   |   |   +-- PlayerUseCases.swift
+|   |   +-- Library/
+|   |   |   +-- LibraryUseCases.swift
+|   |   +-- Playlist/
+|   |   |   +-- PlaylistUseCases.swift
+|   |   +-- Download/
+|   |   |   +-- DownloadUseCases.swift
+|   |   +-- Settings/
+|   |       +-- SettingsUseCases.swift
+|   +-- Interfaces/                 # Protocolos de servicios
+|       +-- AudioPlayerProtocol.swift
+|       +-- MetadataServiceProtocol.swift
+|
++-- Data/                           # Capa de Datos
+|   +-- DTOs/                       # Data Transfer Objects
+|   |   +-- Local/
+|   |   |   +-- SongDTO.swift       # @Model SwiftData
+|   |   |   +-- PlaylistDTO.swift   # @Model SwiftData
+|   |   +-- Remote/
+|   |       +-- GoogleDriveFileDTO.swift
+|   +-- DataSources/                # Fuentes de datos
+|   |   +-- Local/
+|   |   |   +-- SongLocalDataSource.swift
+|   |   |   +-- PlaylistLocalDataSource.swift
+|   |   |   +-- SwiftDataNotificationService.swift
+|   |   +-- Remote/
+|   |   |   +-- GoogleDriveDataSource.swift
+|   |   +-- Protocols/
+|   |       +-- GoogleDriveServiceProtocol.swift
+|   +-- Mappers/                    # Conversores DTO <-> Entity
+|   |   +-- SongMapper.swift
+|   |   +-- PlaylistMapper.swift
+|   +-- Repositories/               # Implementaciones de repositorios
+|       +-- SongRepositoryImpl.swift
+|       +-- PlaylistRepositoryImpl.swift
+|       +-- AudioPlayerRepositoryImpl.swift
+|       +-- CloudStorageRepositoryImpl.swift
+|       +-- CredentialsRepositoryImpl.swift
+|       +-- MetadataRepositoryImpl.swift
+|
++-- Infrastructure/                 # Servicios de infraestructura
+|   +-- Protocols/                  # Abstracciones de servicios
+|   |   +-- AudioPlayerServiceProtocol.swift
+|   |   +-- CarPlayServiceProtocol.swift
+|   |   +-- KeychainServiceProtocol.swift
+|   |   +-- LiveActivityServiceProtocol.swift
+|   +-- Services/                   # Implementaciones
+|       +-- AudioPlayerService.swift
+|       +-- CarPlayService.swift
+|       +-- KeychainService.swift
+|       +-- LiveActivityService.swift
+|       +-- MetadataService.swift
+|       +-- StorageManagementService.swift
+|
++-- Presentation/                   # Capa de Presentacion
+|   +-- ViewModels/                 # ViewModels (@Observable)
+|   |   +-- Player/
+|   |   |   +-- PlayerViewModel.swift
+|   |   +-- Library/
+|   |   |   +-- LibraryViewModel.swift
+|   |   +-- Home/
+|   |   |   +-- HomeViewModel.swift
+|   |   +-- Playlist/
+|   |   |   +-- PlaylistViewModel.swift
+|   |   +-- Download/
+|   |   |   +-- DownloadViewModel.swift
+|   |   +-- Settings/
+|   |   |   +-- SettingsViewModel.swift
+|   |   +-- Search/
+|   |       +-- SearchViewModel.swift
+|   +-- Views/                      # Vistas SwiftUI
+|       +-- Main/
+|       |   +-- MainAppView.swift
+|       +-- Home/
+|       |   +-- HomeView.swift
+|       +-- Player/
+|       |   +-- PlayerView.swift
+|       |   +-- Components/
+|       +-- Library/
+|       |   +-- LibraryView.swift
+|       +-- Playlist/
+|       |   +-- PlaylistView.swift
+|       |   +-- PlaylistDetailView.swift
+|       +-- Settings/
+|       |   +-- SettingsView.swift
+|       +-- Login/
+|           +-- LoginView.swift
+|
++-- Features/                       # Modulos de funcionalidad aislados
+    +-- Auth/                       # Modulo de Autenticacion (Clean Architecture)
+        +-- DI/
+        |   +-- AuthDIContainer.swift
+        +-- Domain/
+        |   +-- Entities/
+        |   |   +-- AuthUserEntity.swift
+        |   +-- Protocols/
+        |   |   +-- AuthRepositoryProtocol.swift
+        |   +-- UseCases/
+        |       +-- AuthUseCases.swift
+        +-- Data/
+        |   +-- DTOs/
+        |   |   +-- AuthUserDTO.swift
+        |   +-- DataSources/
+        |   |   +-- AuthLocalDataSource.swift
+        |   |   +-- AppleAuthDataSource.swift
+        |   +-- Mappers/
+        |   |   +-- AuthMapper.swift
+        |   +-- Repositories/
+        |       +-- AuthRepositoryImpl.swift
+        +-- Presentation/
+            +-- Models/
+            |   +-- AuthUserUIModel.swift
+            +-- ViewModels/
+            |   +-- AuthViewModel.swift
+            +-- Views/
+                +-- AuthLoginView.swift
+```
 
-#### Service Layer
-- **AudioPlayerService**: Reproducción con AVAudioEngine + manejo de interrupciones
-- **GoogleDriveService**: Sincronización y descarga
-- **MetadataService**: Extracción de ID3 tags
-- **CarPlayService**: Integración con CarPlay
-- **LiveActivityService**: Dynamic Island y Live Activities
-- **KeychainService**: Almacenamiento seguro de credenciales
-- **StorageManagementService**: Gestión de almacenamiento y descargas (SOLID)
-- **CredentialsManagementService**: Gestión de credenciales (SOLID)
+### Flujo de Datos
 
-#### Data Layer
-- **SwiftData Models**: Persistencia moderna
-  - `Song`: Modelo de canción con metadatos
-  - `Playlist`: Modelo de playlist con relaciones
+```
++-------+     +----------+     +----------+     +------------+     +------------+
+| View  | --> | ViewModel| --> | UseCase  | --> | Repository | --> | DataSource |
++-------+     +----------+     +----------+     +------------+     +------------+
+    ^              |                                                      |
+    |              |                                                      |
+    +--------------+------------------------------------------------------+
+                   |              EventBus (Eventos reactivos)            |
+                   +------------------------------------------------------+
+```
 
-### Principios de Diseño
+1. **View** llama accion en **ViewModel**
+2. **ViewModel** ejecuta **UseCase**
+3. **UseCase** coordina **Repositories**
+4. **Repository** accede a **DataSources** (Local/Remote)
+5. **DataSource** emite eventos via **EventBus**
+6. **ViewModel** escucha eventos y actualiza estado
+7. **View** se re-renderiza automaticamente
 
-#### Protocol-Oriented Programming
+### Dependency Injection
+
+El proyecto usa **Inyeccion de Dependencias pura** sin frameworks externos.
+
+**DIContainer** es el unico singleton permitido y actua como punto de entrada:
+
 ```swift
-// Segregación de interfaces - cada protocolo tiene una responsabilidad
-protocol AudioPlaybackProtocol {
-    func play(songID: UUID, url: URL)
-    func pause()
-    func seek(to time: TimeInterval)
-}
-
-protocol AudioEqualizerProtocol {
-    func updateEqualizer(bands: [Float])
-}
-
-// Composición de protocolos
-protocol AudioPlayerProtocol: AudioPlaybackProtocol,
-                              AudioEqualizerProtocol,
-                              RemoteControlsProtocol { }
-```
-
-#### Dependency Inversion
-```swift
-// ViewModels dependen de protocolos, no implementaciones concretas
 @MainActor
-class PlayerViewModel: ObservableObject {
-    private var audioPlayerService: AudioPlayerProtocol  // ✅ Protocol
+final class DIContainer {
+    static let shared = DIContainer()
 
-    init(audioPlayerService: AudioPlayerProtocol = AudioPlayerService()) {
-        self.audioPlayerService = audioPlayerService
+    // Core Services (creados una vez)
+    var eventBus: EventBusProtocol
+    var keychainService: KeychainServiceProtocol
+    var audioPlayerService: AudioPlayerServiceProtocol
+    var carPlayService: CarPlayServiceProtocol
+
+    // Feature Modules
+    var authDIContainer: AuthDIContainer
+
+    // Repositories (lazy)
+    var songRepository: SongRepositoryProtocol
+    var playlistRepository: PlaylistRepositoryProtocol
+    // ...
+
+    // UseCases (lazy)
+    var playerUseCases: PlayerUseCases
+    var libraryUseCases: LibraryUseCases
+    // ...
+
+    // ViewModel Factories
+    func makePlayerViewModel() -> PlayerViewModel
+    func makeLibraryViewModel() -> LibraryViewModel
+    func makeAuthViewModel() -> AuthViewModel
+    // ...
+}
+```
+
+### EventBus (Sistema de Eventos)
+
+Comunicacion reactiva entre capas sin acoplar componentes:
+
+```swift
+// Protocolo para DI
+protocol EventBusProtocol {
+    func emit(_ event: DataChangeEvent)
+    func emit(_ event: AuthEvent)
+    func emit(_ event: PlaybackEvent)
+    func emit(_ event: DownloadEvent)
+
+    func dataEvents() -> AsyncStream<DataChangeEvent>
+    func authEvents() -> AsyncStream<AuthEvent>
+    func playbackEvents() -> AsyncStream<PlaybackEvent>
+    func downloadEvents() -> AsyncStream<DownloadEvent>
+}
+
+// Uso en ViewModel
+init(useCases: UseCases, eventBus: EventBusProtocol) {
+    self.eventBus = eventBus
+
+    Task {
+        for await event in eventBus.dataEvents() {
+            handleEvent(event)
+        }
     }
 }
 ```
 
-## 🎯 Principios SOLID
+### Modulo Auth (Feature Module)
 
-### ✅ Single Responsibility
-Cada clase tiene una única responsabilidad bien definida:
-- `PlayerViewModel`: Solo maneja estado de reproducción
-- `AudioPlayerService`: Solo maneja audio engine
-- `MetadataService`: Solo extrae metadatos
+Ejemplo de modulo aislado con Clean Architecture completa:
 
-### ✅ Open/Closed
-Extensible vía protocolos sin modificar código existente:
-```swift
-protocol AudioPlayerProtocol {
-    // Nuevas funcionalidades se agregan aquí
-}
+```
+Auth Module
++-- Domain Layer
+|   +-- AuthUserEntity        # Entidad de negocio
+|   +-- AuthRepositoryProtocol # Abstraccion
+|   +-- AuthUseCases          # Logica de negocio
+|
++-- Data Layer
+|   +-- AuthUserDTO           # Modelo de persistencia
+|   +-- AuthLocalDataSource   # UserDefaults
+|   +-- AppleAuthDataSource   # Sign In with Apple
+|   +-- AuthMapper            # DTO <-> Entity <-> UIModel
+|   +-- AuthRepositoryImpl    # Implementacion
+|
++-- Presentation Layer
+|   +-- AuthUserUIModel       # Modelo para UI
+|   +-- AuthViewModel         # ViewModel
+|   +-- AuthLoginView         # Vista
+|
++-- DI
+    +-- AuthDIContainer       # DI aislado del modulo
 ```
 
-### ✅ Liskov Substitution
-Todas las implementaciones de protocolos son intercambiables:
-```swift
-let player: AudioPlayerProtocol = AudioPlayerService()  // Intercambiable
-```
+### Principios SOLID
 
-### ✅ Interface Segregation ⭐
-Interfaces pequeñas y específicas:
-- `AudioPlaybackProtocol`: Solo reproducción
-- `AudioEqualizerProtocol`: Solo ecualizador
-- Compuestas en `AudioPlayerProtocol`
+| Principio | Implementacion |
+|-----------|----------------|
+| **Single Responsibility** | Cada clase tiene una unica responsabilidad (ViewModel, UseCase, Repository, DataSource) |
+| **Open/Closed** | Extension via protocolos sin modificar codigo existente |
+| **Liskov Substitution** | Todas las implementaciones son intercambiables via protocolos |
+| **Interface Segregation** | Protocolos pequenos y especificos (EventBusProtocol, AudioPlayerProtocol) |
+| **Dependency Inversion** | Todas las dependencias se inyectan via constructor, dependiendo de abstracciones |
 
-### ✅ Dependency Inversion
-ViewModels y Services dependen de abstracciones (protocolos), no de clases concretas.
+## Tecnologias
 
-## 🚀 Tecnologías y Frameworks
-
-### Core Technologies
-- **Swift 6**: Lenguaje moderno con concurrencia nativa
-- **SwiftUI**: Framework declarativo de UI
-- **SwiftData**: Persistencia moderna (reemplazo de CoreData)
-- **async/await**: Concurrencia moderna (sin Combine)
+### Core
+- **Swift 6** con concurrencia moderna (async/await)
+- **SwiftUI** para UI declarativa
+- **SwiftData** para persistencia (@Model)
+- **@Observable** macro para estado reactivo
 
 ### Audio & Media
-- **AVFoundation**: Reproducción de audio
-- **AVAudioEngine**: Procesamiento de audio y efectos
-- **MediaPlayer**: Integración con sistema (Now Playing, Remote Commands)
-- **CarPlay Framework**: Integración con vehículos
+- **AVFoundation** y **AVAudioEngine** para reproduccion
+- **MediaPlayer** para integracion con sistema
+- **CarPlay Framework** para vehiculos
+- **ActivityKit** para Live Activities
 
 ### Cloud & Storage
-- **Google Drive API**: Sincronización de música
-- **Keychain Services**: Almacenamiento seguro de tokens
-- **FileManager**: Gestión de archivos locales
+- **Google Drive API** para sincronizacion
+- **Keychain Services** para almacenamiento seguro
 
-### UI & UX
-- **ActivityKit**: Live Activities y Dynamic Island
-- **UIKit Integration**: Para componentes específicos (feedback háptico)
+### Concurrencia
+- **@MainActor** para thread-safety en UI
+- **Task API** para concurrencia estructurada
+- **AsyncStream** para eventos reactivos
 
-### Concurrency & Performance
-- **@MainActor**: Thread-safety automático para UI
-- **Task API**: Concurrencia estructurada
-- **NSLock**: Sincronización de recursos compartidos
-- **RunLoop.common**: Timers que funcionan en background
+## Requisitos
 
-## 📂 Estructura del Proyecto
-
-```
-sinkmusic/
-├── Application/
-│   └── sinkmusicApp.swift          # Entry point
-├── Core/
-│   ├── Protocols/                  # Definiciones de interfaces
-│   │   ├── AudioPlayerProtocol.swift
-│   │   └── GoogleDriveServiceProtocol.swift
-│   └── Extensions/                 # Extensiones de tipos
-│       └── Color+Extension.swift
-├── Model/                          # SwiftData Models
-│   ├── Song.swift                  # @Model con metadatos
-│   └── Playlist.swift              # @Model con relaciones
-├── Services/                       # Capa de servicios
-│   ├── AudioPlayerService.swift    # AVAudioEngine
-│   ├── GoogleDriveService.swift    # API de Google Drive
-│   ├── MetadataService.swift       # Extracción ID3
-│   ├── CarPlayService.swift        # Integración CarPlay
-│   ├── LiveActivityService.swift   # Dynamic Island
-│   └── KeychainService.swift       # Almacenamiento seguro
-├── ViewModel/                      # Lógica de presentación
-│   ├── PlayerViewModel.swift       # @MainActor
-│   ├── LibraryViewModel.swift      # @MainActor
-│   ├── PlaylistViewModel.swift     # @MainActor
-│   ├── EqualizerViewModel.swift    # @MainActor
-│   └── MetadataCacheViewModel.swift # @MainActor
-├── View/                           # UI SwiftUI
-│   ├── Main/
-│   │   └── MainAppView.swift       # Tab navigation
-│   ├── Home/
-│   │   └── HomeView.swift          # Grid + Carousel
-│   ├── Player/
-│   │   ├── PlayerView.swift        # Full player
-│   │   └── MiniPlayerView.swift    # Mini player
-│   ├── Playlist/
-│   │   └── PlaylistView.swift      # Lista de playlists
-│   ├── Settings/
-│   │   └── SettingsView.swift      # Configuración
-│   └── Components/                 # Componentes reutilizables
-├── Utils/                          # Utilidades
-│   ├── PreviewData.swift           # Datos para previews
-│   └── ImageCompressionService.swift
-└── Resources/
-    └── Info.plist                  # Configuración del app
-```
-
-## 🚀 Empezar
-
-### Requisitos
-
-- **iOS 17.0+** (requerido para Live Activities)
+- **iOS 18.0+**
 - **Xcode 16.0+** (Swift 6)
 - **Cuenta de Google Drive** con API habilitada
-- **Dispositivo físico** (para CarPlay y Live Activities)
+- **Dispositivo fisico** para CarPlay y Live Activities
 
-### Instalación
+## Instalacion
 
-1. **Clona el repositorio**
+1. Clona el repositorio
 ```bash
 git clone https://github.com/rapser/sinkmusic.git
 cd sinkmusic
 ```
 
-2. **Configurar Google Drive API**
-   - Crea un proyecto en [Google Cloud Console](https://console.cloud.google.com/)
-   - Habilita Google Drive API
-   - Crea credenciales OAuth 2.0
-   - Agrega el Client ID al proyecto
+2. Configura Google Drive API en [Google Cloud Console](https://console.cloud.google.com/)
 
-3. **Abre el proyecto en Xcode**
+3. Abre el proyecto en Xcode
 ```bash
 open sinkmusic.xcodeproj
 ```
 
-4. **Configura el equipo de desarrollo**
-   - Selecciona tu equipo en Signing & Capabilities
-   - Habilita Push Notifications para Live Activities
+4. Configura el equipo de desarrollo en Signing & Capabilities
 
-5. **Compila y ejecuta** (⌘R)
+5. Compila y ejecuta (Cmd+R)
 
-### Configuración Inicial
+## Testing
 
-1. **Autenticación**
-   - Inicia sesión con Sign in with Apple
-   - Autoriza acceso a Google Drive
-
-2. **Sincronización**
-   - Ve a Settings → Configurar Google Drive
-   - Selecciona la carpeta con tus archivos MP3
-   - Espera la sincronización inicial
-
-3. **Descarga música**
-   - Ve a Settings → Descargar música
-   - Selecciona las canciones que deseas offline
-   - Los metadatos se extraen automáticamente
-
-## 📱 Uso
-
-### Reproducción
-
-- **Play/Pause**: Toca el botón central
-- **Siguiente/Anterior**: Botones de navegación
-- **Seek**: Desliza la barra de progreso
-- **Shuffle**: Activa/desactiva modo aleatorio
-- **Repeat**: Cicla entre Off → All → One
-
-### Ecualizador
-
-1. Toca el ícono de ecualizador en el player
-2. Ajusta las 6 bandas manualmente
-3. O selecciona un preset (Rock, Pop, Jazz, etc.)
-4. Los cambios se aplican en tiempo real
-
-### Playlists
-
-- **Crear**: Botón + en la vista de Playlists
-- **Agregar canciones**: Long press en cualquier canción
-- **Remover**: Swipe left en la lista de canciones
-- **Reproducir**: Toca cualquier canción de la playlist
-
-### CarPlay
-
-- Conecta tu iPhone al auto
-- Navega por Biblioteca o Playlists
-- Usa controles de volante/pantalla
-
-## 🧪 Testing
-
-```bash
-# Ejecutar todos los tests
-⌘U en Xcode
-
-# Ejecutar tests específicos
-⌘ + Click en el test y seleccionar "Run"
-```
-
-La arquitectura con inyección de dependencias facilita testing:
+La arquitectura con DI facilita el testing:
 
 ```swift
-// Mock de AudioPlayerService
-class MockAudioPlayerService: AudioPlayerProtocol {
-    var playCallCount = 0
+// Mock de EventBus
+class MockEventBus: EventBusProtocol {
+    var emittedEvents: [DataChangeEvent] = []
 
-    func play(songID: UUID, url: URL) {
-        playCallCount += 1
+    func emit(_ event: DataChangeEvent) {
+        emittedEvents.append(event)
     }
 }
 
-// Test de PlayerViewModel
-func testPlaySong() {
-    let mockPlayer = MockAudioPlayerService()
-    let viewModel = PlayerViewModel(audioPlayerService: mockPlayer)
+// Test de ViewModel
+func testViewModel() {
+    let mockEventBus = MockEventBus()
+    let mockUseCases = MockUseCases()
+    let viewModel = PlayerViewModel(
+        playerUseCases: mockUseCases,
+        eventBus: mockEventBus
+    )
 
-    viewModel.playSong(song)
+    viewModel.play()
 
-    XCTAssertEqual(mockPlayer.playCallCount, 1)
+    XCTAssertTrue(mockUseCases.playCalled)
 }
 ```
 
-## 🔧 Optimizaciones de Performance
+## Changelog
 
-### Memory Management
-- ✅ Todos los closures usan `[weak self]`
-- ✅ URLSession delegates se invalidan en deinit
-- ✅ Timers se cancelan apropiadamente
-- ✅ Tasks se cancelan con deinit
+Para ver el historial completo de cambios, consulta [CHANGELOG.md](./CHANGELOG.md)
 
-### UI Performance
-- ✅ Throttling de `playbackTime` (0.5s) para evitar re-renders
-- ✅ SettingsView optimizado con valores cacheados
-- ✅ Dictionary lookup O(1) en lugar de O(n)
-- ✅ Artwork en 3 tamaños cacheados
-- ✅ Color dominante pre-calculado y persistido
-
-### Audio Performance
-- ✅ Timer con `RunLoop.common` para background
-- ✅ Buffer duration optimizado (5ms)
-- ✅ Sample rate preferido (44.1kHz)
-- ✅ Manejo de interrupciones (llamadas, alarmas)
-
-## 📝 Changelog
-
-Para ver el historial completo de cambios y versiones, consulta [CHANGELOG.md](./CHANGELOG.md)
-
-### Última Versión: v1.0.0 (10) - 2025-12-25 🎄
-
-**Destacados:**
-- ✨ Live Activities & Dynamic Island
-- 🚗 CarPlay Integration
-- 📊 PlayCount Tracking
-- ⚡ Migración completa a Swift 6
-- 🎵 **Reanudación automática después de llamadas** (estilo Spotify)
-- 🏗️ **Refactorización de SettingsView** con SOLID y componentes reutilizables
-- 🐛 6 Memory leaks corregidos
-- 🗑️ 11 archivos eliminados (1,242 líneas)
-- 📉 53% reducción de código en SettingsView
-- 🏆 Calificación: A con SOLID ⭐⭐⭐⭐⭐
-
-## 🤝 Contribuir
-
-### Lineamientos
-
-1. **Código**
-   - Seguir principios SOLID
-   - Usar Swift 6 moderno (async/await, @MainActor)
-   - Evitar force unwraps (!)
-   - Usar guard/if-let para optionals
-
-2. **Arquitectura**
-   - Mantener separación de capas
-   - ViewModels con `@MainActor`
-   - Services con protocolos
-   - Dependency injection
-
-3. **Performance**
-   - Usar `[weak self]` en closures
-   - Cancelar Tasks en deinit
-   - Cachear valores costosos
-   - Evitar re-renders innecesarios
-
-4. **Testing**
-   - Escribir tests para nueva funcionalidad
-   - Usar mocks para dependencias
-   - Test coverage > 70%
-
-### Proceso
-
-1. Fork el proyecto
-2. Crea una rama (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📄 Licencia
-
-Este proyecto es privado y pertenece a **rapser**.
-
-## 👤 Autor
+## Autor
 
 **Miguel Tomairo (rapser)**
 - GitHub: [@rapser](https://github.com/rapser)
-- Email: [tu-email]
 
-## 🙏 Agradecimientos
+## Licencia
 
-- **Clean Architecture** por Uncle Bob Martin
-- **Swift Community** por el soporte y recursos
-- **Apple** por los excelentes frameworks
-- **Claude** por asistencia en arquitectura y optimización
-
-## 📞 Soporte
-
-¿Encontraste un bug o tienes una sugerencia?
-
-1. Abre un [Issue](https://github.com/rapser/sinkmusic/issues)
-2. Describe el problema detalladamente
-3. Incluye:
-   - iOS version
-   - Xcode version
-   - Pasos para reproducir
-   - Screenshots/logs si aplica
-
----
-
-**Hecho con ❤️, Swift 6 y mucha música** 🎵
+Este proyecto es privado y pertenece a **rapser**.

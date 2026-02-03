@@ -104,14 +104,6 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         )
     }
 
-    // MARK: - Observability
-
-    func observeChanges(onChange: @escaping @MainActor ([SongEntity]) -> Void) {
-        localDataSource.observeChanges { dtos in
-            let entities = SongMapper.toEntities(dtos)
-            onChange(entities)
-        }
-    }
 }
 
 // MARK: - Sendable Conformance

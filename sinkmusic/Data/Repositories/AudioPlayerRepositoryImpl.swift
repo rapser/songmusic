@@ -10,44 +10,13 @@ import Foundation
 
 /// Implementación del repositorio de Audio Player
 /// Encapsula el AudioPlayerService y adapta su interfaz al dominio
+/// Nota: Los eventos se emiten directamente desde AudioPlayerService via EventBus
 @MainActor
 final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     // MARK: - Dependencies
 
-    private var audioPlayerService: AudioPlayerServiceProtocol
-
-    // MARK: - Callbacks
-
-    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? {
-        get { audioPlayerService.onPlaybackStateChanged }
-        set { audioPlayerService.onPlaybackStateChanged = newValue }
-    }
-
-    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? {
-        get { audioPlayerService.onPlaybackTimeChanged }
-        set { audioPlayerService.onPlaybackTimeChanged = newValue }
-    }
-
-    var onSongFinished: (@MainActor (UUID) -> Void)? {
-        get { audioPlayerService.onSongFinished }
-        set { audioPlayerService.onSongFinished = newValue }
-    }
-
-    var onRemotePlayPause: (@MainActor () -> Void)? {
-        get { audioPlayerService.onRemotePlayPause }
-        set { audioPlayerService.onRemotePlayPause = newValue }
-    }
-
-    var onRemoteNext: (@MainActor () -> Void)? {
-        get { audioPlayerService.onRemoteNext }
-        set { audioPlayerService.onRemoteNext = newValue }
-    }
-
-    var onRemotePrevious: (@MainActor () -> Void)? {
-        get { audioPlayerService.onRemotePrevious }
-        set { audioPlayerService.onRemotePrevious = newValue }
-    }
+    private let audioPlayerService: AudioPlayerServiceProtocol
 
     // MARK: - Initialization
 

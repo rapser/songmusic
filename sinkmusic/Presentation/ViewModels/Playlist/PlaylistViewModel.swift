@@ -2,7 +2,7 @@
 //  PlaylistViewModel.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture
+//  Refactorizado con Clean Architecture + EventBus
 //  SOLID: Single Responsibility - Maneja UI de playlists
 //
 
@@ -11,6 +11,7 @@ import SwiftUI
 
 /// ViewModel responsable de la UI de playlists
 /// Delega lógica de negocio a PlaylistUseCases
+/// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
 final class PlaylistViewModel {
@@ -27,12 +28,19 @@ final class PlaylistViewModel {
     // MARK: - Dependencies
 
     private let playlistUseCases: PlaylistUseCases
+    private let eventBus: EventBusProtocol
+
+    // MARK: - Tasks
+
+    /// Task para observación de eventos (nonisolated para acceso en deinit)
+    nonisolated(unsafe) private var dataEventTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
-    init(playlistUseCases: PlaylistUseCases) {
+    init(playlistUseCases: PlaylistUseCases, eventBus: EventBusProtocol) {
         self.playlistUseCases = playlistUseCases
-        setupObservers()
+        self.eventBus = eventBus
+        startObservingEvents()
         Task {
             await loadPlaylists()
         }
@@ -254,23 +262,45 @@ final class PlaylistViewModel {
         }
     }
 
-    // MARK: - Observers
+    // MARK: - Event Observation (EventBus + AsyncStream)
 
-    private func setupObservers() {
-        // Observar cambios en playlists
-        playlistUseCases.observePlaylistChanges { [weak self] updatedPlaylists in
-            guard let self = self else { return }
-            self.playlists = updatedPlaylists.map { PlaylistMapper.toUIModel($0) }
+    private func startObservingEvents() {
+        dataEventTask = Task { [weak self] in
+            guard let self else { return }
 
-            // Si hay una playlist seleccionada, actualizarla
-            if let selectedID = self.selectedPlaylist?.id,
-               let updatedPlaylist = updatedPlaylists.first(where: { $0.id == selectedID }) {
-                self.selectedPlaylist = PlaylistMapper.toUIModel(updatedPlaylist)
-                Task {
-                    await self.loadSongsInPlaylist(selectedID)
-                    await self.loadPlaylistStats(selectedID)
-                }
+            for await event in self.eventBus.dataEvents() {
+                guard !Task.isCancelled else { break }
+                await self.handleDataEvent(event)
             }
         }
+    }
+
+    private func handleDataEvent(_ event: DataChangeEvent) async {
+        switch event {
+        case .playlistsUpdated:
+            await loadPlaylists()
+
+            // Si hay una playlist seleccionada, actualizarla
+            if let selectedID = selectedPlaylist?.id {
+                await loadSongsInPlaylist(selectedID)
+                await loadPlaylistStats(selectedID)
+            }
+
+        case .songsUpdated, .songDownloaded, .songDeleted:
+            // Las canciones cambiaron, recargar canciones en playlist seleccionada
+            if let selectedID = selectedPlaylist?.id {
+                await loadSongsInPlaylist(selectedID)
+                await loadPlaylistStats(selectedID)
+            }
+
+        case .credentialsChanged, .error:
+            break
+        }
+    }
+
+    // MARK: - Cleanup
+
+    deinit {
+        dataEventTask?.cancel()
     }
 }

@@ -41,8 +41,4 @@ protocol PlaylistRepositoryProtocol: Sendable {
     /// Reordena las canciones en una playlist
     func updateSongsOrder(playlistID: UUID, songIDs: [UUID]) async throws
 
-    // MARK: - Observability
-
-    /// Observa cambios en las playlists
-    @MainActor func observeChanges(onChange: @escaping @MainActor ([PlaylistEntity]) -> Void)
 }

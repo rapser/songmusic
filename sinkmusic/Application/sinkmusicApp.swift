@@ -2,7 +2,7 @@
 //  sinkmusicApp.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture
+//  Refactorizado con Clean Architecture + EventBus
 //  Usa DIContainer para inyección de dependencias
 //
 
@@ -24,10 +24,10 @@ struct sinkmusicApp: App {
     @State private var settingsViewModel: SettingsViewModel?
     @State private var equalizerViewModel: EqualizerViewModel?
     @State private var downloadViewModel: DownloadViewModel?
+    @State private var authViewModel: AuthViewModel?
 
-    // MARK: - UI Cache & Legacy Services
+    // MARK: - UI Cache
     @State private var metadataViewModel = MetadataCacheViewModel()
-    @StateObject private var authManager = AuthenticationManager.shared
 
     init() {
         // Configurar apariencia del NavigationBar
@@ -52,49 +52,56 @@ struct sinkmusicApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if authManager.isCheckingAuth {
-                    // Pantalla de carga mientras verifica autenticación
-                    Color.appDark
-                        .ignoresSafeArea()
-                } else if authManager.isAuthenticated {
-                    // App principal con ViewModels
-                    if let playerVM = playerViewModel,
-                       let libraryVM = libraryViewModel,
-                       let homeVM = homeViewModel,
-                       let searchVM = searchViewModel,
-                       let playlistVM = playlistViewModel,
-                       let settingsVM = settingsViewModel,
-                       let equalizerVM = equalizerViewModel,
-                       let downloadVM = downloadViewModel {
+                if let authVM = authViewModel {
+                    if authVM.isCheckingAuth {
+                        // Pantalla de carga mientras verifica autenticación
+                        Color.appDark
+                            .ignoresSafeArea()
+                    } else if authVM.isAuthenticated {
+                        // App principal con ViewModels
+                        if let playerVM = playerViewModel,
+                           let libraryVM = libraryViewModel,
+                           let homeVM = homeViewModel,
+                           let searchVM = searchViewModel,
+                           let playlistVM = playlistViewModel,
+                           let settingsVM = settingsViewModel,
+                           let equalizerVM = equalizerViewModel,
+                           let downloadVM = downloadViewModel {
 
-                        MainAppView()
-                            .environment(playerVM)
-                            .environment(libraryVM)
-                            .environment(homeVM)
-                            .environment(searchVM)
-                            .environment(playlistVM)
-                            .environment(settingsVM)
-                            .environment(equalizerVM)
-                            .environment(downloadVM)
-                            .environment(metadataViewModel)
-                            .environmentObject(authManager)
-                            .onAppear {
-                                // Configurar CarPlay cuando la app aparece
-                                CarPlayService.shared.configure(with: playerVM)
-                            }
+                            MainAppView()
+                                .environment(playerVM)
+                                .environment(libraryVM)
+                                .environment(homeVM)
+                                .environment(searchVM)
+                                .environment(playlistVM)
+                                .environment(settingsVM)
+                                .environment(equalizerVM)
+                                .environment(downloadVM)
+                                .environment(metadataViewModel)
+                                .environment(authVM)
+                                .onAppear {
+                                    // Configurar CarPlay cuando la app aparece
+                                    container.carPlayService.configure(with: playerVM)
+                                }
+                        } else {
+                            // Fallback mientras se inicializan ViewModels
+                            ProgressView("Inicializando...")
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Color.appDark)
+                        }
                     } else {
-                        // Fallback mientras se inicializan ViewModels
-                        ProgressView("Inicializando...")
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.appDark)
+                        LoginView()
+                            .environment(authVM)
+                            .transition(.opacity)
                     }
                 } else {
-                    LoginView(authManager: authManager)
-                        .transition(.opacity)
+                    // Fallback mientras se crea AuthViewModel
+                    Color.appDark
+                        .ignoresSafeArea()
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
+            .animation(.easeInOut(duration: 0.3), value: authViewModel?.isAuthenticated)
             .task {
                 // Configurar DIContainer con ModelContext
                 await configureDIContainer()
@@ -116,6 +123,9 @@ struct sinkmusicApp: App {
             container.configure(with: modelContext)
 
             // Crear ViewModels usando DIContainer
+            // AuthViewModel primero para que pueda recibir eventos de autenticación
+            authViewModel = container.makeAuthViewModel()
+
             playerViewModel = container.makePlayerViewModel()
             libraryViewModel = container.makeLibraryViewModel()
             homeViewModel = container.makeHomeViewModel()

@@ -99,15 +99,12 @@ struct PreviewViewModels {
 
     static func libraryVM() -> LibraryViewModel {
         setupDI()
-        return LibraryViewModel(libraryUseCases: DIContainer.shared.libraryUseCases)
+        return LibraryViewModel(libraryUseCases: DIContainer.shared.libraryUseCases, eventBus: DIContainer.shared.eventBus)
     }
 
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
         setupDI()
-        let vm = PlayerViewModel(
-            playerUseCases: DIContainer.shared.playerUseCases,
-            songRepository: DIContainer.shared.songRepository
-        )
+        let vm = PlayerViewModel(playerUseCases: DIContainer.shared.playerUseCases, eventBus: DIContainer.shared.eventBus)
         if let id = songID {
             vm.currentlyPlayingID = id
             vm.isPlaying = true
@@ -119,7 +116,7 @@ struct PreviewViewModels {
 
     static func playlistVM() -> PlaylistViewModel {
         setupDI()
-        return PlaylistViewModel(playlistUseCases: DIContainer.shared.playlistUseCases)
+        return PlaylistViewModel(playlistUseCases: DIContainer.shared.playlistUseCases, eventBus: DIContainer.shared.eventBus)
     }
 
     static func searchVM() -> SearchViewModel {
@@ -138,7 +135,7 @@ struct PreviewViewModels {
 
     static func downloadVM() -> DownloadViewModel {
         setupDI()
-        return DownloadViewModel(downloadUseCases: DIContainer.shared.downloadUseCases)
+        return DownloadViewModel(downloadUseCases: DIContainer.shared.downloadUseCases, eventBus: DIContainer.shared.eventBus)
     }
 
     static func settingsVM() -> SettingsViewModel {
@@ -148,6 +145,25 @@ struct PreviewViewModels {
             downloadUseCases: DIContainer.shared.downloadUseCases
         )
     }
+
+    static func authVM() -> AuthViewModel {
+        setupDI()
+        return DIContainer.shared.makeAuthViewModel()
+    }
+}
+
+// MARK: - Extension para acceso directo
+@MainActor
+extension PreviewData {
+    static func libraryVM() -> LibraryViewModel { PreviewViewModels.libraryVM() }
+    static func playerVM(songID: UUID? = nil) -> PlayerViewModel { PreviewViewModels.playerVM(songID: songID) }
+    static func playlistVM() -> PlaylistViewModel { PreviewViewModels.playlistVM() }
+    static func searchVM() -> SearchViewModel { PreviewViewModels.searchVM() }
+    static func equalizerVM() -> EqualizerViewModel { PreviewViewModels.equalizerVM() }
+    static func downloadVM() -> DownloadViewModel { PreviewViewModels.downloadVM() }
+    static func settingsVM() -> SettingsViewModel { PreviewViewModels.settingsVM() }
+    static func metadataVM() -> MetadataCacheViewModel { PreviewViewModels.metadataVM() }
+    static func authVM() -> AuthViewModel { PreviewViewModels.authVM() }
 }
 
 // MARK: - Wrapper genérico

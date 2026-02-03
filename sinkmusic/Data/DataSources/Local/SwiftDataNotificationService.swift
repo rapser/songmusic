@@ -3,96 +3,74 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 3/01/26.
+//  Refactored to use EventBus (Clean Architecture)
 //
 
 import Foundation
 import SwiftData
 
-/// Servicio para notificar cambios en SwiftData SIN usar @Query
+/// Servicio para notificar cambios en SwiftData usando EventBus
 /// REEMPLAZO CRÍTICO de @Query para Clean Architecture
 ///
-/// Funciona observando cambios en ModelContext y propagándolos via NotificationCenter
-/// para que los ViewModels reaccionen sin depender de @Query
+/// ## Flujo
+/// 1. DataSource hace cambios en SwiftData
+/// 2. DataSource llama `notifyChange()` o `notifySongDownloaded(id)`
+/// 3. EventBus emite el evento apropiado
+/// 4. ViewModels suscritos via `for await` reciben el evento
+/// 5. ViewModels actualizan su estado y SwiftUI re-renderiza
+///
+/// SOLID: Dependency Inversion - Depende de EventBusProtocol
 final class SwiftDataNotificationService {
-
-    // MARK: - Notification Name
-
-    /// Notification que se envía cuando SwiftData cambia
-    static let didChangeNotification = Notification.Name("SwiftDataDidChange")
 
     // MARK: - Properties
 
     private let modelContext: ModelContext
+    private let eventBus: EventBusProtocol
 
     // MARK: - Lifecycle
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, eventBus: EventBusProtocol) {
         self.modelContext = modelContext
+        self.eventBus = eventBus
     }
 
-    // MARK: - Notification Handling
+    // MARK: - Event Emission
 
-    /// Notifica cambios después de un save
-    /// Debe llamarse manualmente después de modelContext.save()
-    @objc private func contextDidChange() {
-        Task { @MainActor in
-            // Propagar cambio a toda la app
-            NotificationCenter.default.post(
-                name: Self.didChangeNotification,
-                object: nil
-            )
-        }
-    }
-
-    /// Notificar cambio manualmente (usado después de saves)
+    /// Notificar que las canciones fueron actualizadas
+    /// Llamar después de cualquier operación que modifique canciones
     func notifyChange() {
-        Task { @MainActor in
-            NotificationCenter.default.post(
-                name: Self.didChangeNotification,
-                object: nil
-            )
+        Task { @MainActor [eventBus] in
+            eventBus.emit(.songsUpdated)
         }
     }
 
-    // MARK: - Observation API
-
-    /// Observa cambios en SwiftData y ejecuta callback
-    ///
-    /// Uso típico en DataSource:
-    /// ```swift
-    /// func observeChanges(onChange: @escaping @MainActor ([SongDTO]) -> Void) {
-    ///     notificationService.observe { [weak self] in
-    ///         guard let self = self else { return }
-    ///         Task { @MainActor in
-    ///             if let songs = try? self.getAll() {
-    ///                 onChange(songs)
-    ///             }
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    func observe(onChange: @escaping @MainActor () -> Void) {
-        NotificationCenter.default.addObserver(
-            forName: Self.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                onChange()
-            }
+    /// Notificar que una canción fue descargada
+    /// - Parameter songID: ID de la canción descargada
+    func notifySongDownloaded(_ songID: UUID) {
+        Task { @MainActor [eventBus] in
+            eventBus.emit(.songDownloaded(songID))
         }
     }
 
-    /// Observa cambios con información adicional del notification
-    func observeDetailed(onChange: @escaping @MainActor ([AnyHashable: Any]?) -> Void) {
-        NotificationCenter.default.addObserver(
-            forName: Self.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { notification in
-            Task { @MainActor in
-                onChange(notification.userInfo)
-            }
+    /// Notificar que una canción fue eliminada
+    /// - Parameter songID: ID de la canción eliminada
+    func notifySongDeleted(_ songID: UUID) {
+        Task { @MainActor [eventBus] in
+            eventBus.emit(.songDeleted(songID))
+        }
+    }
+
+    /// Notificar que las playlists fueron actualizadas
+    func notifyPlaylistsChange() {
+        Task { @MainActor [eventBus] in
+            eventBus.emit(.playlistsUpdated)
+        }
+    }
+
+    /// Notificar que las credenciales cambiaron
+    func notifyCredentialsChange() {
+        Task { @MainActor [eventBus] in
+            eventBus.emit(.credentialsChanged)
         }
     }
 }
@@ -100,21 +78,20 @@ final class SwiftDataNotificationService {
 // MARK: - Flujo Completo
 
 /*
- FLUJO: SwiftData → ViewModel → View
+ FLUJO: SwiftData → ViewModel → View (con EventBus + DI)
 
  1. User cambia Song en SwiftData (ej: incrementa playCount)
- 2. SwiftDataNotificationService detecta NSManagedObjectContext.didSaveObjectsNotification
- 3. Notifica via SwiftDataDidChange notification
- 4. SongLocalDataSource escucha y hace fetch de [SongDTO]
- 5. SongRepository mapea DTOs → Entities
- 6. Repository ejecuta callback con [SongEntity]
- 7. ViewModel recibe entities, mapea a [SongUIModel], actualiza @Published
- 8. SwiftUI re-renderiza View automáticamente
+ 2. DataSource llama notificationService.notifyChange()
+ 3. eventBus.emit(.songsUpdated)  // EventBus inyectado via DI
+ 4. ViewModel recibe evento via `for await event in eventBus.dataEvents()`
+ 5. ViewModel hace fetch de datos actualizados
+ 6. ViewModel mapea a UIModels y actualiza propiedades @Observable
+ 7. SwiftUI re-renderiza View automáticamente
 
- VENTAJAS vs @Query:
- - ✅ Desacoplamiento total de SwiftData en vistas
- - ✅ ViewModels controlan qué datos exponer
- - ✅ Mappers transforman entre capas
- - ✅ Testing más fácil (mock repositories)
- - ✅ Clean Architecture 100%
+ VENTAJAS vs NotificationCenter:
+ - ✅ Type-safe: Eventos son enums tipados
+ - ✅ Modern: AsyncStream en lugar de addObserver/removeObserver
+ - ✅ Memory safe: Task cancellation automático
+ - ✅ Clean Architecture: Sin strings mágicos, DI puro
+ - ✅ Testable: EventBus es mockeable via EventBusProtocol
  */

@@ -9,6 +9,7 @@ import Foundation
 
 // MARK: - ISP: Interface Segregation Principle
 // Los protocolos están segregados por responsabilidad específica
+// Nota: Los eventos se emiten via EventBus (no callbacks)
 
 /// Protocolo básico de reproducción de audio
 /// SOLID: Interface Segregation - Solo métodos de playback básico
@@ -30,32 +31,6 @@ protocol AudioPlaybackProtocol {
     func seek(to time: TimeInterval)
 }
 
-/// Protocolo para callbacks de estado de reproducción
-/// SOLID: Interface Segregation - Solo callbacks de estado
-protocol AudioPlaybackStateProtocol {
-    /// Callback que se ejecuta cuando cambia el estado de reproducción
-    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
-
-    /// Callback que se ejecuta cuando se actualiza el tiempo de reproducción
-    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? { get set }
-
-    /// Callback que se ejecuta cuando una canción termina
-    var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
-}
-
-/// Protocolo para controles remotos (CarPlay, Lock Screen, etc.)
-/// SOLID: Interface Segregation - Solo callbacks remotos
-protocol RemoteControlsProtocol {
-    /// Callback para play/pause desde controles remotos
-    var onRemotePlayPause: (@MainActor () -> Void)? { get set }
-
-    /// Callback para siguiente canción desde controles remotos
-    var onRemoteNext: (@MainActor () -> Void)? { get set }
-
-    /// Callback para canción anterior desde controles remotos
-    var onRemotePrevious: (@MainActor () -> Void)? { get set }
-}
-
 /// Protocolo para control del ecualizador
 /// SOLID: Interface Segregation - Solo funciones de ecualizador
 protocol AudioEqualizerProtocol {
@@ -67,10 +42,8 @@ protocol AudioEqualizerProtocol {
 /// Protocolo completo del reproductor de audio
 /// SOLID: Interface Segregation - Composición de protocolos específicos
 /// Cumple con Dependency Inversion Principle (SOLID)
-protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioPlaybackStateProtocol, RemoteControlsProtocol, AudioEqualizerProtocol {
-    // Este protocolo hereda todos los métodos y propiedades de los protocolos base
-    // Los clientes pueden depender solo del protocolo específico que necesiten
-
+/// Nota: Los eventos de estado y controles remotos se emiten via EventBus
+protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioEqualizerProtocol {
     /// Actualiza la información de Now Playing en el sistema (REQUERIDO)
     /// - Parameters:
     ///   - title: Título de la canción

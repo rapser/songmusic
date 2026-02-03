@@ -6,9 +6,15 @@
 //
 
 import Foundation
-import SwiftUI
 
-/// Entidad de dominio PURA - Sin dependencia de SwiftData
+/// Representa un color RGB como tipo de dominio puro (sin dependencia de SwiftUI)
+struct RGBColor: Hashable, Sendable {
+    let red: Double
+    let green: Double
+    let blue: Double
+}
+
+/// Entidad de dominio PURA - Sin dependencia de SwiftData ni SwiftUI
 /// Representa una canción en la lógica de negocio
 struct SongEntity: Identifiable, Hashable, Sendable {
     let id: UUID
@@ -25,8 +31,8 @@ struct SongEntity: Identifiable, Hashable, Sendable {
     let playCount: Int
     let lastPlayedAt: Date?
 
-    // Dominant color derivado de artwork (para UI)
-    let dominantColor: Color?
+    /// Color dominante derivado de artwork (componentes RGB puros)
+    let dominantColor: RGBColor?
 
     // MARK: - Computed Properties (Lógica de Dominio)
 
@@ -81,4 +87,3 @@ struct SongEntity: Identifiable, Hashable, Sendable {
         }
     }
 }
-

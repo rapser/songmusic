@@ -60,6 +60,26 @@ struct CloudFileEntity: Identifiable, Sendable {
         )
     }
 
+    /// Extrae el título del nombre del archivo
+    /// Asume formato: "Artista - Título.m4a" o solo "Título.m4a"
+    var title: String {
+        let nameWithoutExtension = name
+            .replacingOccurrences(of: ".m4a", with: "")
+            .replacingOccurrences(of: ".mp3", with: "")
+            .replacingOccurrences(of: ".mp4", with: "")
+            .replacingOccurrences(of: ".aac", with: "")
+
+        let components = nameWithoutExtension.components(separatedBy: " - ")
+        return components.count > 1 ? components[1] : nameWithoutExtension
+    }
+
+    /// Extrae el artista del nombre del archivo
+    /// Asume formato: "Artista - Título.m4a"
+    var artist: String {
+        let components = name.components(separatedBy: " - ")
+        return components.count > 1 ? components[0] : "Desconocido"
+    }
+
     /// Tamaño formateado en MB
     var formattedSize: String? {
         guard let size = size else { return nil }

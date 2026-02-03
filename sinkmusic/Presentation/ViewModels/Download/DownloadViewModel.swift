@@ -15,6 +15,7 @@ private final class ActiveTasksManager {
 
 /// ViewModel responsable de gestionar descargas de canciones
 /// Cumple con Clean Architecture - Solo depende de UseCases
+/// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
 final class DownloadViewModel {
@@ -33,21 +34,93 @@ final class DownloadViewModel {
     // MARK: - Dependencies
 
     private let downloadUseCases: DownloadUseCases
+    private let eventBus: EventBusProtocol
 
     // MARK: - Private State
 
     /// Gestor de tareas de descarga activas para cancelación
     private let activeTasksManager = ActiveTasksManager()
 
+    /// Task para observación de eventos de descarga (nonisolated para acceso en deinit)
+    nonisolated(unsafe) private var downloadEventTask: Task<Void, Never>?
+
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases) {
+    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
         self.downloadUseCases = downloadUseCases
+        self.eventBus = eventBus
+        startObservingEvents()
+    }
+
+    // MARK: - Event Observation (EventBus + AsyncStream)
+
+    private func startObservingEvents() {
+        downloadEventTask = Task { [weak self] in
+            guard let self else { return }
+
+            for await event in self.eventBus.downloadEvents() {
+                guard !Task.isCancelled else { break }
+                await self.handleDownloadEvent(event)
+            }
+        }
+    }
+
+    private func handleDownloadEvent(_ event: DownloadEvent) async {
+        switch event {
+        case .started(let songID):
+            // Solo actualizar si nosotros iniciamos esta descarga
+            if activeTasksManager.tasks[songID] != nil {
+                downloadProgress[songID] = 0.0
+            }
+
+        case .progress(let songID, let progress):
+            // Solo actualizar si nosotros iniciamos esta descarga
+            if activeTasksManager.tasks[songID] != nil {
+                downloadProgress[songID] = progress
+            }
+
+        case .completed(let songID):
+            // Solo actualizar si nosotros iniciamos esta descarga
+            if activeTasksManager.tasks[songID] != nil {
+                downloadProgress[songID] = 1.0
+                print("✅ Descarga completada (via EventBus): \(songID)")
+
+                // Mantener barra en 100% por 0.5 segundos para feedback visual
+                try? await Task.sleep(nanoseconds: 500_000_000)
+
+                // Limpiar progreso y tarea
+                downloadProgress[songID] = nil
+                activeTasksManager.tasks.removeValue(forKey: songID)
+                isDownloading = !activeTasksManager.tasks.isEmpty
+            }
+
+        case .failed(let songID, let error):
+            // Solo actualizar si nosotros iniciamos esta descarga
+            if activeTasksManager.tasks[songID] != nil {
+                downloadProgress[songID] = nil
+                downloadError = "Error descargando canción: \(error)"
+                print("❌ Error descarga (via EventBus): \(error)")
+
+                // Limpiar tarea
+                activeTasksManager.tasks.removeValue(forKey: songID)
+                isDownloading = !activeTasksManager.tasks.isEmpty
+            }
+
+        case .cancelled(let songID):
+            // Solo actualizar si nosotros iniciamos esta descarga
+            if activeTasksManager.tasks[songID] != nil {
+                downloadProgress[songID] = nil
+                activeTasksManager.tasks.removeValue(forKey: songID)
+                isDownloading = !activeTasksManager.tasks.isEmpty
+                print("⏸️ Descarga cancelada (via EventBus): \(songID)")
+            }
+        }
     }
 
     // MARK: - Download Operations
 
     /// Descarga una canción por su ID
+    /// El progreso y completado se reciben via EventBus
     /// - Parameter songID: ID de la canción a descargar
     func download(songID: UUID) async {
         // Evitar descargas duplicadas
@@ -67,34 +140,23 @@ final class DownloadViewModel {
 
             do {
                 // Descargar usando UseCases
-                try await downloadUseCases.downloadSong(songID) { [weak self] progress in
-                    guard let self = self else { return }
-                    // Actualizar progreso
-                    self.downloadProgress[songID] = progress
-                }
+                // El progreso y completado se emiten via EventBus y se manejan en handleDownloadEvent
+                try await downloadUseCases.downloadSong(songID)
 
-                // Completado - mostrar 100% brevemente
-                downloadProgress[songID] = 1.0
-                print("✅ Descarga completada: \(songID)")
-
-                // Mantener barra en 100% por 0.5 segundos para feedback visual
-                try? await Task.sleep(nanoseconds: 500_000_000)
-
-                // Limpiar progreso
-                downloadProgress[songID] = nil
+                // Nota: La limpieza de estado se hace en handleDownloadEvent(.completed)
 
             } catch {
-                // Manejar error
+                // Nota: El error también se emite via EventBus
+                // Este catch es para errores que ocurren ANTES de iniciar la descarga
+                // (como songNotFound, alreadyDownloaded)
                 downloadProgress[songID] = nil
                 downloadError = "Error descargando canción: \(error.localizedDescription)"
                 print("❌ \(downloadError!)")
+
+                // Limpiar tarea
+                activeTasksManager.tasks.removeValue(forKey: songID)
+                isDownloading = !activeTasksManager.tasks.isEmpty
             }
-
-            // Limpiar tarea
-            activeTasksManager.tasks.removeValue(forKey: songID)
-
-            // Actualizar flag de descarga
-            isDownloading = !activeTasksManager.tasks.isEmpty
         }
 
         // Guardar tarea
@@ -188,8 +250,10 @@ final class DownloadViewModel {
 
     // MARK: - Cleanup
 
-    
     deinit {
+        // Cancelar observación de eventos
+        downloadEventTask?.cancel()
+
         // Capturar las tareas activas antes de crear el Task para evitar capturar 'self'
         let tasksToCancel = activeTasksManager.tasks
         Task { @MainActor in

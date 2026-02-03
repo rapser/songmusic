@@ -18,10 +18,10 @@ protocol CloudStorageRepositoryProtocol: Sendable {
     func fetchSongsFromFolder() async throws -> [CloudFileEntity]
 
     /// Descarga un archivo desde el servicio cloud
+    /// El progreso se emite via EventBus como DownloadEvent.progress
     func download(
         fileID: String,
-        songID: UUID,
-        progressCallback: @escaping (Double) -> Void
+        songID: UUID
     ) async throws -> URL
 
     /// Obtiene la duración de un archivo de audio local

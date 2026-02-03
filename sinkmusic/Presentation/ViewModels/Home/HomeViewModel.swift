@@ -2,7 +2,7 @@
 //  HomeViewModel.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture
+//  Refactorizado con Clean Architecture + EventBus
 //  SOLID: Single Responsibility - Maneja UI de la pantalla principal
 //
 
@@ -11,6 +11,7 @@ import SwiftUI
 
 /// ViewModel responsable de la UI de la pantalla principal
 /// Muestra playlists, canciones recientes y recomendaciones
+/// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
 final class HomeViewModel {
@@ -28,17 +29,25 @@ final class HomeViewModel {
     // MARK: - Dependencies
 
     private let playlistUseCases: PlaylistUseCases
-    private let songRepository: SongRepositoryProtocol
+    private let libraryUseCases: LibraryUseCases
+    private let eventBus: EventBusProtocol
+
+    // MARK: - Tasks
+
+    /// Task para observación de eventos (nonisolated para acceso en deinit)
+    nonisolated(unsafe) private var dataEventTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
     init(
         playlistUseCases: PlaylistUseCases,
-        songRepository: SongRepositoryProtocol
+        libraryUseCases: LibraryUseCases,
+        eventBus: EventBusProtocol
     ) {
         self.playlistUseCases = playlistUseCases
-        self.songRepository = songRepository
-        setupObservers()
+        self.libraryUseCases = libraryUseCases
+        self.eventBus = eventBus
+        startObservingEvents()
         Task {
             await loadData()
         }
@@ -70,41 +79,31 @@ final class HomeViewModel {
         }
     }
 
-    /// Carga canciones recientes
+    /// Carga canciones recientes (via UseCase)
     private func loadRecentSongs() async {
         do {
-            let allSongs = try await songRepository.getAll()
-            recentSongs = allSongs
-                .filter { $0.lastPlayedAt != nil }
-                .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
-                .prefix(10)
-                .map { SongMapper.toUIModel($0) }
+            let entities = try await libraryUseCases.getRecentlyPlayedSongs(limit: 10)
+            recentSongs = entities.map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones recientes: \(error)")
         }
     }
 
-    /// Carga canciones más reproducidas
+    /// Carga canciones más reproducidas (via UseCase)
     private func loadMostPlayedSongs() async {
         do {
-            let allSongs = try await songRepository.getAll()
-            mostPlayedSongs = allSongs
-                .filter { $0.playCount > 0 }
-                .sorted { $0.playCount > $1.playCount }
-                .prefix(10)
-                .map { SongMapper.toUIModel($0) }
+            let entities = try await libraryUseCases.getMostPlayedSongs(limit: 10)
+            mostPlayedSongs = entities.map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones más reproducidas: \(error)")
         }
     }
 
-    /// Carga canciones descargadas
+    /// Carga canciones descargadas (via UseCase)
     private func loadDownloadedSongs() async {
         do {
-            let allSongs = try await songRepository.getAll()
-            downloadedSongs = allSongs
-                .filter { $0.isDownloaded }
-                .map { SongMapper.toUIModel($0) }
+            let entities = try await libraryUseCases.getDownloadedSongs()
+            downloadedSongs = entities.map { SongMapper.toUIModel($0) }
         } catch {
             print("❌ Error al cargar canciones descargadas: \(error)")
         }
@@ -117,23 +116,44 @@ final class HomeViewModel {
         await loadData()
     }
 
-    // MARK: - Observers
+    // MARK: - Event Observation (EventBus + AsyncStream)
 
-    private func setupObservers() {
-        // Observar cambios en playlists
-        playlistUseCases.observePlaylistChanges { [weak self] updatedPlaylists in
-            guard let self = self else { return }
-            self.playlists = updatedPlaylists.map { PlaylistMapper.toUIModel($0) }
-        }
+    private func startObservingEvents() {
+        dataEventTask = Task { [weak self] in
+            guard let self else { return }
 
-        // Observar cambios en canciones
-        songRepository.observeChanges { [weak self] updatedSongs in
-            guard let self = self else { return }
-            Task {
-                await self.loadRecentSongs()
-                await self.loadMostPlayedSongs()
-                await self.loadDownloadedSongs()
+            for await event in self.eventBus.dataEvents() {
+                guard !Task.isCancelled else { break }
+                await self.handleDataEvent(event)
             }
+        }
+    }
+
+    private func handleDataEvent(_ event: DataChangeEvent) async {
+        switch event {
+        case .songsUpdated:
+            await loadRecentSongs()
+            await loadMostPlayedSongs()
+            await loadDownloadedSongs()
+
+        case .playlistsUpdated:
+            await loadPlaylists()
+
+        case .songDownloaded:
+            await loadDownloadedSongs()
+
+        case .songDeleted:
+            await loadRecentSongs()
+            await loadMostPlayedSongs()
+            await loadDownloadedSongs()
+
+        case .credentialsChanged:
+            // Recargar todo cuando cambian las credenciales
+            await loadData()
+
+        case .error:
+            // Handle error if needed
+            break
         }
     }
 
@@ -147,5 +167,11 @@ final class HomeViewModel {
     /// Cuenta total de canciones
     var totalSongsCount: Int {
         downloadedSongs.count
+    }
+
+    // MARK: - Cleanup
+
+    deinit {
+        dataEventTask?.cancel()
     }
 }

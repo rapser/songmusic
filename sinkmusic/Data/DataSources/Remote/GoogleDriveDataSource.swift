@@ -15,8 +15,23 @@ typealias DownloadServiceProtocol = GoogleDriveServiceProtocol
 
 /// DataSource remoto para Google Drive API
 /// Implementa GoogleDriveServiceProtocol para abstraer el acceso a archivos en la nube
+/// SOLID: Dependency Inversion - Depende de abstracciones (KeychainServiceProtocol, EventBusProtocol)
 final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
-    private let keychainService = KeychainService.shared
+
+    // MARK: - Dependencies (Inyectadas)
+
+    private let keychainService: KeychainServiceProtocol
+    private let eventBus: EventBusProtocol
+
+    // MARK: - Initialization
+
+    init(keychainService: KeychainServiceProtocol, eventBus: EventBusProtocol) {
+        self.keychainService = keychainService
+        self.eventBus = eventBus
+        super.init()
+    }
+
+    // MARK: - Private Properties
 
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
@@ -26,7 +41,7 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
     }()
 
     private let downloadsLock = NSLock()
-    private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, progressCallback: ((Double) -> Void)?)] = [:]
+    private var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>)] = [:]
     private var lastReportedProgress: [Int: Int] = [:]
 
     private var apiKey: String? {
@@ -42,11 +57,11 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
     func fetchSongsFromFolder() async throws -> [GoogleDriveFile] {
         guard let apiKey = apiKey else {
             print("❌ ERROR: API Key de Google Drive no configurada")
-            throw GoogleDriveError.missingAPIKey
+            throw CloudStorageError.missingAPIKey
         }
         guard let folderId = folderId else {
             print("❌ ERROR: Folder ID de Google Drive no configurado")
-            throw GoogleDriveError.missingFolderId
+            throw CloudStorageError.missingFolderId
         }
 
         print("📂 Iniciando obtención de canciones desde carpeta Google Drive: \(folderId)")
@@ -129,15 +144,23 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Download
 
-    func download(fileID: String, songID: UUID, progressCallback: @escaping (Double) -> Void) async throws -> URL {
+    func download(fileID: String, songID: UUID) async throws -> URL {
         guard let apiKey = keychainService.googleDriveAPIKey else {
             print("❌ ERROR: API Key no configurada para descarga")
-            throw GoogleDriveError.missingAPIKey
+            // Emitir evento de fallo
+            Task { @MainActor in
+                self.eventBus.emit(.failed(songID: songID, error: "API Key no configurada"))
+            }
+            throw CloudStorageError.missingAPIKey
         }
 
         let downloadURLString = "https://www.googleapis.com/drive/v3/files/\(fileID)?alt=media&key=\(apiKey)"
         guard let url = URL(string: downloadURLString) else {
             print("❌ URL de descarga inválida para fileID: \(fileID)")
+            // Emitir evento de fallo
+            Task { @MainActor in
+                self.eventBus.emit(.failed(songID: songID, error: "URL inválida"))
+            }
             throw NSError(domain: "GoogleDriveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"])
         }
 
@@ -146,12 +169,17 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
         print("   File ID: \(fileID)")
         print("   URL: \(downloadURLString)")
 
+        // Emitir evento de inicio
+        Task { @MainActor in
+            self.eventBus.emit(.started(songID: songID))
+        }
+
         let request = URLRequest(url: url)
 
         return try await withCheckedThrowingContinuation { continuation in
             let downloadTask = urlSession.downloadTask(with: request)
             downloadsLock.lock()
-            activeDownloads[downloadTask.taskIdentifier] = (songID, continuation, progressCallback)
+            activeDownloads[downloadTask.taskIdentifier] = (songID, continuation)
             downloadsLock.unlock()
 
             print("   Tarea creada - Task ID: \(downloadTask.taskIdentifier)")
@@ -246,11 +274,9 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             }
         }
 
-        // SIEMPRE reportar al callback para que se actualice en tiempo real
-        if let progressCallback = downloadInfo.progressCallback {
-            Task { @MainActor in
-                progressCallback(progress)
-            }
+        // Emitir evento de progreso via EventBus
+        Task { @MainActor in
+            self.eventBus.emit(.progress(songID: downloadInfo.songID, progress: progress))
         }
     }
 
@@ -303,10 +329,24 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             resourceValues.isExcludedFromBackup = true
             try mutableURL.setResourceValues(resourceValues)
 
+            // Emitir evento de completado via EventBus
+            let songID = downloadInfo.songID
+            Task { @MainActor in
+                self.eventBus.emit(.completed(songID: songID))
+            }
+
             downloadInfo.continuation.resume(returning: destinationURL)
         } catch {
             print("🚨 Error al procesar archivo descargado:")
             print("   Error: \(error.localizedDescription)")
+
+            // Emitir evento de fallo via EventBus
+            let songID = downloadInfo.songID
+            let errorMessage = error.localizedDescription
+            Task { @MainActor in
+                self.eventBus.emit(.failed(songID: songID, error: errorMessage))
+            }
+
             downloadInfo.continuation.resume(throwing: error)
         }
     }
@@ -338,6 +378,13 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
 
             if let httpResponse = task.response as? HTTPURLResponse {
                 print("   HTTP Status: \(httpResponse.statusCode)")
+            }
+
+            // Emitir evento de fallo via EventBus
+            let songID = downloadInfo.songID
+            let errorMessage = error.localizedDescription
+            Task { @MainActor in
+                self.eventBus.emit(.failed(songID: songID, error: errorMessage))
             }
 
             downloadInfo.continuation.resume(throwing: error)

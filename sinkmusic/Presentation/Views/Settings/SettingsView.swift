@@ -1,3 +1,10 @@
+//
+//  SettingsView.swift
+//  sinkmusic
+//
+//  Settings screen - Refactored to use AuthViewModel (Clean Architecture)
+//
+
 import SwiftUI
 
 struct SettingsView: View {
@@ -5,7 +12,7 @@ struct SettingsView: View {
     @Environment(SettingsViewModel.self) private var viewModel
     @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
-    @EnvironmentObject var authManager: AuthenticationManager
+    @Environment(AuthViewModel.self) private var authViewModel
 
     @State private var showSignOutAlert = false
     @State private var showDeleteAllAlert = false
@@ -71,7 +78,7 @@ struct SettingsView: View {
         .alert("Cerrar sesión", isPresented: $showSignOutAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Cerrar sesión", role: .destructive) {
-                authManager.signOut()
+                authViewModel.signOut()
             }
         } message: {
             Text("¿Estás seguro de que quieres cerrar sesión?")
@@ -81,9 +88,9 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private func makeUserProfile() -> UserProfileData? {
-        guard let fullName = authManager.userFullName,
-              let email = authManager.userEmail,
-              let userID = authManager.userID else {
+        guard let fullName = authViewModel.userFullName,
+              let email = authViewModel.userEmail,
+              let userID = authViewModel.userID else {
             return nil
         }
         return UserProfileData(
@@ -116,6 +123,6 @@ struct SettingsView: View {
 #Preview {
     PreviewWrapper {
         SettingsView()
-            .environmentObject(AuthenticationManager.shared)
+            .environment(PreviewData.authVM())
     }
 }

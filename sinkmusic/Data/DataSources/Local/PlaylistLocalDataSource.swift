@@ -10,6 +10,7 @@ import SwiftData
 
 /// DataSource para acceso local a playlists usando SwiftData
 /// Encapsula toda la interacción con SwiftData y proporciona observabilidad
+/// SOLID: Dependency Inversion - Recibe EventBus por inyección
 @MainActor
 final class PlaylistLocalDataSource {
 
@@ -20,9 +21,9 @@ final class PlaylistLocalDataSource {
 
     // MARK: - Lifecycle
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, eventBus: EventBusProtocol) {
         self.modelContext = modelContext
-        self.notificationService = SwiftDataNotificationService(modelContext: modelContext)
+        self.notificationService = SwiftDataNotificationService(modelContext: modelContext, eventBus: eventBus)
     }
 
     // MARK: - CRUD Operations
@@ -122,17 +123,4 @@ final class PlaylistLocalDataSource {
         notificationService.notifyChange()
     }
 
-    // MARK: - Observability
-
-    /// Observa cambios en las playlists
-    func observeChanges(onChange: @escaping @MainActor ([PlaylistDTO]) -> Void) {
-        notificationService.observe { [weak self] in
-            guard let self = self else { return }
-            Task { @MainActor in
-                if let playlists = try? self.getAll() {
-                    onChange(playlists)
-                }
-            }
-        }
-    }
 }

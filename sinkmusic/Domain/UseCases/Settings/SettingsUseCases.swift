@@ -17,21 +17,21 @@ final class SettingsUseCases {
 
     private let credentialsRepository: CredentialsRepositoryProtocol
     private let songRepository: SongRepositoryProtocol
-    private let googleDriveRepository: GoogleDriveRepositoryProtocol
+    private let cloudStorageRepository: CloudStorageRepositoryProtocol
 
     // MARK: - Initialization
 
     init(
         credentialsRepository: CredentialsRepositoryProtocol,
         songRepository: SongRepositoryProtocol,
-        googleDriveRepository: GoogleDriveRepositoryProtocol
+        cloudStorageRepository: CloudStorageRepositoryProtocol
     ) {
         self.credentialsRepository = credentialsRepository
         self.songRepository = songRepository
-        self.googleDriveRepository = googleDriveRepository
+        self.cloudStorageRepository = cloudStorageRepository
     }
 
-    // MARK: - Google Drive Credentials
+    // MARK: - Cloud Storage Credentials
 
     /// Carga las credenciales de Google Drive
     func loadGoogleDriveCredentials() -> (apiKey: String, folderId: String, hasCredentials: Bool) {
@@ -92,21 +92,20 @@ final class SettingsUseCases {
 
         // Limpiar artwork de canciones no descargadas
         for song in songs where !song.isDownloaded {
-            var updatedSong = song
-            updatedSong = SongEntity(
-                id: updatedSong.id,
-                title: updatedSong.title,
-                artist: updatedSong.artist,
-                album: updatedSong.album,
-                author: updatedSong.author,
-                fileID: updatedSong.fileID,
-                isDownloaded: updatedSong.isDownloaded,
-                duration: updatedSong.duration,
+            let updatedSong = SongEntity(
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                album: song.album,
+                author: song.author,
+                fileID: song.fileID,
+                isDownloaded: song.isDownloaded,
+                duration: song.duration,
                 artworkData: nil,
                 artworkThumbnail: nil,
                 artworkMediumThumbnail: nil,
-                playCount: updatedSong.playCount,
-                lastPlayedAt: updatedSong.lastPlayedAt,
+                playCount: song.playCount,
+                lastPlayedAt: song.lastPlayedAt,
                 dominantColor: nil
             )
             try await songRepository.update(updatedSong)
@@ -119,7 +118,7 @@ final class SettingsUseCases {
 
         // Eliminar archivos descargados
         for song in songs where song.isDownloaded {
-            try? googleDriveRepository.deleteDownload(for: song.id)
+            try? cloudStorageRepository.deleteDownload(for: song.id)
         }
 
         // Eliminar todas las canciones de la base de datos
@@ -158,10 +157,10 @@ final class SettingsUseCases {
         return trimmed.count >= 20 && !trimmed.isEmpty
     }
 
-    /// Valida credenciales probando la conexión con Google Drive
-    func testGoogleDriveConnection() async throws -> Bool {
+    /// Valida credenciales probando la conexión con el almacenamiento cloud
+    func testCloudStorageConnection() async throws -> Bool {
         do {
-            _ = try await googleDriveRepository.fetchSongsFromFolder()
+            _ = try await cloudStorageRepository.fetchSongsFromFolder()
             return true
         } catch {
             throw SettingsError.connectionFailed(error)

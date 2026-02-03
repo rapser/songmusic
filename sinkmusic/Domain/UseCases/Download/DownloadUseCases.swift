@@ -16,28 +16,26 @@ final class DownloadUseCases {
     // MARK: - Dependencies
 
     private let songRepository: SongRepositoryProtocol
-    private let googleDriveRepository: GoogleDriveRepositoryProtocol
+    private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let metadataRepository: MetadataRepositoryProtocol
 
     // MARK: - Initialization
 
     init(
         songRepository: SongRepositoryProtocol,
-        googleDriveRepository: GoogleDriveRepositoryProtocol,
+        cloudStorageRepository: CloudStorageRepositoryProtocol,
         metadataRepository: MetadataRepositoryProtocol
     ) {
         self.songRepository = songRepository
-        self.googleDriveRepository = googleDriveRepository
+        self.cloudStorageRepository = cloudStorageRepository
         self.metadataRepository = metadataRepository
     }
 
     // MARK: - Download Operations
 
-    /// Descarga una canción desde Google Drive
-    func downloadSong(
-        _ songID: UUID,
-        progressCallback: @escaping (Double) -> Void
-    ) async throws {
+    /// Descarga una canción desde el almacenamiento cloud
+    /// El progreso se emite via EventBus como DownloadEvent.progress
+    func downloadSong(_ songID: UUID) async throws {
         // Obtener la canción
         guard var song = try await songRepository.getByID(songID) else {
             throw DownloadError.songNotFound
@@ -48,11 +46,10 @@ final class DownloadUseCases {
             throw DownloadError.alreadyDownloaded
         }
 
-        // Descargar archivo
-        let localURL = try await googleDriveRepository.download(
+        // Descargar archivo (el progreso se emite via EventBus desde el DataSource)
+        let localURL = try await cloudStorageRepository.download(
             fileID: song.fileID,
-            songID: songID,
-            progressCallback: progressCallback
+            songID: songID
         )
 
         // Extraer metadata
@@ -76,7 +73,7 @@ final class DownloadUseCases {
             )
         } else {
             // Metadata extraction falló, solo marcar como descargada
-            let duration = googleDriveRepository.getDuration(for: localURL)
+            let duration = cloudStorageRepository.getDuration(for: localURL)
             song = SongEntity(
                 id: song.id,
                 title: song.title,
@@ -100,19 +97,13 @@ final class DownloadUseCases {
     }
 
     /// Descarga múltiples canciones
-    func downloadMultipleSongs(
-        _ songIDs: [UUID],
-        progressCallback: @escaping (UUID, Double) -> Void,
-        completionCallback: @escaping (UUID, Result<Void, Error>) -> Void
-    ) async {
+    /// El progreso y completado de cada canción se emite via EventBus
+    func downloadMultipleSongs(_ songIDs: [UUID]) async {
         for songID in songIDs {
             do {
-                try await downloadSong(songID) { progress in
-                    progressCallback(songID, progress)
-                }
-                completionCallback(songID, .success(()))
+                try await downloadSong(songID)
             } catch {
-                completionCallback(songID, .failure(error))
+                print("⚠️ Error al descargar canción \(songID): \(error)")
             }
         }
     }
@@ -130,7 +121,7 @@ final class DownloadUseCases {
         }
 
         // Eliminar archivo local
-        try googleDriveRepository.deleteDownload(for: songID)
+        try cloudStorageRepository.deleteDownload(for: songID)
 
         // Actualizar canción (marcar como no descargada, limpiar metadata local)
         song = SongEntity(
@@ -175,7 +166,7 @@ final class DownloadUseCases {
 
     /// Obtiene la URL local de una canción descargada
     func getLocalURL(for songID: UUID) -> URL? {
-        return googleDriveRepository.localURL(for: songID)
+        return cloudStorageRepository.localURL(for: songID)
     }
 
     /// Obtiene estadísticas de descargas

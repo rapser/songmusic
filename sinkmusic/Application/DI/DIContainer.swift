@@ -3,34 +3,60 @@
 //  sinkmusic
 //
 //  Created by miguel tomairo on 3/01/26.
+//  Refactored: Sin singletons, DI puro
 //
 
 import Foundation
 import SwiftData
 
 /// Contenedor de Dependency Injection - Centro neurálgico de Clean Architecture
+/// SOLID: Sin singletons internos, todas las dependencias se crean aquí
 @MainActor
 final class DIContainer {
+
+    // MARK: - Singleton (único permitido - punto de entrada)
+
     static let shared = DIContainer()
 
-    private init() {}
+    private init() {
+        // Crear EventBus primero ya que es usado por otros componentes
+        _eventBus = EventBus()
+    }
 
     // MARK: - SwiftData Context
+
     private var modelContext: ModelContext?
 
     func configure(with modelContext: ModelContext) {
         self.modelContext = modelContext
+        // Iniciar verificación de autenticación después de configurar
+        authDIContainer.authRepository.checkAuthenticationState()
     }
 
-    // MARK: - Infrastructure Services (Singleton - Protocol types for DI)
+    // MARK: - Core Services (Creados una sola vez)
 
-    private(set) lazy var audioPlayerService: AudioPlayerServiceProtocol = AudioPlayerService()
+    /// EventBus - Instancia única creada en init
+    private let _eventBus: EventBus
 
+    /// EventBus como protocolo para DI
+    var eventBus: EventBusProtocol { _eventBus }
+
+    /// KeychainService - Creado una sola vez (no singleton)
+    private(set) lazy var keychainService: KeychainServiceProtocol = KeychainService()
+
+    /// AudioPlayerService - Creado una sola vez
+    private(set) lazy var audioPlayerService: AudioPlayerServiceProtocol = AudioPlayerService(eventBus: eventBus)
+
+    /// LiveActivityService - Creado una sola vez
     private(set) lazy var liveActivityService: LiveActivityServiceProtocol = LiveActivityService()
 
-    private(set) lazy var keychainService: KeychainServiceProtocol = KeychainService.shared
+    /// CarPlayService - Creado una sola vez
+    private(set) lazy var carPlayService: CarPlayServiceProtocol = CarPlayService()
 
-    private(set) lazy var authManager: AuthenticationServiceProtocol = AuthenticationManager.shared
+    // MARK: - Feature Modules
+
+    /// Auth Module DI Container
+    private(set) lazy var authDIContainer: AuthDIContainer = AuthDIContainer(eventBus: eventBus)
 
     // MARK: - Repositories (Lazy initialization)
 
@@ -40,16 +66,11 @@ final class DIContainer {
 
     private(set) lazy var audioPlayerRepository: AudioPlayerRepositoryProtocol = makeAudioPlayerRepository()
 
-    // DEPRECATED: Usar cloudStorageRepository en su lugar
-    private(set) lazy var googleDriveRepository: GoogleDriveRepositoryProtocol = makeGoogleDriveRepository()
-
     private(set) lazy var cloudStorageRepository: CloudStorageRepositoryProtocol = makeCloudStorageRepository()
 
     private(set) lazy var credentialsRepository: CredentialsRepositoryProtocol = makeCredentialsRepository()
 
     private(set) lazy var metadataRepository: MetadataRepositoryProtocol = makeMetadataRepository()
-
-    private(set) lazy var authRepository: AuthRepositoryProtocol = makeAuthRepository()
 
     // MARK: - Use Cases (Lazy initialization)
 
@@ -73,7 +94,7 @@ final class DIContainer {
         guard let context = modelContext else {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
-        let localDataSource = SongLocalDataSource(modelContext: context)
+        let localDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
         return SongRepositoryImpl(localDataSource: localDataSource)
     }
 
@@ -81,7 +102,7 @@ final class DIContainer {
         guard let context = modelContext else {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
-        let localDataSource = PlaylistLocalDataSource(modelContext: context)
+        let localDataSource = PlaylistLocalDataSource(modelContext: context, eventBus: eventBus)
         return PlaylistRepositoryImpl(localDataSource: localDataSource, songRepository: songRepository)
     }
 
@@ -89,24 +110,12 @@ final class DIContainer {
         AudioPlayerRepositoryImpl(audioPlayerService: audioPlayerService)
     }
 
-    private func makeGoogleDriveRepository() -> GoogleDriveRepositoryProtocol {
-        guard let context = modelContext else {
-            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
-        }
-        let songLocalDataSource = SongLocalDataSource(modelContext: context)
-        let googleDriveDataSource = GoogleDriveDataSource()
-        return GoogleDriveRepositoryImpl(
-            googleDriveService: googleDriveDataSource,
-            songLocalDataSource: songLocalDataSource
-        )
-    }
-
     private func makeCloudStorageRepository() -> CloudStorageRepositoryProtocol {
         guard let context = modelContext else {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
-        let songLocalDataSource = SongLocalDataSource(modelContext: context)
-        let googleDriveDataSource = GoogleDriveDataSource()
+        let songLocalDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
+        let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
         return CloudStorageRepositoryImpl(
             googleDriveDataSource: googleDriveDataSource,
             songLocalDataSource: songLocalDataSource
@@ -120,10 +129,6 @@ final class DIContainer {
     private func makeMetadataRepository() -> MetadataRepositoryProtocol {
         let metadataService = MetadataService()
         return MetadataRepositoryImpl(metadataService: metadataService)
-    }
-
-    private func makeAuthRepository() -> AuthRepositoryProtocol {
-        AuthRepositoryImpl(authManager: authManager)
     }
 
     // MARK: - Use Case Factories
@@ -142,7 +147,7 @@ final class DIContainer {
     private func makeLibraryUseCases() -> LibraryUseCases {
         LibraryUseCases(
             songRepository: songRepository,
-            googleDriveRepository: googleDriveRepository,
+            cloudStorageRepository: cloudStorageRepository,
             credentialsRepository: credentialsRepository
         )
     }
@@ -161,7 +166,7 @@ final class DIContainer {
     private func makeDownloadUseCases() -> DownloadUseCases {
         DownloadUseCases(
             songRepository: songRepository,
-            googleDriveRepository: googleDriveRepository,
+            cloudStorageRepository: cloudStorageRepository,
             metadataRepository: metadataRepository
         )
     }
@@ -170,36 +175,33 @@ final class DIContainer {
         SettingsUseCases(
             credentialsRepository: credentialsRepository,
             songRepository: songRepository,
-            googleDriveRepository: googleDriveRepository
+            cloudStorageRepository: cloudStorageRepository
         )
     }
 
     // MARK: - ViewModel Factories
 
-    /// Factory para PlayerViewModel - Crea nueva instancia cada vez
+    /// Factory para PlayerViewModel
     func makePlayerViewModel() -> PlayerViewModel {
-        PlayerViewModel(
-            playerUseCases: playerUseCases,
-            songRepository: songRepository
-        )
+        PlayerViewModel(playerUseCases: playerUseCases, eventBus: eventBus)
     }
 
-    /// Factory para LibraryViewModel - Crea nueva instancia cada vez
+    /// Factory para LibraryViewModel
     func makeLibraryViewModel() -> LibraryViewModel {
-        LibraryViewModel(libraryUseCases: libraryUseCases)
+        LibraryViewModel(libraryUseCases: libraryUseCases, eventBus: eventBus)
     }
 
-    /// Factory para PlaylistViewModel - Crea nueva instancia cada vez
+    /// Factory para PlaylistViewModel
     func makePlaylistViewModel() -> PlaylistViewModel {
-        PlaylistViewModel(playlistUseCases: playlistUseCases)
+        PlaylistViewModel(playlistUseCases: playlistUseCases, eventBus: eventBus)
     }
 
-    /// Factory para SearchViewModel - Crea nueva instancia cada vez
+    /// Factory para SearchViewModel
     func makeSearchViewModel() -> SearchViewModel {
         SearchViewModel(searchUseCases: searchUseCases)
     }
 
-    /// Factory para SettingsViewModel - Crea nueva instancia cada vez
+    /// Factory para SettingsViewModel
     func makeSettingsViewModel() -> SettingsViewModel {
         SettingsViewModel(
             settingsUseCases: settingsUseCases,
@@ -207,21 +209,27 @@ final class DIContainer {
         )
     }
 
-    /// Factory para EqualizerViewModel - Crea nueva instancia cada vez
+    /// Factory para EqualizerViewModel
     func makeEqualizerViewModel() -> EqualizerViewModel {
         EqualizerViewModel(equalizerUseCases: equalizerUseCases)
     }
 
-    /// Factory para HomeViewModel - Crea nueva instancia cada vez
+    /// Factory para HomeViewModel
     func makeHomeViewModel() -> HomeViewModel {
         HomeViewModel(
             playlistUseCases: playlistUseCases,
-            songRepository: songRepository
+            libraryUseCases: libraryUseCases,
+            eventBus: eventBus
         )
     }
 
-    /// Factory para DownloadViewModel - Crea nueva instancia cada vez
+    /// Factory para DownloadViewModel
     func makeDownloadViewModel() -> DownloadViewModel {
-        DownloadViewModel(downloadUseCases: downloadUseCases)
+        DownloadViewModel(downloadUseCases: downloadUseCases, eventBus: eventBus)
+    }
+
+    /// Factory para AuthViewModel (nuevo módulo Auth)
+    func makeAuthViewModel() -> AuthViewModel {
+        authDIContainer.makeAuthViewModel()
     }
 }

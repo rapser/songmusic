@@ -30,7 +30,7 @@ enum SongMapper {
             artworkMediumThumbnail: dto.artworkMediumThumbnail,
             playCount: dto.playCount,
             lastPlayedAt: dto.lastPlayedAt,
-            dominantColor: extractDominantColor(from: dto)
+            dominantColor: extractRGBColor(from: dto)
         )
     }
 
@@ -62,7 +62,7 @@ enum SongMapper {
         dto.lastPlayedAt = entity.lastPlayedAt
 
         // Almacenar dominant color como componentes RGB
-        storeDominantColor(entity.dominantColor, in: dto)
+        storeRGBColor(entity.dominantColor, in: dto)
 
         return dto
     }
@@ -81,7 +81,7 @@ enum SongMapper {
             isDownloaded: entity.isDownloaded,
             playCount: entity.playCount,
             playCountText: entity.playCountText,
-            dominantColor: entity.dominantColor,
+            dominantColor: toSwiftUIColor(entity.dominantColor),
             artistAlbumInfo: entity.artistAlbumInfo
         )
     }
@@ -93,18 +93,18 @@ enum SongMapper {
 
     // MARK: - Helpers Privados
 
-    /// Extrae Color de los componentes RGB almacenados en DTO
-    private static func extractDominantColor(from dto: SongDTO) -> Color? {
+    /// Extrae RGBColor (Domain) de los componentes almacenados en DTO
+    private static func extractRGBColor(from dto: SongDTO) -> RGBColor? {
         guard let r = dto.cachedDominantColorRed,
               let g = dto.cachedDominantColorGreen,
               let b = dto.cachedDominantColorBlue else {
             return nil
         }
-        return Color(red: r, green: g, blue: b)
+        return RGBColor(red: r, green: g, blue: b)
     }
 
-    /// Almacena Color como componentes RGB en DTO
-    private static func storeDominantColor(_ color: Color?, in dto: SongDTO) {
+    /// Almacena RGBColor como componentes en DTO
+    private static func storeRGBColor(_ color: RGBColor?, in dto: SongDTO) {
         guard let color = color else {
             dto.cachedDominantColorRed = nil
             dto.cachedDominantColorGreen = nil
@@ -112,19 +112,14 @@ enum SongMapper {
             return
         }
 
-        // Extraer componentes RGB de SwiftUI.Color
-        #if canImport(UIKit)
-        let uiColor = UIColor(color)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
+        dto.cachedDominantColorRed = color.red
+        dto.cachedDominantColorGreen = color.green
+        dto.cachedDominantColorBlue = color.blue
+    }
 
-        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-
-        dto.cachedDominantColorRed = Double(red)
-        dto.cachedDominantColorGreen = Double(green)
-        dto.cachedDominantColorBlue = Double(blue)
-        #endif
+    /// Convierte RGBColor (Domain) a SwiftUI.Color (Presentation)
+    private static func toSwiftUIColor(_ rgbColor: RGBColor?) -> Color? {
+        guard let rgb = rgbColor else { return nil }
+        return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 }

@@ -9,10 +9,10 @@ import Foundation
 import Security
 
 /// Servicio para almacenar y recuperar credenciales de forma segura usando Keychain
+/// SOLID: Sin singleton - se inyecta via DIContainer
 final class KeychainService: KeychainServiceProtocol {
-    static let shared = KeychainService()
 
-    private init() {}
+    init() {}
 
     enum KeychainKey: String {
         case googleDriveAPIKey = "com.sinkmusic.googleDriveAPIKey"

@@ -39,15 +39,14 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
 
     func download(
         fileID: String,
-        songID: UUID,
-        progressCallback: @escaping (Double) -> Void
+        songID: UUID
     ) async throws -> URL {
         // Por ahora solo Google Drive
         // En el futuro: switch basado en el proveedor seleccionado
+        // El progreso se emite via EventBus desde el DataSource
         return try await googleDriveDataSource.download(
             fileID: fileID,
-            songID: songID,
-            progressCallback: progressCallback
+            songID: songID
         )
     }
 

@@ -89,15 +89,15 @@ final class SettingsViewModel {
         print("🗑️ Credenciales eliminadas")
     }
 
-    /// Prueba la conexión con Google Drive
+    /// Prueba la conexión con el almacenamiento cloud
     func testConnection() async {
         isTestingConnection = true
         connectionTestResult = nil
 
         do {
-            let isValid = try await settingsUseCases.testGoogleDriveConnection()
+            let isValid = try await settingsUseCases.testCloudStorageConnection()
             connectionTestResult = isValid ? .success : .failure("Credenciales inválidas")
-            print("✅ Conexión exitosa con Google Drive")
+            print("✅ Conexión exitosa con almacenamiento cloud")
         } catch {
             connectionTestResult = .failure(error.localizedDescription)
             print("❌ Error al probar conexión: \(error)")

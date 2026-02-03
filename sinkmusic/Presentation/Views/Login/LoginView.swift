@@ -4,13 +4,14 @@
 //
 //  Login screen with Sign In with Apple
 //  Spotify-style design
+//  Refactored to use AuthViewModel (Clean Architecture)
 //
 
 import SwiftUI
 import AuthenticationServices
 
 struct LoginView: View {
-    @ObservedObject var authManager: AuthenticationManager
+    @Environment(AuthViewModel.self) private var authViewModel
 
     var body: some View {
         ZStack {
@@ -80,8 +81,8 @@ struct LoginView: View {
                     } onCompletion: { result in
                         switch result {
                         case .success(let authorization):
-                            // Procesar directamente la autorización sin crear una segunda petición
-                            authManager.handleSuccessfulAuthorization(authorization)
+                            // Usar AuthenticationViewModel en lugar de AuthManager directo
+                            authViewModel.handleSuccessfulAuthorization(authorization)
                         case .failure(let error):
                             print("Sign In error: \(error)")
                         }
@@ -104,5 +105,6 @@ struct LoginView: View {
 
 // MARK: - Preview
 #Preview {
-    LoginView(authManager: AuthenticationManager.shared)
+    LoginView()
+        .environment(PreviewData.authVM())
 }

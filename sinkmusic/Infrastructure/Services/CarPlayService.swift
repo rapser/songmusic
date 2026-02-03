@@ -13,18 +13,17 @@ import Foundation
 ///
 /// El Now Playing Info y Remote Command Center están configurados en AudioPlayerService,
 /// por lo que CarPlay los usa automáticamente sin necesidad de suscripciones adicionales.
+///
+/// SOLID: Init público para permitir DI desde DIContainer
 @MainActor
-class CarPlayService: CarPlayServiceProtocol {
-    static let shared = CarPlayService()
+final class CarPlayService: CarPlayServiceProtocol {
 
     // CRÍTICO: weak para evitar memory leak
-    // CarPlayService es singleton (vive toda la vida de la app)
     // Si mantiene referencia fuerte al ViewModel, nunca se libera
     private weak var playerViewModel: PlayerViewModel?
 
-    private init() {
-        // Inicialización privada para singleton
-    }
+    /// Init público para permitir inyección de dependencias
+    init() {}
 
     func configure(with playerViewModel: PlayerViewModel) {
         self.playerViewModel = playerViewModel

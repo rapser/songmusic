@@ -2,7 +2,7 @@
 //  PlayerViewModel.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture
+//  Refactorizado con Clean Architecture + EventBus
 //  SOLID: Single Responsibility - Solo maneja UI de reproducción y cola
 //
 
@@ -11,6 +11,7 @@ import SwiftUI
 
 /// ViewModel responsable de la UI del reproductor
 /// Coordina PlayerUseCases y gestiona cola de reproducción, shuffle, repeat
+/// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
 final class PlayerViewModel {
@@ -28,25 +29,27 @@ final class PlayerViewModel {
     // MARK: - Dependencies
 
     private let playerUseCases: PlayerUseCases
-    private let songRepository: SongRepositoryProtocol
+    private let eventBus: EventBusProtocol
     private let liveActivityService = LiveActivityService()
 
     // MARK: - Private State
 
-    private var queueSongIDs: [UUID] = []  // Solo almacenamos IDs, no entities
-    private var currentSongEntity: SongEntity?  // Mantenemos temporalmente para Live Activity
+    private var queueSongIDs: [UUID] = []
+    private var currentSongEntity: SongEntity?
     private var lastNowPlayingUpdateTime: TimeInterval = 0
     private var lastPlaybackTime: TimeInterval = 0
 
+    // MARK: - Tasks
+
+    /// Task para observación de eventos (nonisolated para acceso en deinit)
+    nonisolated(unsafe) private var playbackEventTask: Task<Void, Never>?
+
     // MARK: - Initialization
 
-    init(
-        playerUseCases: PlayerUseCases,
-        songRepository: SongRepositoryProtocol
-    ) {
+    init(playerUseCases: PlayerUseCases, eventBus: EventBusProtocol) {
         self.playerUseCases = playerUseCases
-        self.songRepository = songRepository
-        setupObservers()
+        self.eventBus = eventBus
+        startObservingEvents()
         setupLiveActivityHandlers()
     }
 
@@ -55,13 +58,13 @@ final class PlayerViewModel {
     /// Reproduce una canción y establece la cola de reproducción
     func play(songID: UUID, queue: [SongUIModel]) async {
         do {
-            // Establecer la cola (solo canciones descargadas) - ahora solo guardamos IDs
+            // Establecer la cola (solo canciones descargadas)
             self.queueSongIDs = queue
                 .filter { $0.isDownloaded }
                 .map { $0.id }
 
-            // Obtener la canción del repository
-            guard let song = try await songRepository.getByID(songID),
+            // Obtener la canción via UseCase
+            guard let song = try await playerUseCases.getSongByID(songID),
                   song.isDownloaded else {
                 return
             }
@@ -147,18 +150,15 @@ final class PlayerViewModel {
         var nextSongID: UUID?
 
         if isShuffleEnabled {
-            // Modo aleatorio: canción diferente a la actual
             let otherSongIDs = queueSongIDs.filter { $0 != afterSongID }
             nextSongID = otherSongIDs.randomElement() ?? queueSongIDs.first
         } else {
-            // Modo secuencial
             guard let idx = queueSongIDs.firstIndex(where: { $0 == afterSongID }) else { return }
             let nextIdx = (idx + 1) % queueSongIDs.count
             nextSongID = queueSongIDs[nextIdx]
         }
 
         if let songID = nextSongID {
-            // Obtener todas las canciones de la cola para pasarlas a play()
             let queueUIModels = await getQueueUIModels()
             await play(songID: songID, queue: queueUIModels)
         }
@@ -170,18 +170,15 @@ final class PlayerViewModel {
         var prevSongID: UUID?
 
         if isShuffleEnabled {
-            // Modo aleatorio
             let otherSongIDs = queueSongIDs.filter { $0 != beforeSongID }
             prevSongID = otherSongIDs.randomElement() ?? queueSongIDs.first
         } else {
-            // Modo secuencial
             guard let idx = queueSongIDs.firstIndex(where: { $0 == beforeSongID }) else { return }
             let prevIdx = (idx - 1 + queueSongIDs.count) % queueSongIDs.count
             prevSongID = queueSongIDs[prevIdx]
         }
 
         if let songID = prevSongID {
-            // Obtener todas las canciones de la cola para pasarlas a play()
             let queueUIModels = await getQueueUIModels()
             await play(songID: songID, queue: queueUIModels)
         }
@@ -195,34 +192,28 @@ final class PlayerViewModel {
 
         switch repeatMode {
         case .repeatOne:
-            // Repetir la misma canción
             print("🔁 Repeat One: Repitiendo canción")
             let queueUIModels = await getQueueUIModels()
             await play(songID: finishedSongID, queue: queueUIModels)
 
         case .repeatAll:
-            // Continuar y volver al inicio si es la última
             print("🔁 Repeat All: Siguiente canción")
             await playNextSong(afterSongID: finishedSongID)
 
         case .off:
-            // Continuar hasta la última canción
             guard let idx = queueSongIDs.firstIndex(where: { $0 == finishedSongID }) else {
                 print("⚠️ No se encontró el índice de la canción")
                 return
             }
 
             if isShuffleEnabled {
-                // Shuffle sin repeat: continuar con aleatorias
                 print("🔀 Shuffle: Siguiente canción aleatoria")
                 await playNextSong(afterSongID: finishedSongID)
             } else {
-                // Secuencial sin repeat: continuar hasta la última
                 if idx < queueSongIDs.count - 1 {
                     print("▶️ Modo normal: Siguiente canción (\(idx + 1)/\(queueSongIDs.count))")
                     await playNextSong(afterSongID: finishedSongID)
                 } else {
-                    // Última canción, detener
                     print("⏹️ Última canción alcanzada. Deteniendo reproducción.")
                     isPlaying = false
                 }
@@ -230,20 +221,29 @@ final class PlayerViewModel {
         }
     }
 
-    // MARK: - Observers
+    // MARK: - Event Observation (EventBus + AsyncStream)
 
-    private func setupObservers() {
-        // Observar cambios de estado de reproducción
-        playerUseCases.observePlaybackState { [weak self] isPlaying, songID in
-            guard let self = self else { return }
-            self.isPlaying = isPlaying
-            self.updateLiveActivity()
+    private func startObservingEvents() {
+        playbackEventTask = Task { [weak self] in
+            guard let self else { return }
+
+            for await event in self.eventBus.playbackEvents() {
+                guard !Task.isCancelled else { break }
+                await self.handlePlaybackEvent(event)
+            }
         }
+    }
 
-        // Observar cambios de tiempo
-        playerUseCases.observePlaybackTime { [weak self] time, duration in
-            guard let self = self else { return }
+    private func handlePlaybackEvent(_ event: PlaybackEvent) async {
+        switch event {
+        case .stateChanged(let playing, let songID):
+            self.isPlaying = playing
+            if let songID = songID {
+                self.currentlyPlayingID = songID
+            }
+            self.updateLiveActivity()
 
+        case .timeUpdated(let time, let duration):
             let isFirstDurationUpdate = self.songDuration == 0 && duration > 0
             self.songDuration = duration
 
@@ -255,9 +255,7 @@ final class PlayerViewModel {
 
             // Primera actualización de duración: actualizar Now Playing inmediatamente
             if isFirstDurationUpdate {
-                Task { @MainActor in
-                    await self.playerUseCases.updateNowPlayingTime(currentTime: time, duration: duration)
-                }
+                await self.playerUseCases.updateNowPlayingTime(currentTime: time, duration: duration)
                 self.lastNowPlayingUpdateTime = CACurrentMediaTime()
                 return
             }
@@ -266,41 +264,28 @@ final class PlayerViewModel {
             let currentTime = CACurrentMediaTime()
             if currentTime - self.lastNowPlayingUpdateTime >= 1.0 {
                 self.lastNowPlayingUpdateTime = currentTime
-                Task { @MainActor in
-                    await self.playerUseCases.updateNowPlayingTime(currentTime: time, duration: duration)
-                }
+                await self.playerUseCases.updateNowPlayingTime(currentTime: time, duration: duration)
             }
-        }
 
-        // Observar cuando termina una canción
-        playerUseCases.observeSongFinished { [weak self] finishedSongID in
-            guard let self = self else { return }
+        case .songFinished(let finishedSongID):
             self.playbackTime = self.songDuration
-            Task { @MainActor in
-                await self.playNextAutomatically(finishedSongID: finishedSongID)
-            }
-        }
+            await self.playNextAutomatically(finishedSongID: finishedSongID)
 
-        // Observar controles remotos
-        playerUseCases.observeRemotePlayPause { [weak self] in
-            guard let self = self else { return }
-            Task { @MainActor in
-                await self.togglePlayPause()
-            }
+        case .remoteCommand(let command):
+            await handleRemoteCommand(command)
         }
+    }
 
-        playerUseCases.observeRemoteNext { [weak self] in
-            guard let self = self else { return }
-            Task { @MainActor in
-                await self.playNext()
-            }
-        }
-
-        playerUseCases.observeRemotePrevious { [weak self] in
-            guard let self = self else { return }
-            Task { @MainActor in
-                await self.playPrevious()
-            }
+    private func handleRemoteCommand(_ command: RemoteCommand) async {
+        switch command {
+        case .playPause:
+            await togglePlayPause()
+        case .next:
+            await playNext()
+        case .previous:
+            await playPrevious()
+        case .seek(let time):
+            await seek(to: time)
         }
     }
 
@@ -332,6 +317,8 @@ final class PlayerViewModel {
         }
     }
 
+    /// Mantener NotificationCenter para Live Activity (comunicación inter-proceso)
+    /// Los widgets/Live Activity no pueden usar EventBus directamente
     private func setupLiveActivityHandlers() {
         // Play/Pause desde Live Activity
         NotificationCenter.default.addObserver(
@@ -339,8 +326,9 @@ final class PlayerViewModel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                await self?.togglePlayPause()
+            // Convertir a EventBus internamente
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.playPause))
             }
         }
 
@@ -350,8 +338,8 @@ final class PlayerViewModel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                await self?.playNext()
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.next))
             }
         }
 
@@ -361,29 +349,22 @@ final class PlayerViewModel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                await self?.playPrevious()
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.previous))
             }
         }
     }
 
     // MARK: - Helpers
 
-    /// Obtiene las canciones de la cola desde el repository y las convierte a UIModels
     private func getQueueUIModels() async -> [SongUIModel] {
-        var uiModels: [SongUIModel] = []
-
-        for songID in queueSongIDs {
-            do {
-                if let entity = try await songRepository.getByID(songID) {
-                    uiModels.append(SongMapper.toUIModel(entity))
-                }
-            } catch {
-                print("⚠️ Error al obtener canción \(songID): \(error)")
-            }
+        do {
+            let entities = try await playerUseCases.getSongsByIDs(queueSongIDs)
+            return entities.map { SongMapper.toUIModel($0) }
+        } catch {
+            print("⚠️ Error al obtener canciones de la cola: \(error)")
+            return []
         }
-
-        return uiModels
     }
 
     func formatTime(_ time: TimeInterval) -> String {
@@ -395,6 +376,7 @@ final class PlayerViewModel {
     // MARK: - Cleanup
 
     deinit {
+        playbackEventTask?.cancel()
         NotificationCenter.default.removeObserver(self)
         let service = liveActivityService
         Task { @MainActor in
@@ -402,4 +384,3 @@ final class PlayerViewModel {
         }
     }
 }
-

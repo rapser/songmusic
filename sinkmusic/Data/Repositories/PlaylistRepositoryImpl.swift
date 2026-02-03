@@ -79,14 +79,6 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
         throw PlaylistError.invalidOperation("Use PlaylistUseCases for song reordering")
     }
 
-    // MARK: - Observability
-
-    func observeChanges(onChange: @escaping @MainActor ([PlaylistEntity]) -> Void) {
-        localDataSource.observeChanges { dtos in
-            let entities = PlaylistMapper.toEntities(dtos)
-            onChange(entities)
-        }
-    }
 }
 
 // MARK: - Sendable Conformance

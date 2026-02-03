@@ -31,7 +31,6 @@ final class PlayerUseCases {
     ) {
         self.audioPlayerRepository = audioPlayerRepository
         self.songRepository = songRepository
-        setupObservers()
     }
 
     // MARK: - Playback Control
@@ -111,50 +110,22 @@ final class PlayerUseCases {
         )
     }
 
-    // MARK: - Observation
+    // MARK: - Song Access
 
-    private func setupObservers() {
-        // Observar cambios de estado de reproducción
-        var repo = audioPlayerRepository
-        repo.onPlaybackStateChanged = { [weak self] isPlaying, songID in
-            guard let self = self else { return }
-            self.isPlaying = isPlaying
-            if let songID = songID {
-                self.currentSongID = songID
+    /// Obtiene una canción por ID (para acceso desde ViewModel)
+    func getSongByID(_ id: UUID) async throws -> SongEntity? {
+        return try await songRepository.getByID(id)
+    }
+
+    /// Obtiene múltiples canciones por IDs
+    func getSongsByIDs(_ ids: [UUID]) async throws -> [SongEntity] {
+        var songs: [SongEntity] = []
+        for id in ids {
+            if let song = try await songRepository.getByID(id) {
+                songs.append(song)
             }
         }
-    }
-
-    func observePlaybackState(onChange: @escaping @MainActor (Bool, UUID?) -> Void) {
-        var repo = audioPlayerRepository
-        repo.onPlaybackStateChanged = onChange
-    }
-
-    func observePlaybackTime(onChange: @escaping @MainActor (TimeInterval, TimeInterval) -> Void) {
-        var repo = audioPlayerRepository
-        repo.onPlaybackTimeChanged = onChange
-    }
-
-    func observeSongFinished(onFinish: @escaping @MainActor (UUID) -> Void) {
-        var repo = audioPlayerRepository
-        repo.onSongFinished = onFinish
-    }
-
-    // MARK: - Remote Controls
-
-    func observeRemotePlayPause(onCommand: @escaping @MainActor () -> Void) {
-        var repo = audioPlayerRepository
-        repo.onRemotePlayPause = onCommand
-    }
-
-    func observeRemoteNext(onCommand: @escaping @MainActor () -> Void) {
-        var repo = audioPlayerRepository
-        repo.onRemoteNext = onCommand
-    }
-
-    func observeRemotePrevious(onCommand: @escaping @MainActor () -> Void) {
-        var repo = audioPlayerRepository
-        repo.onRemotePrevious = onCommand
+        return songs
     }
 
     // MARK: - Getters

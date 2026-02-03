@@ -40,11 +40,6 @@ final class PlaylistUseCases {
         return try await playlistRepository.getByID(id)
     }
 
-    /// Observa cambios en las playlists
-    func observePlaylistChanges(onChange: @escaping @MainActor ([PlaylistEntity]) -> Void) {
-        playlistRepository.observeChanges(onChange: onChange)
-    }
-
     // MARK: - Playlist Management
 
     /// Crea una nueva playlist

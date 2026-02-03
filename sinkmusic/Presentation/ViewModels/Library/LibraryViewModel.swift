@@ -2,7 +2,7 @@
 //  LibraryViewModel.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture
+//  Refactorizado con Clean Architecture + EventBus
 //  SOLID: Single Responsibility - Maneja UI de la biblioteca
 //
 
@@ -11,6 +11,7 @@ import SwiftUI
 
 /// ViewModel responsable de la UI de la biblioteca
 /// Delega lógica de negocio a LibraryUseCases
+/// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
 final class LibraryViewModel {
@@ -26,12 +27,19 @@ final class LibraryViewModel {
     // MARK: - Dependencies
 
     private let libraryUseCases: LibraryUseCases
+    private let eventBus: EventBusProtocol
+
+    // MARK: - Tasks
+
+    /// Task para observación de eventos (nonisolated para acceso en deinit)
+    nonisolated(unsafe) private var dataEventTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
-    init(libraryUseCases: LibraryUseCases) {
+    init(libraryUseCases: LibraryUseCases, eventBus: EventBusProtocol) {
         self.libraryUseCases = libraryUseCases
-        setupObservers()
+        self.eventBus = eventBus
+        startObservingEvents()
         Task {
             await loadSongs()
             await loadStats()
@@ -50,7 +58,7 @@ final class LibraryViewModel {
         }
     }
 
-    /// Sincroniza con Google Drive
+    /// Sincroniza con almacenamiento cloud
     func syncLibraryWithCatalog() async {
         // Verificar credenciales
         guard libraryUseCases.hasCredentials() else {
@@ -65,8 +73,8 @@ final class LibraryViewModel {
         syncErrorMessage = nil
 
         do {
-            // Sincronizar con Google Drive
-            let newSongsCount = try await libraryUseCases.syncWithGoogleDrive()
+            // Sincronizar con almacenamiento cloud
+            let newSongsCount = try await libraryUseCases.syncWithCloudStorage()
 
             // Recargar canciones
             await loadSongs()
@@ -83,7 +91,7 @@ final class LibraryViewModel {
 
             if errorString.contains("401") || errorString.contains("403") || errorString.contains("unauthorized") {
                 syncError = .invalidCredentials
-                syncErrorMessage = "Las credenciales de Google Drive son inválidas o han expirado"
+                syncErrorMessage = "Las credenciales son inválidas o han expirado"
             } else if errorString.contains("404") || errorString.contains("not found") {
                 syncError = .emptyFolder
                 syncErrorMessage = "No se encontró la carpeta o no contiene archivos de audio"
@@ -153,16 +161,44 @@ final class LibraryViewModel {
         }
     }
 
-    // MARK: - Observers
+    // MARK: - Event Observation (EventBus + AsyncStream)
 
-    private func setupObservers() {
-        // Observar cambios en la biblioteca
-        libraryUseCases.observeLibraryChanges { [weak self] updatedSongs in
-            guard let self = self else { return }
-            self.songs = updatedSongs.map { SongMapper.toUIModel($0) }
-            Task {
-                await self.loadStats()
+    private func startObservingEvents() {
+        dataEventTask = Task { [weak self] in
+            guard let self else { return }
+
+            for await event in self.eventBus.dataEvents() {
+                guard !Task.isCancelled else { break }
+                await self.handleDataEvent(event)
             }
+        }
+    }
+
+    private func handleDataEvent(_ event: DataChangeEvent) async {
+        switch event {
+        case .songsUpdated:
+            await loadSongs()
+            await loadStats()
+
+        case .songDownloaded:
+            await loadSongs()
+            await loadStats()
+
+        case .songDeleted:
+            await loadSongs()
+            await loadStats()
+
+        case .playlistsUpdated:
+            // No action needed for playlists in library
+            break
+
+        case .credentialsChanged:
+            // Reload when credentials change
+            await loadSongs()
+
+        case .error:
+            // Handle error if needed
+            break
         }
     }
 
@@ -170,6 +206,12 @@ final class LibraryViewModel {
 
     func hasCredentials() -> Bool {
         return libraryUseCases.hasCredentials()
+    }
+
+    // MARK: - Cleanup
+
+    deinit {
+        dataEventTask?.cancel()
     }
 }
 

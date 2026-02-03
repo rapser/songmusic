@@ -10,6 +10,7 @@ import Foundation
 
 /// Protocolo para el servicio de reproducción de audio
 /// Permite mockear AudioPlayerService para testing
+/// Nota: Los eventos se emiten via EventBus (no callbacks)
 protocol AudioPlayerServiceProtocol: Sendable {
 
     // MARK: - Playback Control
@@ -45,20 +46,4 @@ protocol AudioPlayerServiceProtocol: Sendable {
         currentTime: TimeInterval,
         artwork: Data?
     )
-
-    // MARK: - Callbacks
-
-    /// Callback cuando cambia el estado de reproducción
-    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
-
-    /// Callback cuando cambia el tiempo de reproducción
-    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? { get set }
-
-    /// Callback cuando termina una canción
-    var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
-
-    /// Callbacks para controles remotos
-    var onRemotePlayPause: (@MainActor () -> Void)? { get set }
-    var onRemoteNext: (@MainActor () -> Void)? { get set }
-    var onRemotePrevious: (@MainActor () -> Void)? { get set }
 }

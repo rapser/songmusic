@@ -9,25 +9,25 @@
 import Foundation
 
 /// Casos de uso agrupados para la biblioteca de música
-/// Gestiona sincronización con Google Drive y acceso a canciones
+/// Gestiona sincronización con almacenamiento cloud y acceso a canciones
 @MainActor
 final class LibraryUseCases {
 
     // MARK: - Dependencies
 
     private let songRepository: SongRepositoryProtocol
-    private let googleDriveRepository: GoogleDriveRepositoryProtocol
+    private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let credentialsRepository: CredentialsRepositoryProtocol
 
     // MARK: - Initialization
 
     init(
         songRepository: SongRepositoryProtocol,
-        googleDriveRepository: GoogleDriveRepositoryProtocol,
+        cloudStorageRepository: CloudStorageRepositoryProtocol,
         credentialsRepository: CredentialsRepositoryProtocol
     ) {
         self.songRepository = songRepository
-        self.googleDriveRepository = googleDriveRepository
+        self.cloudStorageRepository = cloudStorageRepository
         self.credentialsRepository = credentialsRepository
     }
 
@@ -43,23 +43,40 @@ final class LibraryUseCases {
         return try await songRepository.getByID(id)
     }
 
-    /// Observa cambios en la biblioteca
-    func observeLibraryChanges(onChange: @escaping @MainActor ([SongEntity]) -> Void) {
-        songRepository.observeChanges(onChange: onChange)
+    /// Obtiene canciones reproducidas recientemente
+    /// - Parameter limit: Número máximo de canciones a retornar
+    func getRecentlyPlayedSongs(limit: Int = 10) async throws -> [SongEntity] {
+        let allSongs = try await songRepository.getAll()
+        return allSongs
+            .filter { $0.lastPlayedAt != nil }
+            .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
+            .prefix(limit)
+            .map { $0 }
     }
 
-    // MARK: - Sync with Google Drive
+    /// Obtiene las canciones más reproducidas
+    /// - Parameter limit: Número máximo de canciones a retornar
+    func getMostPlayedSongs(limit: Int = 10) async throws -> [SongEntity] {
+        return try await songRepository.getTopSongs(limit: limit)
+    }
 
-    /// Sincroniza la biblioteca con Google Drive
+    /// Obtiene canciones descargadas
+    func getDownloadedSongs() async throws -> [SongEntity] {
+        return try await songRepository.getDownloaded()
+    }
+
+    // MARK: - Sync with Cloud Storage
+
+    /// Sincroniza la biblioteca con almacenamiento cloud
     /// Retorna el número de canciones nuevas agregadas
-    func syncWithGoogleDrive() async throws -> Int {
+    func syncWithCloudStorage() async throws -> Int {
         // Verificar credenciales
         guard credentialsRepository.hasGoogleDriveCredentials() else {
             throw LibraryError.credentialsNotConfigured
         }
 
-        // Obtener archivos remotos
-        let remoteFiles = try await googleDriveRepository.fetchSongsFromFolder()
+        // Obtener archivos remotos (CloudFileEntity - entidad de dominio)
+        let remoteFiles = try await cloudStorageRepository.fetchSongsFromFolder()
 
         // Obtener canciones locales
         let localSongs = try await songRepository.getAll()
@@ -105,7 +122,7 @@ final class LibraryUseCases {
     /// Elimina una canción de la biblioteca
     func deleteSong(_ id: UUID) async throws {
         // Eliminar archivo descargado si existe
-        try? googleDriveRepository.deleteDownload(for: id)
+        try? cloudStorageRepository.deleteDownload(for: id)
 
         // Eliminar de la base de datos
         try await songRepository.delete(id)

@@ -64,8 +64,4 @@ protocol SongRepositoryProtocol: Sendable {
         author: String?
     ) async throws
 
-    // MARK: - Observability
-
-    /// Observa cambios en las canciones
-    @MainActor func observeChanges(onChange: @escaping @MainActor ([SongEntity]) -> Void)
 }

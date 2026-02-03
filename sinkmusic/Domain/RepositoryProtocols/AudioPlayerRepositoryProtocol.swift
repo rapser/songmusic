@@ -9,6 +9,7 @@ import Foundation
 
 /// Protocolo de repositorio para el reproductor de audio
 /// Abstrae el AudioPlayerService de la capa de dominio
+/// Nota: Los eventos se emiten via EventBus (no callbacks)
 protocol AudioPlayerRepositoryProtocol: Sendable {
 
     // MARK: - Playback Control
@@ -44,20 +45,4 @@ protocol AudioPlayerRepositoryProtocol: Sendable {
         currentTime: TimeInterval,
         artwork: Data?
     ) async
-
-    // MARK: - Callbacks
-
-    /// Callback cuando cambia el estado de reproducción
-    @MainActor var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)? { get set }
-
-    /// Callback cuando cambia el tiempo de reproducción
-    @MainActor var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)? { get set }
-
-    /// Callback cuando termina una canción
-    @MainActor var onSongFinished: (@MainActor (UUID) -> Void)? { get set }
-
-    /// Callbacks para controles remotos
-    @MainActor var onRemotePlayPause: (@MainActor () -> Void)? { get set }
-    @MainActor var onRemoteNext: (@MainActor () -> Void)? { get set }
-    @MainActor var onRemotePrevious: (@MainActor () -> Void)? { get set }
 }

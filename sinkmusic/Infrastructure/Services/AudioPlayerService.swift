@@ -1,18 +1,21 @@
+//
+//  AudioPlayerService.swift
+//  sinkmusic
+//
+//  Refactored to emit events via EventBus (Clean Architecture)
+//  No callbacks - All events via EventBus
+//
 
 import Foundation
 import AVFoundation
 import MediaPlayer
 
+/// SOLID: Dependency Inversion - Depende de EventBusProtocol
 final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate, @unchecked Sendable {
 
-    // Swift 6 Concurrency: Callbacks en lugar de PassthroughSubject
-    // Using @unchecked Sendable because we manually ensure thread-safety with locks
-    var onPlaybackStateChanged: (@MainActor (Bool, UUID?) -> Void)?
-    var onPlaybackTimeChanged: (@MainActor (TimeInterval, TimeInterval) -> Void)?
-    var onSongFinished: (@MainActor (UUID) -> Void)?
-    var onRemotePlayPause: (@MainActor () -> Void)?
-    var onRemoteNext: (@MainActor () -> Void)?
-    var onRemotePrevious: (@MainActor () -> Void)?
+    // MARK: - Dependencies
+
+    private let eventBus: EventBusProtocol
 
     // Thread-safe state management
     private let stateLock = NSLock()
@@ -33,18 +36,15 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private var wasPlayingBeforeInterruption = false
     private var seekOffset: TimeInterval = 0
 
-    // Swift 6: Optimización de memoria - liberar recursos cuando no se reproduce
-    private var resourceCleanupTimer: Timer?
-
     // Propiedad pública para verificar el estado de reproducción
     var isPlaying: Bool {
         return playerNode.isPlaying
     }
 
-    override init() {
+    init(eventBus: EventBusProtocol) {
+        self.eventBus = eventBus
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
-
         self.eq = AVAudioUnitEQ(numberOfBands: 6)
 
         super.init()
@@ -60,7 +60,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
             // CRÍTICO: Configurar la categoría para permitir reproducción en background
             // y mostrar controles en el lock screen
-            // NO usar .mixWithOthers para que el sistema muestre el reproductor nativo
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
@@ -86,7 +85,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             eq.bands[index].gain = 0.0
             eq.bands[index].bypass = false
         }
-
     }
 
     func play(songID: UUID, url: URL) {
@@ -98,9 +96,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                 }
                 startPlaybackTimer()
 
-                // Notificar inmediatamente sin delay para UI responsive
+                // Notificar via EventBus
                 Task { @MainActor in
-                    self.onPlaybackStateChanged?(true, self.currentlyPlayingID)
+                    self.eventBus.emit(.stateChanged(isPlaying: true, songID: self.currentlyPlayingID))
                 }
             }
         } else {
@@ -136,22 +134,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
                 playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
                     Task { @MainActor [weak self] in
-                        guard let self = self else {
-                            return
-                        }
-
-                        guard self.currentScheduleID == scheduleID else {
-                            return
-                        }
-
-                        guard let currentID = self.currentlyPlayingID else {
-                            return
-                        }
+                        guard let self = self else { return }
+                        guard self.currentScheduleID == scheduleID else { return }
+                        guard let currentID = self.currentlyPlayingID else { return }
 
                         self.playbackTimer?.invalidate()
                         self.playbackTimer = nil
 
-                        self.onSongFinished?(currentID)
+                        self.eventBus.emit(.songFinished(currentID))
                     }
                 }
 
@@ -162,16 +152,16 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                 playerNode.play()
 
                 self.currentlyPlayingID = songID
-                self.seekOffset = 0 // Reset del offset al reproducir una nueva canción
+                self.seekOffset = 0
                 startPlaybackTimer()
 
-                // Notificar inmediatamente sin delay para UI responsive
+                // Notificar via EventBus
                 Task { @MainActor in
-                    self.onPlaybackStateChanged?(true, songID)
+                    self.eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
                 }
             } catch {
                 Task { @MainActor in
-                    self.onPlaybackStateChanged?(false, nil)
+                    self.eventBus.emit(.stateChanged(isPlaying: false, songID: nil))
                 }
             }
         }
@@ -181,7 +171,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         playerNode.pause()
         playbackTimer?.invalidate()
         Task { @MainActor in
-            self.onPlaybackStateChanged?(false, self.currentlyPlayingID)
+            self.eventBus.emit(.stateChanged(isPlaying: false, songID: self.currentlyPlayingID))
         }
     }
 
@@ -193,7 +183,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         currentlyPlayingID = nil
         audioFile = nil
         Task { @MainActor in
-            self.onPlaybackStateChanged?(false, oldID)
+            self.eventBus.emit(.stateChanged(isPlaying: false, songID: oldID))
         }
     }
 
@@ -206,17 +196,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         let sampleRate = audioFile.processingFormat.sampleRate
         let startFrame = AVAudioFramePosition(time * sampleRate)
 
-        // Detener el nodo y el timer actual
         playerNode.stop()
         playbackTimer?.invalidate()
 
         if startFrame < audioFile.length {
             let frameCount = AVAudioFrameCount(audioFile.length - startFrame)
 
-            // Actualizar el offset de seek
             self.seekOffset = time
 
-            // Generar nuevo scheduleID para este seek
             let scheduleID = UUID()
             self.currentScheduleID = scheduleID
 
@@ -228,29 +215,21 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             ) { [weak self] in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-
-                    // Validar que este completion corresponde al seek actual
-                    guard self.currentScheduleID == scheduleID else {
-                        // Ignorar completions de seeks antiguos
-                        return
-                    }
-
+                    guard self.currentScheduleID == scheduleID else { return }
                     guard let currentID = self.currentlyPlayingID else { return }
 
                     self.playbackTimer?.invalidate()
                     self.playbackTimer = nil
 
-                    self.onSongFinished?(currentID)
+                    self.eventBus.emit(.songFinished(currentID))
                 }
             }
 
-            // Enviar inmediatamente el nuevo tiempo
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
             Task { @MainActor in
-                self.onPlaybackTimeChanged?(time, duration)
+                self.eventBus.emit(.timeUpdated(current: time, duration: duration))
             }
 
-            // Solo reanudar si estaba reproduciendo
             if wasPlaying {
                 playerNode.play()
                 startPlaybackTimer()
@@ -261,8 +240,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private func startPlaybackTimer() {
         playbackTimer?.invalidate()
 
-        // CRÍTICO: Usar RunLoop.common para que el timer funcione en background
-        // y no se pause cuando el sistema cambia de modo (llamadas, notificaciones, etc.)
         playbackTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self,
                   let nodeTime = self.playerNode.lastRenderTime,
@@ -271,30 +248,26 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                 return
             }
 
-            // Calcular el tiempo desde que el nodo comenzó a reproducir + el offset del seek
             let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
             let currentTime = nodePlaybackTime + self.seekOffset
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
 
             Task { @MainActor in
-                self.onPlaybackTimeChanged?(currentTime, duration)
+                self.eventBus.emit(.timeUpdated(current: currentTime, duration: duration))
             }
         }
 
-        // Agregar el timer al RunLoop.common para que funcione en background
         RunLoop.current.add(playbackTimer!, forMode: .common)
     }
 
     // MARK: - Equalizer
 
-    /// Implementación del protocolo AudioPlayerProtocol
     func updateEqualizer(bands: [Float]) {
         for (index, gain) in bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = gain
         }
     }
 
-    /// Método legacy para compatibilidad con código existente
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
         for (index, band) in bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = Float(band.gain)
@@ -306,8 +279,8 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         guard let finishedSongID = currentlyPlayingID else { return }
         currentlyPlayingID = nil
         Task { @MainActor in
-            self.onPlaybackStateChanged?(false, finishedSongID)
-            self.onSongFinished?(finishedSongID)
+            self.eventBus.emit(.stateChanged(isPlaying: false, songID: finishedSongID))
+            self.eventBus.emit(.songFinished(finishedSongID))
         }
     }
 
@@ -330,40 +303,30 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
         switch type {
         case .began:
-            // La interrupción comenzó (llamada entrante, alarma, Siri, etc.)
             if playerNode.isPlaying {
                 wasPlayingBeforeInterruption = true
                 pause()
             }
 
         case .ended:
-            // La interrupción terminó (llamada finalizada, alarma detenida, etc.)
-            // MEJORA: Intentar reanudar siempre que estábamos reproduciendo antes,
-            // sin depender exclusivamente del flag shouldResume que a veces no llega
             if wasPlayingBeforeInterruption {
-                // Obtener las opciones de interrupción si están disponibles
                 let shouldResume: Bool
                 if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
                     let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                     shouldResume = options.contains(.shouldResume)
                 } else {
-                    // Si no hay opciones, asumir que podemos reanudar
-                    // Este es el comportamiento más amigable para el usuario
                     shouldResume = true
                 }
 
                 if shouldResume {
-                    // Delay ligeramente mayor para dar tiempo a que el sistema libere recursos
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                         guard let self = self, let songID = self.currentlyPlayingID else {
                             return
                         }
 
                         do {
-                            // Reactivar la sesión de audio
                             try AVAudioSession.sharedInstance().setActive(true)
 
-                            // Reanudar la reproducción
                             if !self.audioEngine.isRunning {
                                 try self.audioEngine.start()
                             }
@@ -371,19 +334,16 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                             self.playerNode.play()
                             self.startPlaybackTimer()
 
-                            // Notificar el cambio de estado
                             Task { @MainActor in
-                                self.onPlaybackStateChanged?(true, songID)
+                                self.eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
                             }
 
                             self.wasPlayingBeforeInterruption = false
                         } catch {
-                            // Si falla la reanudación, resetear el flag
                             self.wasPlayingBeforeInterruption = false
 
-                            // Notificar que no se pudo reanudar
                             Task { @MainActor in
-                                self.onPlaybackStateChanged?(false, songID)
+                                self.eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
                             }
                         }
                     }
@@ -398,7 +358,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     }
 
     deinit {
-        // Limpiar recursos de audio
         playbackTimer?.invalidate()
         playbackTimer = nil
 
@@ -406,16 +365,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             audioEngine.stop()
         }
 
-        // Remover observers
         NotificationCenter.default.removeObserver(self)
-
-        // Limpiar callbacks para evitar retain cycles
-        onPlaybackStateChanged = nil
-        onPlaybackTimeChanged = nil
-        onSongFinished = nil
-        onRemotePlayPause = nil
-        onRemoteNext = nil
-        onRemotePrevious = nil
     }
 
     // MARK: - Now Playing Info & Remote Commands
@@ -424,32 +374,32 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                self?.onRemotePlayPause?()
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.playPause))
             }
             return .success
         }
 
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                self?.onRemotePlayPause?()
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.playPause))
             }
             return .success
         }
 
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                self?.onRemoteNext?()
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.next))
             }
             return .success
         }
 
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                self?.onRemotePrevious?()
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.previous))
             }
             return .success
         }
@@ -459,16 +409,17 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             guard let event = event as? MPChangePlaybackPositionCommandEvent else {
                 return .commandFailed
             }
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.remoteCommand(.seek(event.positionTime)))
+            }
             self?.seek(to: event.positionTime)
             return .success
         }
     }
 
     func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?) {
-        // CRÍTICO: Crear un nuevo diccionario cada vez para forzar la actualización
         var nowPlayingInfo = [String: Any]()
 
-        // Información básica - siempre presente
         nowPlayingInfo[MPMediaItemPropertyTitle] = title
         nowPlayingInfo[MPMediaItemPropertyArtist] = artist
 
@@ -476,17 +427,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
 
-        // Duración total de la canción
         nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
-
-        // Tiempo actual de reproducción
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime)
 
-        // Velocidad de reproducción (1.0 = reproduciendo, 0.0 = pausado)
         let playbackRate = playerNode.isPlaying ? 1.0 : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: playbackRate)
 
-        // Artwork (cover art)
         if let artworkData = artwork, let image = UIImage(data: artworkData) {
             let artworkImage = MPMediaItemArtwork(boundsSize: image.size) { _ in
                 return image
@@ -494,7 +440,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artworkImage
         }
 
-        // CRÍTICO: Asignar al Now Playing Info Center
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }

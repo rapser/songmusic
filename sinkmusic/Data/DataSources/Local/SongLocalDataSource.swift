@@ -10,6 +10,7 @@ import SwiftData
 
 /// DataSource para acceso local a canciones usando SwiftData
 /// Encapsula toda la interacción con SwiftData y proporciona observabilidad
+/// SOLID: Dependency Inversion - Recibe EventBus por inyección
 @MainActor
 final class SongLocalDataSource {
 
@@ -20,9 +21,9 @@ final class SongLocalDataSource {
 
     // MARK: - Lifecycle
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, eventBus: EventBusProtocol) {
         self.modelContext = modelContext
-        self.notificationService = SwiftDataNotificationService(modelContext: modelContext)
+        self.notificationService = SwiftDataNotificationService(modelContext: modelContext, eventBus: eventBus)
     }
 
     // MARK: - CRUD Operations
@@ -107,7 +108,7 @@ final class SongLocalDataSource {
         guard let song = try getByID(id) else { return }
         modelContext.delete(song)
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifySongDeleted(id)
     }
 
     /// Elimina todas las canciones
@@ -136,7 +137,11 @@ final class SongLocalDataSource {
         guard let song = try getByID(id) else { return }
         song.isDownloaded = isDownloaded
         try modelContext.save()
-        notificationService.notifyChange()
+        if isDownloaded {
+            notificationService.notifySongDownloaded(id)
+        } else {
+            notificationService.notifyChange()
+        }
     }
 
     /// Actualiza metadata de una canción
@@ -174,25 +179,40 @@ final class SongLocalDataSource {
         notificationService.notifyChange()
     }
 
-    // MARK: - Observability
-
-    /// Observa cambios en las canciones
-    ///
-    /// Uso típico en Repository:
-    /// ```swift
-    /// localDataSource.observeChanges { dtos in
-    ///     let entities = SongMapper.toEntities(dtos)
-    ///     onChange(entities)
-    /// }
-    /// ```
-    func observeChanges(onChange: @escaping @MainActor ([SongDTO]) -> Void) {
-        notificationService.observe { [weak self] in
-            guard let self = self else { return }
-            Task { @MainActor in
-                if let songs = try? self.getAll() {
-                    onChange(songs)
-                }
-            }
-        }
-    }
 }
+
+// MARK: - Observability Note
+/*
+ Los ViewModels observan cambios via EventBus inyectado por DI:
+
+ ```swift
+ // ViewModel recibe eventBus en el init
+ init(useCases: UseCases, eventBus: EventBusProtocol) {
+     self.eventBus = eventBus
+     startObserving()
+ }
+
+ private func startObserving() {
+     Task { [weak self] in
+         guard let self else { return }
+         for await event in self.eventBus.dataEvents() {
+             switch event {
+             case .songsUpdated:
+                 await self.reloadSongs()
+             case .songDownloaded(let id):
+                 await self.handleSongDownloaded(id)
+             case .songDeleted(let id):
+                 await self.handleSongDeleted(id)
+             default:
+                 break
+             }
+         }
+     }
+ }
+ ```
+
+ VENTAJAS del DI:
+ - EventBus inyectado via EventBusProtocol (testeable)
+ - Sin singletons, mejor separación de responsabilidades
+ - Clean Architecture compliant
+ */
