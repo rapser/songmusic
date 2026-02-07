@@ -2,7 +2,7 @@
 //  PlaybackEvent.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Core Layer - Event Bus Events
 //
 

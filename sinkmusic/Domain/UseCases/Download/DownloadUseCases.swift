@@ -2,7 +2,7 @@
 //  DownloadUseCases.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Domain Layer
 //
 
@@ -45,6 +45,10 @@ final class DownloadUseCases {
         if song.isDownloaded {
             throw DownloadError.alreadyDownloaded
         }
+
+        print("📥 Descargando canción: \(song.title)")
+        print("   FileID: \(song.fileID)")
+        print("   SongID: \(songID)")
 
         // Descargar archivo (el progreso se emite via EventBus desde el DataSource)
         let localURL = try await cloudStorageRepository.download(

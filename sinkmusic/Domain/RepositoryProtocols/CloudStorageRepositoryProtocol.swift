@@ -2,7 +2,7 @@
 //  CloudStorageRepositoryProtocol.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Domain Layer
 //
 
@@ -35,11 +35,34 @@ protocol CloudStorageRepositoryProtocol: Sendable {
 }
 
 /// Errores de almacenamiento en la nube
-enum CloudStorageError: Error {
+enum CloudStorageError: Error, LocalizedError {
     case credentialsNotConfigured
     case missingAPIKey
     case missingFolderId
     case unsupportedProvider
     case downloadFailed(Error)
     case invalidFile
+    case fileNotFound
+    case providerNotSupported
+
+    var errorDescription: String? {
+        switch self {
+        case .credentialsNotConfigured:
+            return "Las credenciales del proveedor no están configuradas"
+        case .missingAPIKey:
+            return "Falta la API Key"
+        case .missingFolderId:
+            return "Falta el ID de carpeta"
+        case .unsupportedProvider:
+            return "Proveedor no soportado"
+        case .downloadFailed(let error):
+            return "Error al descargar: \(error.localizedDescription)"
+        case .invalidFile:
+            return "Archivo inválido"
+        case .fileNotFound:
+            return "Archivo no encontrado"
+        case .providerNotSupported:
+            return "Proveedor de almacenamiento no soportado"
+        }
+    }
 }

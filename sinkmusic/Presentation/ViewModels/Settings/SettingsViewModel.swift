@@ -17,10 +17,18 @@ final class SettingsViewModel {
 
     // MARK: - Published State
 
+    // Google Drive
     var apiKey: String = ""
     var folderId: String = ""
     var hasCredentials: Bool = false
     var hasExistingCredentials: Bool { hasCredentials }
+
+    // Mega
+    var megaFolderURL: String = ""
+    var hasMegaCredentials: Bool = false
+
+    // Provider selection
+    var selectedProvider: CloudStorageProvider = .googleDrive
 
     var storageInfo: StorageInfo?
     var appInfo: AppInfo?
@@ -55,12 +63,20 @@ final class SettingsViewModel {
 
     // MARK: - Credentials Management
 
-    /// Carga las credenciales
+    /// Carga todas las credenciales
     func loadCredentials() {
+        // Google Drive
         let credentials = settingsUseCases.loadGoogleDriveCredentials()
         apiKey = credentials.apiKey
         folderId = credentials.folderId
         hasCredentials = credentials.hasCredentials
+
+        // Mega
+        megaFolderURL = settingsUseCases.loadMegaFolderURL()
+        hasMegaCredentials = settingsUseCases.hasMegaCredentials()
+
+        // Provider selection
+        selectedProvider = settingsUseCases.getSelectedCloudProvider()
     }
 
     /// Guarda las credenciales
@@ -205,6 +221,54 @@ final class SettingsViewModel {
     /// Elimina credenciales (versión async para compatibilidad)
     func deleteCredentialsAsync() async {
         deleteCredentials()
+    }
+
+    // MARK: - Mega Credentials
+
+    /// Guarda la URL de la carpeta de Mega
+    func saveMegaFolderURL() -> Bool {
+        let success = settingsUseCases.saveMegaFolderURL(megaFolderURL)
+
+        if success {
+            hasMegaCredentials = true
+            print("✅ URL de Mega guardada correctamente")
+        } else {
+            print("❌ Error al guardar URL de Mega")
+        }
+
+        return success
+    }
+
+    /// Elimina las credenciales de Mega
+    func deleteMegaCredentials() {
+        settingsUseCases.deleteMegaCredentials()
+        megaFolderURL = ""
+        hasMegaCredentials = false
+        print("🗑️ Credenciales de Mega eliminadas")
+    }
+
+    /// Valida la URL de Mega
+    func validateMegaFolderURL() -> Bool {
+        return settingsUseCases.validateMegaFolderURL(megaFolderURL)
+    }
+
+    // MARK: - Provider Selection
+
+    /// Cambia el proveedor de almacenamiento
+    func setSelectedProvider(_ provider: CloudStorageProvider) {
+        selectedProvider = provider
+        settingsUseCases.setSelectedCloudProvider(provider)
+        print("📦 Proveedor seleccionado: \(provider.rawValue)")
+    }
+
+    /// Verifica si el proveedor actual tiene credenciales configuradas
+    var hasCurrentProviderCredentials: Bool {
+        switch selectedProvider {
+        case .googleDrive:
+            return hasCredentials
+        case .mega:
+            return hasMegaCredentials
+        }
     }
 }
 

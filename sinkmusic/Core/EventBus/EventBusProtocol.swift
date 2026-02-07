@@ -2,7 +2,7 @@
 //  EventBusProtocol.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Core Layer - Protocol for Dependency Inversion
 //
 

@@ -2,7 +2,7 @@
 //  KeychainServiceProtocol.swift
 //  sinkmusic
 //
-//  Created by Claude Code - Clean Architecture
+//  Created by miguel tomairo
 //  Infrastructure Layer - Service Protocol for Mocking
 //
 
@@ -38,4 +38,17 @@ protocol KeychainServiceProtocol: Sendable {
 
     /// Verifica si las credenciales de Google Drive están configuradas
     var hasGoogleDriveCredentials: Bool { get }
+
+    // MARK: - Mega Helpers
+
+    /// URL de la carpeta pública de Mega
+    var megaFolderURL: String? { get set }
+
+    /// Verifica si las credenciales de Mega están configuradas
+    var hasMegaCredentials: Bool { get }
+
+    // MARK: - Provider Selection
+
+    /// Proveedor de almacenamiento cloud seleccionado
+    var selectedCloudProvider: String? { get set }
 }

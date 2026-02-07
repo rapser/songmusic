@@ -62,7 +62,12 @@ final class LibraryViewModel {
     /// Sincroniza con almacenamiento cloud
     func syncLibraryWithCatalog() async {
         // Verificar credenciales
-        guard libraryUseCases.hasCredentials() else {
+        print("🔄 LibraryVM: Iniciando sincronización...")
+        let hasCredentials = libraryUseCases.hasCredentials()
+        print("🔑 LibraryVM: ¿hasCredentials? = \(hasCredentials)")
+
+        guard hasCredentials else {
+            print("⚠️ LibraryVM: Sin credenciales, abortando sync")
             syncError = nil
             syncErrorMessage = nil
             isLoadingSongs = false
@@ -85,7 +90,7 @@ final class LibraryViewModel {
             syncErrorMessage = nil
             isLoadingSongs = false
 
-            print("✅ Sincronización completada: \(newSongsCount) nuevas canciones")
+            print("✅ Sincronización completada: \(newSongsCount) nuevas canciones. Total canciones: \(songs.count)")
 
         } catch {
             let errorString = error.localizedDescription.lowercased()

@@ -16,12 +16,18 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
 
     private let localDataSource: PlaylistLocalDataSource
     private let songRepository: SongRepositoryProtocol
+    private let songLocalDataSource: SongLocalDataSource
 
     // MARK: - Lifecycle
 
-    init(localDataSource: PlaylistLocalDataSource, songRepository: SongRepositoryProtocol) {
+    init(
+        localDataSource: PlaylistLocalDataSource,
+        songRepository: SongRepositoryProtocol,
+        songLocalDataSource: SongLocalDataSource
+    ) {
         self.localDataSource = localDataSource
         self.songRepository = songRepository
+        self.songLocalDataSource = songLocalDataSource
     }
 
     // MARK: - Query Operations
@@ -64,10 +70,11 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
     // MARK: - Song Management
 
     func addSong(songID: UUID, toPlaylist playlistID: UUID) async throws {
-        // Obtener SongLocalDataSource del mismo contexto
-        // Nota: En este caso, asumimos que se maneja internamente
-        // o se pasa como dependencia si es necesario
-        throw PlaylistError.invalidOperation("Use PlaylistUseCases for song management")
+        try localDataSource.addSong(
+            songID: songID,
+            toPlaylist: playlistID,
+            songDataSource: songLocalDataSource
+        )
     }
 
     func removeSong(songID: UUID, fromPlaylist playlistID: UUID) async throws {
@@ -75,8 +82,11 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
     }
 
     func updateSongsOrder(playlistID: UUID, songIDs: [UUID]) async throws {
-        // Similar al addSong, necesitaría el SongLocalDataSource
-        throw PlaylistError.invalidOperation("Use PlaylistUseCases for song reordering")
+        try localDataSource.updateSongsOrder(
+            playlistID: playlistID,
+            songIDs: songIDs,
+            songDataSource: songLocalDataSource
+        )
     }
 
 }

@@ -16,6 +16,7 @@ private final class ActiveTasksManager {
 /// ViewModel responsable de gestionar descargas de canciones
 /// Cumple con Clean Architecture - Solo depende de UseCases
 /// Usa EventBus con AsyncStream para reactividad moderna
+/// Soporta descargas paralelas limitadas por proveedor
 @MainActor
 @Observable
 final class DownloadViewModel {
@@ -31,10 +32,27 @@ final class DownloadViewModel {
     /// Indicador si hay una descarga en progreso
     var isDownloading: Bool = false
 
+    // MARK: - Quota State
+
+    /// Proveedor que alcanzó el límite de cuota
+    var quotaExceededProvider: CloudStorageProvider?
+
+    /// Tiempo hasta que se pueda reintentar
+    var quotaResetTime: Date?
+
+    /// Mostrar alerta de cuota excedida
+    var showQuotaAlert: Bool = false
+
     // MARK: - Dependencies
 
     private let downloadUseCases: DownloadUseCases
     private let eventBus: EventBusProtocol
+    private let credentialsRepository: CredentialsRepositoryProtocol
+
+    // MARK: - Queue Manager
+
+    /// Gestor de cola de descargas con límites por proveedor
+    private let queueManager = DownloadQueueManager()
 
     // MARK: - Private State
 
@@ -47,9 +65,10 @@ final class DownloadViewModel {
 
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
+    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol, credentialsRepository: CredentialsRepositoryProtocol) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
+        self.credentialsRepository = credentialsRepository
         startObservingEvents()
     }
 
@@ -115,6 +134,15 @@ final class DownloadViewModel {
                 isDownloading = !activeTasksManager.tasks.isEmpty
                 print("⏸️ Descarga cancelada (via EventBus): \(songID)")
             }
+
+        case .queued(let songID, let position):
+            print("📋 Canción en cola (posición \(position)): \(songID)")
+
+        case .quotaExceeded(let provider, let resetTime):
+            quotaExceededProvider = CloudStorageProvider(rawValue: provider)
+            quotaResetTime = resetTime
+            showQuotaAlert = true
+            print("⚠️ Cuota excedida para \(provider). Reset: \(resetTime)")
         }
     }
 
@@ -122,11 +150,24 @@ final class DownloadViewModel {
 
     /// Descarga una canción por su ID
     /// El progreso y completado se reciben via EventBus
+    /// Usa cola con límites por proveedor (Google Drive: 1, Mega: 3)
     /// - Parameter songID: ID de la canción a descargar
     func download(songID: UUID) async {
         // Evitar descargas duplicadas
         guard activeTasksManager.tasks[songID] == nil else {
             print("⏭️ Descarga ya en progreso para \(songID)")
+            return
+        }
+
+        // Obtener proveedor actual
+        let provider = credentialsRepository.getSelectedCloudProvider()
+
+        // Verificar si la cuota está excedida
+        if let resetTime = await queueManager.getQuotaResetTime(for: provider) {
+            quotaExceededProvider = provider
+            quotaResetTime = resetTime
+            showQuotaAlert = true
+            print("⚠️ Cuota aún excedida para \(provider.rawValue). Esperar hasta \(resetTime)")
             return
         }
 
@@ -137,6 +178,32 @@ final class DownloadViewModel {
             isDownloading = true
             downloadError = nil
 
+            print("📥 Solicitando slot de descarga: \(songID)")
+
+            // Solicitar slot de descarga (espera si la cola está llena)
+            let gotSlot = await queueManager.requestDownloadSlot(for: songID, provider: provider)
+
+            guard gotSlot else {
+                // Cuota excedida mientras esperaba en cola
+                downloadProgress[songID] = nil
+                activeTasksManager.tasks.removeValue(forKey: songID)
+                isDownloading = !activeTasksManager.tasks.isEmpty
+
+                if let resetTime = await queueManager.getQuotaResetTime(for: provider) {
+                    quotaExceededProvider = provider
+                    quotaResetTime = resetTime
+                    showQuotaAlert = true
+                }
+                return
+            }
+
+            defer {
+                // Liberar slot al terminar (éxito o error)
+                Task {
+                    await queueManager.releaseDownloadSlot(for: provider)
+                }
+            }
+
             print("📥 Iniciando descarga: \(songID)")
 
             do {
@@ -145,6 +212,29 @@ final class DownloadViewModel {
                 try await downloadUseCases.downloadSong(songID)
 
                 // Nota: La limpieza de estado se hace en handleDownloadEvent(.completed)
+
+            } catch let megaError as MegaError where megaError.isRateLimitError {
+                // Manejar límite de cuota de Mega
+                let retryAfter = megaError.retryAfterSeconds ?? 3600
+
+                await queueManager.markQuotaExceeded(provider: provider, retryAfter: retryAfter)
+
+                quotaExceededProvider = provider
+                quotaResetTime = Date().addingTimeInterval(retryAfter)
+                showQuotaAlert = true
+
+                eventBus.emit(DownloadEvent.quotaExceeded(
+                    provider: provider.rawValue,
+                    resetTime: Date().addingTimeInterval(retryAfter)
+                ))
+
+                downloadProgress[songID] = nil
+                downloadError = megaError.localizedDescription
+                print("⚠️ \(downloadError!)")
+
+                // Limpiar tarea
+                activeTasksManager.tasks.removeValue(forKey: songID)
+                isDownloading = !activeTasksManager.tasks.isEmpty
 
             } catch {
                 // Nota: El error también se emite via EventBus
@@ -224,6 +314,28 @@ final class DownloadViewModel {
 
         activeTasksManager.tasks.removeAll()
         isDownloading = false
+
+        // Resetear cola
+        Task {
+            await queueManager.reset()
+        }
+    }
+
+    // MARK: - Quota Management
+
+    /// Limpia la alerta de cuota
+    func dismissQuotaAlert() {
+        showQuotaAlert = false
+    }
+
+    /// Tiempo restante formateado hasta poder reintentar
+    var quotaResetTimeFormatted: String? {
+        guard let resetTime = quotaResetTime else { return nil }
+
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        formatter.locale = Locale(identifier: "es_ES")
+        return formatter.localizedString(for: resetTime, relativeTo: Date())
     }
 
     // MARK: - Error Handling

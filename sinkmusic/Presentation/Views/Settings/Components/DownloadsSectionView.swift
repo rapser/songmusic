@@ -41,22 +41,21 @@ struct DownloadsSectionView: View {
                 .background(Color.appGray)
             }
 
-            // Google Drive Config Button
-            NavigationLink(destination: GoogleDriveConfigView()) {
+            // Cloud Storage Config Button
+            NavigationLink(destination: CloudStorageConfigView()) {
                 HStack(spacing: 16) {
                     Image(systemName: "cloud.fill")
                         .foregroundColor(.textGray)
                         .frame(width: 24)
 
-                    Text("Configurar Google Drive")
+                    Text("Configurar Almacenamiento")
                         .foregroundColor(.white)
 
                     Spacer()
 
-                    if isGoogleDriveConfigured {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.appPurple)
-                    }
+                    // Mostrar badge del proveedor seleccionado
+                    ProviderBadgeView(provider: settingsViewModel.selectedProvider,
+                                      isConfigured: settingsViewModel.hasCurrentProviderCredentials)
 
                     Image(systemName: "chevron.right")
                         .foregroundColor(.textGray)
@@ -82,5 +81,25 @@ private struct PendingBadgeView: View {
             .padding(.vertical, 4)
             .background(Color.appPurple)
             .cornerRadius(12)
+    }
+}
+
+// MARK: - Provider Badge
+
+private struct ProviderBadgeView: View {
+    let provider: CloudStorageProvider
+    let isConfigured: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: provider == .googleDrive ? "g.circle.fill" : "m.circle.fill")
+                .font(.caption)
+
+            if isConfigured {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.appPurple)
+            }
+        }
+        .foregroundColor(isConfigured ? .appPurple : .textGray)
     }
 }

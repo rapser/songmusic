@@ -135,7 +135,11 @@ struct PreviewViewModels {
 
     static func downloadVM() -> DownloadViewModel {
         setupDI()
-        return DownloadViewModel(downloadUseCases: DIContainer.shared.downloadUseCases, eventBus: DIContainer.shared.eventBus)
+        return DownloadViewModel(
+            downloadUseCases: DIContainer.shared.downloadUseCases,
+            eventBus: DIContainer.shared.eventBus,
+            credentialsRepository: DIContainer.shared.credentialsRepository
+        )
     }
 
     static func settingsVM() -> SettingsViewModel {

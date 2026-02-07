@@ -117,8 +117,13 @@ final class DIContainer {
         guard let context = modelContext else {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
-        let localDataSource = PlaylistLocalDataSource(modelContext: context, eventBus: eventBus)
-        return PlaylistRepositoryImpl(localDataSource: localDataSource, songRepository: songRepository)
+        let songLocalDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
+        let playlistLocalDataSource = PlaylistLocalDataSource(modelContext: context, eventBus: eventBus)
+        return PlaylistRepositoryImpl(
+            localDataSource: playlistLocalDataSource,
+            songRepository: songRepository,
+            songLocalDataSource: songLocalDataSource
+        )
     }
 
     private func makeAudioPlayerRepository() -> AudioPlayerRepositoryProtocol {
@@ -131,9 +136,12 @@ final class DIContainer {
         }
         let songLocalDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
         let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
+        let megaDataSource = MegaDataSource(eventBus: eventBus)
         return CloudStorageRepositoryImpl(
             googleDriveDataSource: googleDriveDataSource,
-            songLocalDataSource: songLocalDataSource
+            megaDataSource: megaDataSource,
+            songLocalDataSource: songLocalDataSource,
+            credentialsRepository: credentialsRepository
         )
     }
 
@@ -240,7 +248,11 @@ final class DIContainer {
 
     /// Factory para DownloadViewModel
     func makeDownloadViewModel() -> DownloadViewModel {
-        DownloadViewModel(downloadUseCases: downloadUseCases, eventBus: eventBus)
+        DownloadViewModel(
+            downloadUseCases: downloadUseCases,
+            eventBus: eventBus,
+            credentialsRepository: credentialsRepository
+        )
     }
 
     /// Factory para AuthViewModel (Facade + Strategy)

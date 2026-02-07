@@ -2,7 +2,7 @@
 //  CredentialsRepositoryImpl.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Data Layer
 //
 
@@ -23,7 +23,7 @@ final class CredentialsRepositoryImpl: CredentialsRepositoryProtocol {
         self.keychainService = keychainService
     }
 
-    // MARK: - CredentialsRepositoryProtocol
+    // MARK: - Google Drive
 
     func loadGoogleDriveCredentials() -> (apiKey: String, folderId: String, hasCredentials: Bool) {
         let apiKey = keychainService.googleDriveAPIKey ?? ""
@@ -47,6 +47,39 @@ final class CredentialsRepositoryImpl: CredentialsRepositoryProtocol {
 
     func hasGoogleDriveCredentials() -> Bool {
         return keychainService.hasGoogleDriveCredentials
+    }
+
+    // MARK: - Mega
+
+    func loadMegaFolderURL() -> String {
+        return keychainService.megaFolderURL ?? ""
+    }
+
+    func saveMegaFolderURL(_ url: String) -> Bool {
+        return keychainService.save(url, for: .megaFolderURL)
+    }
+
+    func deleteMegaCredentials() {
+        keychainService.delete(for: .megaFolderURL)
+    }
+
+    func hasMegaCredentials() -> Bool {
+        return keychainService.hasMegaCredentials
+    }
+
+    // MARK: - Provider Selection
+
+    func getSelectedCloudProvider() -> CloudStorageProvider {
+        guard let providerString = keychainService.selectedCloudProvider,
+              let provider = CloudStorageProvider(rawValue: providerString) else {
+            // Default a Google Drive si no hay selección
+            return .googleDrive
+        }
+        return provider
+    }
+
+    func setSelectedCloudProvider(_ provider: CloudStorageProvider) {
+        _ = keychainService.save(provider.rawValue, for: .selectedCloudProvider)
     }
 }
 

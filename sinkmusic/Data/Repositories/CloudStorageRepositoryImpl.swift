@@ -2,87 +2,152 @@
 //  CloudStorageRepositoryImpl.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Data Layer
 //
 
 import Foundation
 
 /// Implementación del repositorio de Cloud Storage
-/// Encapsula DataSources de cloud (GoogleDrive, OneDrive, etc.) y adapta su interfaz al dominio
+/// Usa patrón Strategy para soportar múltiples proveedores (Google Drive, Mega)
 @MainActor
 final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
 
     // MARK: - Dependencies
 
     private let googleDriveDataSource: GoogleDriveServiceProtocol
+    private let megaDataSource: MegaServiceProtocol
     private let songLocalDataSource: SongLocalDataSource
+    private let credentialsRepository: CredentialsRepositoryProtocol
+
+    // MARK: - State
+
+    /// Cache de archivos de Mega para obtener la clave de desencriptación
+    private var megaFilesCache: [String: MegaFile] = [:]
 
     // MARK: - Initialization
 
     init(
         googleDriveDataSource: GoogleDriveServiceProtocol,
-        songLocalDataSource: SongLocalDataSource
+        megaDataSource: MegaServiceProtocol,
+        songLocalDataSource: SongLocalDataSource,
+        credentialsRepository: CredentialsRepositoryProtocol
     ) {
         self.googleDriveDataSource = googleDriveDataSource
+        self.megaDataSource = megaDataSource
         self.songLocalDataSource = songLocalDataSource
+        self.credentialsRepository = credentialsRepository
     }
 
     // MARK: - CloudStorageRepositoryProtocol
 
     func fetchSongsFromFolder() async throws -> [CloudFile] {
-        // Por ahora solo soporta Google Drive
-        // En el futuro se puede agregar lógica para elegir el proveedor
-        let googleDriveFiles = try await googleDriveDataSource.fetchSongsFromFolder()
-        return CloudFileMapper.toDomain(from: googleDriveFiles)
+        let provider = credentialsRepository.getSelectedCloudProvider()
+
+        switch provider {
+        case .googleDrive:
+            let googleDriveFiles = try await googleDriveDataSource.fetchSongsFromFolder()
+            return CloudFileMapper.toDomain(from: googleDriveFiles)
+
+        case .mega:
+            let folderURL = credentialsRepository.loadMegaFolderURL()
+            guard !folderURL.isEmpty else {
+                throw CloudStorageError.credentialsNotConfigured
+            }
+
+            let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
+
+            // Cachear archivos para tener acceso a la clave de desencriptación
+            megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
+            print("📦 MEGA Cache actualizado con \(megaFilesCache.count) archivos")
+            print("🔑 IDs en cache: \(megaFilesCache.keys.sorted().prefix(3).joined(separator: ", "))...")
+
+            return CloudFileMapper.toDomain(from: megaFiles)
+        }
     }
 
     func download(
         fileID: String,
         songID: UUID
     ) async throws -> URL {
-        // Por ahora solo Google Drive
-        // En el futuro: switch basado en el proveedor seleccionado
-        // El progreso se emite via EventBus desde el DataSource
-        return try await googleDriveDataSource.download(
-            fileID: fileID,
-            songID: songID
-        )
+        let provider = credentialsRepository.getSelectedCloudProvider()
+
+        switch provider {
+        case .googleDrive:
+            return try await googleDriveDataSource.download(
+                fileID: fileID,
+                songID: songID
+            )
+
+        case .mega:
+            // Verificar si el cache está vacío y rellenarlo si es necesario
+            if megaFilesCache.isEmpty {
+                print("⚠️ Cache de MEGA vacío, rellenando...")
+                let folderURL = credentialsRepository.loadMegaFolderURL()
+                guard !folderURL.isEmpty else {
+                    throw CloudStorageError.credentialsNotConfigured
+                }
+                
+                let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
+                megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
+                print("📦 MEGA Cache rellenado con \(megaFilesCache.count) archivos")
+            }
+            
+            // Obtener archivo del cache para tener la clave de desencriptación
+            print("🔍 Buscando archivo en cache MEGA")
+            print("   FileID solicitado: \(fileID)")
+            print("   Cache size: \(megaFilesCache.count)")
+            print("   IDs en cache: \(megaFilesCache.keys.sorted().prefix(5).joined(separator: ", "))")
+            
+            guard let megaFile = megaFilesCache[fileID] else {
+                print("❌ Archivo NO encontrado en cache")
+                print("   ¿El fileID existe en cache? \(megaFilesCache.keys.contains(fileID))")
+                throw CloudStorageError.fileNotFound
+            }
+            
+            print("✅ Archivo encontrado en cache: \(megaFile.name)")
+
+            return try await megaDataSource.download(
+                file: megaFile,
+                songID: songID
+            )
+        }
     }
 
     func getDuration(for url: URL) -> TimeInterval? {
-        return googleDriveDataSource.getDuration(for: url)
+        let provider = credentialsRepository.getSelectedCloudProvider()
+
+        switch provider {
+        case .googleDrive:
+            return googleDriveDataSource.getDuration(for: url)
+        case .mega:
+            return megaDataSource.getDuration(for: url)
+        }
     }
 
     func deleteDownload(for songID: UUID) throws {
-        try googleDriveDataSource.deleteDownload(for: songID)
+        let provider = credentialsRepository.getSelectedCloudProvider()
+
+        switch provider {
+        case .googleDrive:
+            try googleDriveDataSource.deleteDownload(for: songID)
+        case .mega:
+            try megaDataSource.deleteDownload(for: songID)
+        }
     }
 
     func localURL(for songID: UUID) -> URL? {
-        return googleDriveDataSource.localURL(for: songID)
+        let provider = credentialsRepository.getSelectedCloudProvider()
+
+        switch provider {
+        case .googleDrive:
+            return googleDriveDataSource.localURL(for: songID)
+        case .mega:
+            return megaDataSource.localURL(for: songID)
+        }
     }
 }
 
 // MARK: - Sendable Conformance
 
-extension CloudStorageRepositoryImpl: Sendable {}
-
-// MARK: - Provider Selection (Future Enhancement)
-
-extension CloudStorageRepositoryImpl {
-    /// En el futuro, se puede agregar lógica para cambiar de proveedor dinámicamente:
-    ///
-    /// ```swift
-    /// enum CloudProvider {
-    ///     case googleDrive(GoogleDriveDataSource)
-    ///     case oneDrive(OneDriveDataSource)
-    ///     case mega(MegaDataSource)
-    /// }
-    ///
-    /// private var currentProvider: CloudProvider
-    ///
-    /// func switchProvider(to provider: CloudProvider) {
-    ///     self.currentProvider = provider
-    /// }
-    /// ```
-}
+extension CloudStorageRepositoryImpl: @unchecked Sendable {}

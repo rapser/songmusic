@@ -84,7 +84,7 @@ final class PlaylistLocalDataSource {
         playlist.songs.append(song)
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifyPlaylistsChange()
     }
 
     /// Elimina una canción de una playlist
@@ -100,7 +100,7 @@ final class PlaylistLocalDataSource {
         playlist.songs.remove(at: index)
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifyPlaylistsChange()
     }
 
     /// Reordena las canciones en una playlist
@@ -120,7 +120,7 @@ final class PlaylistLocalDataSource {
         playlist.songs = reorderedSongs
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifyPlaylistsChange()
     }
 
 }

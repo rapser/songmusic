@@ -14,6 +14,7 @@ struct DownloadMusicView: View {
     @Environment(LibraryViewModel.self) private var libraryViewModel
     @Environment(PlaylistViewModel.self) private var playlistViewModel
     @Environment(SettingsViewModel.self) private var settingsViewModel
+    @Environment(DownloadViewModel.self) private var downloadViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var songForPlaylistSheet: SongUI?
@@ -23,6 +24,7 @@ struct DownloadMusicView: View {
     }
 
     var body: some View {
+        @Bindable var download = downloadViewModel
         ZStack {
             Color.appDark.ignoresSafeArea()
             contentView
@@ -32,6 +34,17 @@ struct DownloadMusicView: View {
         }
         .navigationTitle("Descargar música")
         .navigationBarTitleDisplayMode(.large)
+        .alert("Límite de Descarga Alcanzado", isPresented: $download.showQuotaAlert) {
+            Button("Entendido", role: .cancel) {
+                downloadViewModel.dismissQuotaAlert()
+            }
+        } message: {
+            if let timeFormatted = downloadViewModel.quotaResetTimeFormatted {
+                Text("Has alcanzado el límite de descarga de Mega (5GB/día). Podrás continuar descargando \(timeFormatted).")
+            } else {
+                Text("Has alcanzado el límite de descarga de Mega (5GB/día). Por favor espera antes de continuar.")
+            }
+        }
     }
 
     @ViewBuilder

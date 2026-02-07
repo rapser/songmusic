@@ -2,7 +2,7 @@
 //  AudioPlayerServiceProtocol.swift
 //  sinkmusic
 //
-//  Created by Claude Code - Clean Architecture
+//  Created by miguel tomairo
 //  Infrastructure Layer - Service Protocol for Mocking
 //
 

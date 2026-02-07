@@ -2,7 +2,7 @@
 //  LibraryUseCases.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Domain Layer
 //
 
@@ -70,13 +70,29 @@ final class LibraryUseCases {
     /// Sincroniza la biblioteca con almacenamiento cloud
     /// Retorna el número de canciones nuevas agregadas
     func syncWithCloudStorage() async throws -> Int {
-        // Verificar credenciales
-        guard credentialsRepository.hasGoogleDriveCredentials() else {
+        // Verificar credenciales según proveedor seleccionado
+        let provider = credentialsRepository.getSelectedCloudProvider()
+        print("🔄 Sync: Proveedor seleccionado = \(provider.rawValue)")
+
+        let providerHasCredentials: Bool
+        switch provider {
+        case .googleDrive:
+            providerHasCredentials = credentialsRepository.hasGoogleDriveCredentials()
+        case .mega:
+            providerHasCredentials = credentialsRepository.hasMegaCredentials()
+        }
+
+        print("🔑 Sync: ¿Tiene credenciales? = \(providerHasCredentials)")
+
+        guard providerHasCredentials else {
+            print("❌ Sync: No hay credenciales configuradas para \(provider.rawValue)")
             throw LibraryError.credentialsNotConfigured
         }
 
         // Obtener archivos remotos (CloudFile - entidad de dominio)
+        print("📡 Sync: Obteniendo archivos remotos...")
         let remoteFiles = try await cloudStorageRepository.fetchSongsFromFolder()
+        print("📁 Sync: Archivos remotos obtenidos = \(remoteFiles.count)")
 
         // Obtener canciones locales
         let localSongs = try await songRepository.getAll()
@@ -84,10 +100,13 @@ final class LibraryUseCases {
 
         // Filtrar nuevas canciones
         let newFiles = remoteFiles.filter { !localFileIDs.contains($0.id) }
+        print("🆕 Sync: Canciones nuevas a agregar = \(newFiles.count) (locales existentes: \(localSongs.count))")
 
         // Crear entidades para nuevas canciones
         var newSongsCount = 0
         for file in newFiles {
+            print("💾 Guardando canción: \(file.title) - FileID: \(file.id)")
+            
             let newSong = Song(
                 id: UUID(),
                 title: file.title,
@@ -112,9 +131,15 @@ final class LibraryUseCases {
         return newSongsCount
     }
 
-    /// Verifica si hay credenciales configuradas
+    /// Verifica si hay credenciales configuradas para el proveedor seleccionado
     func hasCredentials() -> Bool {
-        return credentialsRepository.hasGoogleDriveCredentials()
+        let provider = credentialsRepository.getSelectedCloudProvider()
+        switch provider {
+        case .googleDrive:
+            return credentialsRepository.hasGoogleDriveCredentials()
+        case .mega:
+            return credentialsRepository.hasMegaCredentials()
+        }
     }
 
     // MARK: - Song Management

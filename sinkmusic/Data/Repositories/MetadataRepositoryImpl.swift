@@ -2,7 +2,7 @@
 //  MetadataRepositoryImpl.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Data Layer
 //
 

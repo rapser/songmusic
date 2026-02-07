@@ -2,7 +2,7 @@
 //  DownloadEvent.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Core Layer - Event Bus Events
 //
 
@@ -25,4 +25,12 @@ enum DownloadEvent: Sendable {
 
     /// Descarga cancelada
     case cancelled(songID: UUID)
+
+    // MARK: - Queue Events
+
+    /// Descarga agregada a la cola de espera
+    case queued(songID: UUID, position: Int)
+
+    /// Límite de cuota excedido para un proveedor
+    case quotaExceeded(provider: String, resetTime: Date)
 }

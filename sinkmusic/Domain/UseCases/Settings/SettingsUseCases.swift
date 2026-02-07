@@ -2,7 +2,7 @@
 //  SettingsUseCases.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Domain Layer
 //
 
@@ -60,6 +60,61 @@ final class SettingsUseCases {
     /// Verifica si hay credenciales configuradas
     func hasGoogleDriveCredentials() -> Bool {
         return credentialsRepository.hasGoogleDriveCredentials()
+    }
+
+    // MARK: - Mega Credentials
+
+    /// Carga la URL de la carpeta de Mega
+    func loadMegaFolderURL() -> String {
+        return credentialsRepository.loadMegaFolderURL()
+    }
+
+    /// Guarda la URL de la carpeta de Mega
+    func saveMegaFolderURL(_ url: String) -> Bool {
+        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, validateMegaFolderURL(trimmed) else {
+            return false
+        }
+        return credentialsRepository.saveMegaFolderURL(trimmed)
+    }
+
+    /// Elimina las credenciales de Mega
+    func deleteMegaCredentials() {
+        credentialsRepository.deleteMegaCredentials()
+    }
+
+    /// Verifica si hay credenciales de Mega configuradas
+    func hasMegaCredentials() -> Bool {
+        return credentialsRepository.hasMegaCredentials()
+    }
+
+    /// Valida el formato de la URL de carpeta de Mega
+    func validateMegaFolderURL(_ url: String) -> Bool {
+        // Formato: https://mega.nz/folder/{nodeId}#{key}
+        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix("https://mega.nz/folder/") && trimmed.contains("#")
+    }
+
+    // MARK: - Provider Selection
+
+    /// Obtiene el proveedor de almacenamiento seleccionado
+    func getSelectedCloudProvider() -> CloudStorageProvider {
+        return credentialsRepository.getSelectedCloudProvider()
+    }
+
+    /// Establece el proveedor de almacenamiento seleccionado
+    func setSelectedCloudProvider(_ provider: CloudStorageProvider) {
+        credentialsRepository.setSelectedCloudProvider(provider)
+    }
+
+    /// Verifica si hay credenciales del proveedor actual configuradas
+    func hasCurrentProviderCredentials() -> Bool {
+        switch getSelectedCloudProvider() {
+        case .googleDrive:
+            return hasGoogleDriveCredentials()
+        case .mega:
+            return hasMegaCredentials()
+        }
     }
 
     // MARK: - Data Management

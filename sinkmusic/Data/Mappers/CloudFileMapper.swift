@@ -2,7 +2,7 @@
 //  CloudFileMapper.swift
 //  sinkmusic
 //
-//  Created by Claude Code
+//  Created by miguel tomairo
 //  Clean Architecture - Data Layer
 //
 
@@ -40,6 +40,25 @@ enum CloudFileMapper {
     /// Convierte array de GoogleDriveFile a array de CloudFile
     static func toDomain(from googleDriveFiles: [GoogleDriveFile]) -> [CloudFile] {
         googleDriveFiles.map { toDomain(from: $0) }
+    }
+
+    // MARK: - Mega → Domain
+
+    /// Convierte MegaFile a CloudFile
+    static func toDomain(from megaFile: MegaFile) -> CloudFile {
+        CloudFile(
+            id: megaFile.id,
+            name: megaFile.name,
+            size: megaFile.size,
+            mimeType: megaFile.mimeType,
+            downloadURL: nil, // Mega requiere API call para URL de descarga
+            provider: .mega
+        )
+    }
+
+    /// Convierte array de MegaFile a array de CloudFile
+    static func toDomain(from megaFiles: [MegaFile]) -> [CloudFile] {
+        megaFiles.map { toDomain(from: $0) }
     }
 
     // MARK: - Domain → DTO

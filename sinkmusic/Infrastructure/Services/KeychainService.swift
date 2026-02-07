@@ -15,8 +15,15 @@ final class KeychainService: KeychainServiceProtocol {
     init() {}
 
     enum KeychainKey: String {
+        // Google Drive
         case googleDriveAPIKey = "com.sinkmusic.googleDriveAPIKey"
         case googleDriveFolderId = "com.sinkmusic.googleDriveFolderId"
+
+        // Mega
+        case megaFolderURL = "com.sinkmusic.megaFolderURL"
+
+        // Provider selection
+        case selectedCloudProvider = "com.sinkmusic.selectedCloudProvider"
     }
 
     // MARK: - Save
@@ -106,5 +113,36 @@ final class KeychainService: KeychainServiceProtocol {
     /// Verifica si las credenciales de Google Drive están configuradas
     var hasGoogleDriveCredentials: Bool {
         return googleDriveAPIKey != nil && googleDriveFolderId != nil
+    }
+
+    // MARK: - Helpers para Mega
+
+    var megaFolderURL: String? {
+        get { retrieve(for: .megaFolderURL) }
+        set {
+            if let value = newValue {
+                _ = save(value, for: .megaFolderURL)
+            } else {
+                _ = delete(for: .megaFolderURL)
+            }
+        }
+    }
+
+    /// Verifica si las credenciales de Mega están configuradas
+    var hasMegaCredentials: Bool {
+        return megaFolderURL != nil && !(megaFolderURL?.isEmpty ?? true)
+    }
+
+    // MARK: - Provider Selection
+
+    var selectedCloudProvider: String? {
+        get { retrieve(for: .selectedCloudProvider) }
+        set {
+            if let value = newValue {
+                _ = save(value, for: .selectedCloudProvider)
+            } else {
+                _ = delete(for: .selectedCloudProvider)
+            }
+        }
     }
 }
