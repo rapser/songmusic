@@ -26,14 +26,14 @@ final class MegaDataSource: NSObject, MegaServiceProtocol, @unchecked Sendable {
 
     // MARK: - Download State
 
-    private var downloadSession: URLSession?
-    private var downloadContinuation: CheckedContinuation<URL, Error>?
-    private var currentDownloadSongID: UUID?
-    private var currentDownloadFile: MegaFile?
-    private var downloadedDataBuffer: Data?
-    
     /// Handle de la carpeta pública para requests de descarga
     private var publicFolderHandle: String?
+
+    /// Session y estado para descarga con progreso (accesibles desde delegate y deinit en contexto nonisolated)
+    private let megaDownloadsLock = NSLock()
+    private nonisolated(unsafe) var megaActiveDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>, file: MegaFile)] = [:]
+    private nonisolated(unsafe) var megaLastReportedProgress: [Int: Int] = [:]
+    private nonisolated(unsafe) var megaDownloadSession: URLSession!
 
     // MARK: - Initialization
 
@@ -49,6 +49,13 @@ final class MegaDataSource: NSObject, MegaServiceProtocol, @unchecked Sendable {
 
         // Crear directorio si no existe
         try? FileManager.default.createDirectory(at: musicDirectory, withIntermediateDirectories: true)
+
+        // Session de descarga (delegate: self, accesible desde nonisolated deinit)
+        let config = URLSessionConfiguration.default
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.timeoutIntervalForRequest = 600
+        megaDownloadSession = URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }
 
     // MARK: - Fetch Files
@@ -193,31 +200,21 @@ final class MegaDataSource: NSObject, MegaServiceProtocol, @unchecked Sendable {
             print("📥 Descargando archivo de Mega:")
             print("   Archivo: \(file.name)")
             print("   FileID: \(file.id)")
-            print("   ParentID (subcarpeta): \(file.parentId ?? "ninguno")")
             print("   Handle público (raíz): \(publicFolderHandle ?? "ninguno")")
-            
-            // 1. Obtener URL de descarga
-            // IMPORTANTE: Siempre usar el handle de la carpeta pública raíz, no el parentId
-            // Las subcarpetas no son públicas, solo la carpeta raíz compartida
+
             let downloadURL = try await getDownloadURL(for: file.id, folderHandle: publicFolderHandle)
 
-            // 2. Descargar archivo encriptado
-            let encryptedData = try await downloadFile(from: downloadURL, songID: songID)
+            return try await withCheckedThrowingContinuation { continuation in
+                var request = URLRequest(url: downloadURL)
+                request.timeoutInterval = 600
+                request.cachePolicy = .reloadIgnoringLocalCacheData
 
-            // 3. Desencriptar
-            guard let keyData = Data(base64Encoded: file.decryptionKey),
-                  let decryptedData = crypto.decryptFile(encryptedData: encryptedData, fileKey: keyData) else {
-                throw MegaError.decryptionFailed
+                let task = megaDownloadSession.downloadTask(with: request)
+                megaDownloadsLock.lock()
+                megaActiveDownloads[task.taskIdentifier] = (songID: songID, continuation: continuation, file: file)
+                megaDownloadsLock.unlock()
+                task.resume()
             }
-
-            // 4. Guardar archivo
-            let localURL = musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
-            try decryptedData.write(to: localURL)
-
-            eventBus.emit(.completed(songID: songID))
-
-            return localURL
-
         } catch {
             eventBus.emit(.failed(songID: songID, error: error.localizedDescription))
             throw error
@@ -332,43 +329,6 @@ final class MegaDataSource: NSObject, MegaServiceProtocol, @unchecked Sendable {
         return downloadURL
     }
 
-    /// Descarga el archivo encriptado desde la URL de Mega
-    private func downloadFile(from url: URL, songID: UUID) async throws -> Data {
-        print("🚀 Iniciando descarga rápida del archivo encriptado...")
-        
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 600 // 10 minutos para archivos grandes
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-
-        // Emitir progreso inicial
-        eventBus.emit(.progress(songID: songID, progress: 0.0))
-        
-        // Usar URLSession.data() para descarga rápida (mucho más eficiente que byte por byte)
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw MegaError.downloadFailed("Respuesta inválida")
-        }
-
-        // Verificar rate limit en descarga
-        if httpResponse.statusCode == 509 {
-            let retryAfter = parseRetryAfterHeader(httpResponse)
-            throw MegaError.rateLimitExceeded(retryAfter: retryAfter)
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw MegaError.downloadFailed("HTTP \(httpResponse.statusCode)")
-        }
-
-        let totalSizeMB = Double(data.count) / (1024 * 1024)
-        print("✅ Descarga completada: \(String(format: "%.2f", totalSizeMB)) MB")
-        
-        // Progreso final
-        eventBus.emit(.progress(songID: songID, progress: 1.0))
-
-        return data
-    }
-
     // MARK: - Local File Management
 
     func localURL(for songID: UUID) -> URL? {
@@ -414,6 +374,121 @@ final class MegaDataSource: NSObject, MegaServiceProtocol, @unchecked Sendable {
     // MARK: - Cleanup
 
     deinit {
-        downloadSession?.invalidateAndCancel()
+        megaDownloadSession?.invalidateAndCancel()
+    }
+}
+
+// MARK: - URLSessionDownloadDelegate
+
+extension MegaDataSource: URLSessionDownloadDelegate {
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        megaDownloadsLock.lock()
+        guard let info = megaActiveDownloads[downloadTask.taskIdentifier] else {
+            megaDownloadsLock.unlock()
+            return
+        }
+        let songID = info.songID
+        megaDownloadsLock.unlock()
+
+        let progress: Double
+        if totalBytesExpectedToWrite > 0 {
+            progress = min(0.99, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+        } else {
+            let estimated: Int64 = 10 * 1024 * 1024
+            progress = min(0.95, Double(totalBytesWritten) / Double(estimated))
+        }
+
+        let progressPercent = Int(progress * 100)
+        megaDownloadsLock.lock()
+        let last = megaLastReportedProgress[downloadTask.taskIdentifier] ?? -1
+        // Emitir cada 2% para que la barra se vea moverse, o al llegar al final
+        let shouldEmit = progressPercent >= last + 2 || progressPercent == 0 || progress >= 0.99
+        if shouldEmit {
+            megaLastReportedProgress[downloadTask.taskIdentifier] = progressPercent
+        }
+        megaDownloadsLock.unlock()
+
+        if shouldEmit {
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.progress(songID: songID, progress: progress))
+            }
+        }
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        megaDownloadsLock.lock()
+        guard let info = megaActiveDownloads.removeValue(forKey: downloadTask.taskIdentifier) else {
+            megaDownloadsLock.unlock()
+            return
+        }
+        megaLastReportedProgress.removeValue(forKey: downloadTask.taskIdentifier)
+        megaDownloadsLock.unlock()
+
+        let songID = info.songID
+        let file = info.file
+        let continuation = info.continuation
+
+        // Leer el archivo temporal AHORA (síncronamente). URLSession borra el archivo
+        // al salir de este callback, por eso no podemos leerlo dentro de un Task async.
+        let encryptedData: Data
+        do {
+            encryptedData = try Data(contentsOf: location)
+        } catch {
+            Task { @MainActor [weak self] in
+                self?.eventBus.emit(.failed(songID: songID, error: error.localizedDescription))
+            }
+            continuation.resume(throwing: error)
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else {
+                continuation.resume(throwing: MegaError.downloadFailed("DataSource no disponible"))
+                return
+            }
+            do {
+                guard let keyData = Data(base64Encoded: file.decryptionKey),
+                      let decryptedData = self.crypto.decryptFile(encryptedData: encryptedData, fileKey: keyData) else {
+                    continuation.resume(throwing: MegaError.decryptionFailed)
+                    return
+                }
+                let localURL = self.musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
+                try decryptedData.write(to: localURL)
+                self.eventBus.emit(.completed(songID: songID))
+                continuation.resume(returning: localURL)
+            } catch {
+                self.eventBus.emit(.failed(songID: songID, error: error.localizedDescription))
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error else { return }
+        megaDownloadsLock.lock()
+        guard let info = megaActiveDownloads.removeValue(forKey: task.taskIdentifier) else {
+            megaDownloadsLock.unlock()
+            return
+        }
+        megaLastReportedProgress.removeValue(forKey: task.taskIdentifier)
+        megaDownloadsLock.unlock()
+
+        let songID = info.songID
+        let continuation = info.continuation
+        Task { @MainActor [weak self] in
+            self?.eventBus.emit(.failed(songID: songID, error: error.localizedDescription))
+        }
+        continuation.resume(throwing: error)
     }
 }

@@ -48,6 +48,7 @@ final class PlayerUseCases {
 
         try await audioPlayerRepository.play(songID: songID, url: localURL)
         currentSongID = songID
+        isPlaying = true
 
         // Incrementar contador de reproducción
         try await songRepository.incrementPlayCount(for: songID)
@@ -59,12 +60,14 @@ final class PlayerUseCases {
     /// Pausa la reproducción
     func pause() async {
         await audioPlayerRepository.pause()
+        isPlaying = false
     }
 
     /// Detiene la reproducción
     func stop() async {
         await audioPlayerRepository.stop()
         currentSongID = nil
+        isPlaying = false
     }
 
     /// Alterna entre play y pause
