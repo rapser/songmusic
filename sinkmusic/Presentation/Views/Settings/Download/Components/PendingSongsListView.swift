@@ -2,20 +2,39 @@
 //  PendingSongsListView.swift
 //  sinkmusic
 //
-//  Lista de canciones pendientes de descarga
+//  Lista de canciones pendientes de descarga (paginada para mejor rendimiento)
 //
 
 import SwiftUI
+
+private let pageSize = 20
 
 struct PendingSongsListView: View {
     let pendingSongs: [SongUI]
     let playerViewModel: PlayerViewModel
     @Binding var songForPlaylistSheet: SongUI?
 
+    @State private var displayedCount = pageSize
+
+    /// Solo las canciones visibles en la ventana actual (paginación)
+    private var displayedSongs: [SongUI] {
+        Array(pendingSongs.prefix(displayedCount))
+    }
+
+    private var hasMore: Bool {
+        displayedCount < pendingSongs.count
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerView
             songsList
+        }
+        .onChange(of: pendingSongs.count) { _, newCount in
+            // Si la lista se redujo (ej. se descargó una canción), ajustar displayedCount
+            if displayedCount > newCount {
+                displayedCount = min(displayedCount, max(pageSize, newCount))
+            }
         }
     }
 
@@ -34,12 +53,34 @@ struct PendingSongsListView: View {
     private var songsList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(pendingSongs) { song in
+                ForEach(displayedSongs) { song in
                     songRow(for: song)
+                }
+
+                if hasMore {
+                    loadMoreButton
                 }
             }
             .padding(.bottom, 16)
         }
+    }
+
+    private var loadMoreButton: some View {
+        Button {
+            displayedCount = min(displayedCount + pageSize, pendingSongs.count)
+        } label: {
+            HStack {
+                Text("Cargar más (\(displayedSongs.count) de \(pendingSongs.count))")
+                    .font(.subheadline)
+                    .foregroundColor(.appPurple)
+                Image(systemName: "chevron.down")
+                    .font(.caption)
+                    .foregroundColor(.appPurple)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
     }
 
     private func songRow(for song: SongUI) -> some View {
