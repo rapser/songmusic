@@ -1,10 +1,10 @@
 # SinkMusic
 
-Una aplicacion de musica moderna para iOS con reproduccion de audio de alta calidad, gestion de playlists, integracion con CarPlay y sincronizacion con Google Drive.
+Una aplicación de música moderna para iOS con reproducción de audio de alta calidad, gestión de playlists, integración con CarPlay y sincronización con **Google Drive** o **MEGA**.
 
-## Caracteristicas
+## Características
 
-### Reproduccion de Audio
+### Reproducción de audio
 - Reproduccion con AVAudioEngine y ecualizador de 6 bandas
 - Controles de reproduccion avanzados (play/pause, siguiente, anterior)
 - Modo aleatorio y tres modos de repeticion (off, all, one)
@@ -24,11 +24,14 @@ Una aplicacion de musica moderna para iOS con reproduccion de audio de alta cali
 - Controles de reproduccion desde Lock Screen
 - Artwork y metadatos en tiempo real
 
-### Google Drive
-- Sincronizacion automatica con carpeta de Google Drive
-- Descarga de canciones para reproduccion offline
-- Extraccion automatica de metadatos (ID3, artwork)
-- Gestion de cache de imagenes (3 tamanos: 32x32, 64x64, full)
+### Almacenamiento en la nube (Google Drive / MEGA)
+- **Dos proveedores**: Google Drive o MEGA (selección en Configuración)
+- Sincronización automática con la carpeta configurada
+- **Descarga individual** por canción y **Descargar todo** (solo con MEGA)
+- Cola de descargas secuencial con límites por proveedor (Swift 6: actor + async/await)
+- Aviso al usuario cuando se alcanza el límite de MEGA (5 GB/día) y limpieza de estado
+- Extracción automática de metadatos (ID3, artwork); escritura atómica del archivo para evitar errores de formato
+- Gestión de caché de imágenes (3 tamaños: 32×32, 64×64, full)
 
 ### Playlists
 - Creacion y gestion de playlists personalizadas
@@ -41,10 +44,15 @@ Una aplicacion de musica moderna para iOS con reproduccion de audio de alta cali
 - Presets predefinidos (Rock, Pop, Jazz, Clasica, etc.)
 - Aplicacion en tiempo real sin interrumpir reproduccion
 
-### Busqueda
-- Busqueda en tiempo real con debouncing (300ms)
-- Filtrado por titulo, artista y album
-- Resultados instantaneos
+### Mini player y reproductor
+- Color de fondo del mini player según la **carátula** de la canción (estilo Spotify)
+- Color dominante calculado la primera vez y guardado para siguientes reproducciones
+- Progreso de descarga fluido (throttle por tiempo) hasta 100%
+
+### Búsqueda
+- Búsqueda en tiempo real con debouncing (300 ms)
+- Filtrado por título, artista y álbum
+- Resultados instantáneos
 
 ## Arquitectura
 
@@ -459,18 +467,20 @@ private actor MegaDownloadState {
 
 - **iOS 18.0+**
 - **Xcode 16.0+** (Swift 6)
-- **Cuenta de Google Drive** con API habilitada
-- **Dispositivo fisico** para CarPlay y Live Activities
+- **Proveedor de nube**: Google Drive (API en Cloud Console) **o** MEGA (URL de carpeta pública)
+- **Dispositivo físico** recomendado para CarPlay y Live Activities
 
-## Instalacion
+## Instalación
 
-1. Clona el repositorio
+1. Clona el repositorio:
 ```bash
 git clone https://github.com/rapser/sinkmusic.git
 cd sinkmusic
 ```
 
-2. Configura Google Drive API en [Google Cloud Console](https://console.cloud.google.com/)
+2. Configura el almacenamiento en la nube:
+   - **Google Drive**: API en [Google Cloud Console](https://console.cloud.google.com/) y credenciales en la app
+   - **MEGA**: URL de carpeta pública (o escáner QR) en Configuración
 
 3. Abre el proyecto en Xcode
 ```bash

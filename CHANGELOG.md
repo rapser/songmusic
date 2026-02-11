@@ -1,11 +1,63 @@
 # Changelog
 
-Todos los cambios notables en este proyecto seran documentados en este archivo.
+Todos los cambios notables en este proyecto serán documentados en este archivo.
 
-El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
+El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
-## [1.0.0] (12) - 2026-02-10
+## [1.0.0] (13) - 2026-02-11
+
+### Descargas
+
+#### Descarga masiva (solo MEGA)
+- Botón **Descargar todo** en la pantalla de descargas cuando el proveedor es MEGA
+- Descargas encoladas de forma **secuencial** (una canción termina antes de iniciar la siguiente)
+- Cola gestionada con `DownloadQueueManager` (actor, Swift 6) y espera explícita con `await task.value`
+
+#### Límite de MEGA
+- Si se alcanza el límite de MEGA (5 GB/día): aviso al usuario con tiempo restante
+- Botón "Descargar todo" se deshabilita y se muestra mensaje informativo
+- Al detectar cuota excedida se cancela todo y se limpia estado en memoria (`clearAllTasksAndProgress`)
+
+#### Progreso de descarga
+- Progreso **continuo y fluido** (throttle por tiempo ~60 ms y por paso 0,5 %)
+- 0–99 % durante la descarga; 100 % solo cuando termina desencriptado y guardado
+- Identificación de tareas por `ObjectIdentifier(downloadTask)` para evitar reutilización de `taskIdentifier` entre descargas (evita que la segunda descarga pierda estado)
+
+#### Memoria y limpieza
+- Uso de `[weak self]` en las `Task` de descarga para evitar ciclos de retención
+- Limpieza al terminar: `cleanupWhenIdle()` (vacía progreso y error cuando no hay tareas)
+- Al terminar "Descargar todo" se llama a `cleanupWhenIdle()`
+- Referencias a `queueManager` en clausuras con `self` explícito (Swift 6 language mode)
+
+### UI / Mini player
+
+#### Color de fondo según carátula
+- El mini player y el reproductor completo usan el **color dominante** de la carátula de la canción
+- Primera vez: se calcula con `Color.dominantColor(from: artworkThumbnail)` y se **persiste** en la canción
+- Siguientes veces: se usa el color guardado (sin recalcular)
+- Ajuste de saturación/brillo para **más variedad** de colores (menos tonos oscuros)
+
+### Correcciones
+
+#### Error "The data couldn't be read because it isn't in the correct format"
+- **Escritura atómica** del archivo desencriptado: `decrypted.write(to: localURL, options: [.atomic])` para evitar lecturas de archivo a medias
+- **Metadata**: si AVFoundation falla al cargar el asset (duración/metadatos), se retorna `nil` y la descarga se considera correcta con fallback de metadatos (no se propaga el error al usuario)
+
+### Archivos tocados (resumen)
+- `DownloadViewModel.swift`: descarga secuencial, limpieza, `[weak self]`, `clearAllTasksAndProgress`, `isMegaProvider`, `isMegaQuotaExceeded`, captura explícita de `self` en closures
+- `DownloadQueueManager.swift`: documentación cola secuencial, `Sendable`
+- `DownloadMusicView.swift`: sección "Descargar todo" (solo Mega) y aviso de límite
+- `MegaDownloadSession.swift`: `TaskKey` por `ObjectIdentifier`, lectura síncrona del temp file en el delegate
+- `MegaDataSource.swift`: escritura atómica del .m4a
+- `MetadataService.swift`: `do/catch` al cargar asset y retorno `nil` sin propagar
+- `SongUI.swift`: `backgroundColor` desde artwork si no hay color guardado; `with(dominantColor:)`; persistencia del color vía `LibraryViewModel` / `LibraryUseCases.updateDominantColor`
+- `Color+Extension.swift`: `dominantColorRGB(from:)`, ajuste de brillo/saturación
+- `MainAppView.swift`: `.task(id: currentSong.id)` para persistir color dominante al mostrar canción
+
+---
+
+## [1.0.0] (11) - 2026-02-10
 
 ### 🏗️ Arquitectura - Migración Swift 6 Strict Concurrency Completa
 
@@ -158,7 +210,7 @@ Swift 6 strict mode requiere lista de captura explícita en todos los `Task { ..
 
 ---
 
-## [1.0.0] (13) - 2026-02-03
+## [1.0.0] (12) - 2026-02-03
 
 ### 🏗️ Arquitectura - Migracion Auth a Facade + Strategy
 
@@ -263,7 +315,7 @@ final class AppleAuthStrategy: AuthStrategy { ... }
 
 ---
 
-## [1.0.0] (12) - 2026-02-03
+## [1.0.0] (10) - 2026-02-03
 
 ### Arquitectura - Clean Architecture + DI Puro (Reemplazado en v13)
 
