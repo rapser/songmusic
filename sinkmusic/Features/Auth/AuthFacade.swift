@@ -180,6 +180,3 @@ final class AuthFacade {
     }
 }
 
-// MARK: - Sendable Conformance
-
-extension AuthFacade: @unchecked Sendable {}

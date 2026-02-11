@@ -27,7 +27,7 @@ protocol AuthStrategy: Sendable {
 
 /// Estrategia de autenticación con Sign In with Apple
 @MainActor
-final class AppleAuthStrategy: NSObject, AuthStrategy, @unchecked Sendable {
+final class AppleAuthStrategy: NSObject, AuthStrategy {
 
     private var continuation: CheckedContinuation<AuthUser, Error>?
 

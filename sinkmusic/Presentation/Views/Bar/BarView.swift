@@ -53,7 +53,7 @@ struct BarView: View {
         animationTask?.cancel()
 
         // Start new animation task
-        animationTask = Task { @MainActor in
+        animationTask = Task { @MainActor [self] in
             // Initial delay if specified
             if delay > 0 {
                 try? await Task.sleep(for: .milliseconds(Int(delay * 1000)))

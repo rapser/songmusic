@@ -12,7 +12,7 @@ import Foundation
 import AVFoundation
 
 @MainActor
-final class MegaDataSource: MegaServiceProtocol, @unchecked Sendable {
+final class MegaDataSource: MegaServiceProtocol {
 
     // MARK: - Dependencies
 

@@ -11,14 +11,14 @@ import AVFoundation
 import MediaPlayer
 
 /// SOLID: Dependency Inversion - Depende de EventBusProtocol
-final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate, @unchecked Sendable {
+@MainActor
+final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate {
 
     // MARK: - Dependencies
 
     private let eventBus: EventBusProtocol
 
-    // Thread-safe state management
-    private let stateLock = NSLock()
+    // State management — aislado a @MainActor, no necesita lock
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
@@ -95,11 +95,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                     try? audioEngine.start()
                 }
                 startPlaybackTimer()
-
-                // Notificar via EventBus
-                Task { @MainActor in
-                    self.eventBus.emit(.stateChanged(isPlaying: true, songID: self.currentlyPlayingID))
-                }
+                eventBus.emit(.stateChanged(isPlaying: true, songID: currentlyPlayingID))
             }
         } else {
             do {
@@ -154,15 +150,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                 self.currentlyPlayingID = songID
                 self.seekOffset = 0
                 startPlaybackTimer()
-
-                // Notificar via EventBus
-                Task { @MainActor in
-                    self.eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
-                }
+                eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
             } catch {
-                Task { @MainActor in
-                    self.eventBus.emit(.stateChanged(isPlaying: false, songID: nil))
-                }
+                eventBus.emit(.stateChanged(isPlaying: false, songID: nil))
             }
         }
     }
@@ -170,9 +160,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     func pause() {
         playerNode.pause()
         playbackTimer?.invalidate()
-        Task { @MainActor in
-            self.eventBus.emit(.stateChanged(isPlaying: false, songID: self.currentlyPlayingID))
-        }
+        eventBus.emit(.stateChanged(isPlaying: false, songID: currentlyPlayingID))
     }
 
     func stop() {
@@ -182,9 +170,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         let oldID = currentlyPlayingID
         currentlyPlayingID = nil
         audioFile = nil
-        Task { @MainActor in
-            self.eventBus.emit(.stateChanged(isPlaying: false, songID: oldID))
-        }
+        eventBus.emit(.stateChanged(isPlaying: false, songID: oldID))
     }
 
     func seek(to time: TimeInterval) {
@@ -226,9 +212,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             }
 
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-            Task { @MainActor in
-                self.eventBus.emit(.timeUpdated(current: time, duration: duration))
-            }
+            eventBus.emit(.timeUpdated(current: time, duration: duration))
 
             if wasPlaying {
                 playerNode.play()
@@ -241,18 +225,18 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         playbackTimer?.invalidate()
 
         playbackTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self,
-                  let nodeTime = self.playerNode.lastRenderTime,
-                  let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
-                  let audioFile = self.audioFile else {
-                return
-            }
-
-            let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
-            let currentTime = nodePlaybackTime + self.seekOffset
-            let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-
-            Task { @MainActor in
+            // El closure del Timer es @Sendable — no podemos leer propiedades @MainActor aquí.
+            // Despachamos todo al MainActor donde el acceso es seguro.
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let nodeTime = self.playerNode.lastRenderTime,
+                      let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
+                      let audioFile = self.audioFile else {
+                    return
+                }
+                let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
+                let currentTime = nodePlaybackTime + self.seekOffset
+                let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
                 self.eventBus.emit(.timeUpdated(current: currentTime, duration: duration))
             }
         }
@@ -275,10 +259,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     }
 
     // MARK: - AVAudioPlayerDelegate
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        guard let finishedSongID = currentlyPlayingID else { return }
-        currentlyPlayingID = nil
-        Task { @MainActor in
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard let finishedSongID = self.currentlyPlayingID else { return }
+            self.currentlyPlayingID = nil
             self.eventBus.emit(.stateChanged(isPlaying: false, songID: finishedSongID))
             self.eventBus.emit(.songFinished(finishedSongID))
         }
@@ -294,66 +279,52 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         )
     }
 
-    @objc private func handleAudioSessionInterruption(notification: Notification) {
+    @objc nonisolated private func handleAudioSessionInterruption(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             return
         }
 
-        switch type {
-        case .began:
-            if playerNode.isPlaying {
-                wasPlayingBeforeInterruption = true
-                pause()
+        let shouldResumeIfEnded: Bool? = {
+            guard type == .ended else { return nil }
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                return AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume)
             }
+            return true
+        }()
 
-        case .ended:
-            if wasPlayingBeforeInterruption {
-                let shouldResume: Bool
-                if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                    let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                    shouldResume = options.contains(.shouldResume)
-                } else {
-                    shouldResume = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            switch type {
+            case .began:
+                if self.playerNode.isPlaying {
+                    self.wasPlayingBeforeInterruption = true
+                    self.pause()
                 }
 
-                if shouldResume {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                        guard let self = self, let songID = self.currentlyPlayingID else {
-                            return
-                        }
-
-                        do {
-                            try AVAudioSession.sharedInstance().setActive(true)
-
-                            if !self.audioEngine.isRunning {
-                                try self.audioEngine.start()
-                            }
-
-                            self.playerNode.play()
-                            self.startPlaybackTimer()
-
-                            Task { @MainActor in
-                                self.eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
-                            }
-
-                            self.wasPlayingBeforeInterruption = false
-                        } catch {
-                            self.wasPlayingBeforeInterruption = false
-
-                            Task { @MainActor in
-                                self.eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
-                            }
-                        }
-                    }
-                } else {
-                    wasPlayingBeforeInterruption = false
+            case .ended:
+                guard self.wasPlayingBeforeInterruption, shouldResumeIfEnded == true else {
+                    self.wasPlayingBeforeInterruption = false
+                    return
                 }
-            }
+                try? await Task.sleep(for: .seconds(1))
+                guard let songID = self.currentlyPlayingID else { return }
+                do {
+                    try AVAudioSession.sharedInstance().setActive(true)
+                    if !self.audioEngine.isRunning { try self.audioEngine.start() }
+                    self.playerNode.play()
+                    self.startPlaybackTimer()
+                    self.eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
+                } catch {
+                    self.eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
+                }
+                self.wasPlayingBeforeInterruption = false
 
-        @unknown default:
-            break
+            @unknown default:
+                break
+            }
         }
     }
 
@@ -409,10 +380,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             guard let event = event as? MPChangePlaybackPositionCommandEvent else {
                 return .commandFailed
             }
+            let position = event.positionTime
             Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.seek(event.positionTime)))
+                self?.eventBus.emit(.remoteCommand(.seek(position)))
+                self?.seek(to: position)
             }
-            self?.seek(to: event.positionTime)
             return .success
         }
     }

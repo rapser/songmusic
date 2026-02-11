@@ -40,7 +40,7 @@ import Foundation
 /// NO usa singleton - Obtener instancia de DIContainer.shared.eventBus
 @MainActor
 @Observable
-final class EventBus: EventBusProtocol, @unchecked Sendable {
+final class EventBus: EventBusProtocol {
 
     // MARK: - Observable State
 

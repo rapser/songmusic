@@ -11,6 +11,7 @@ import Foundation
 /// Protocolo para el servicio de reproducción de audio
 /// Permite mockear AudioPlayerService para testing
 /// Nota: Los eventos se emiten via EventBus (no callbacks)
+@MainActor
 protocol AudioPlayerServiceProtocol: Sendable {
 
     // MARK: - Playback Control

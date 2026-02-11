@@ -19,16 +19,42 @@ struct MegaDownloadTaskInfo {
     let decryptAndSave: (Data) async throws -> URL
 }
 
+/// Estado mutable de las descargas activas — aislado en un actor para Swift 6
+private actor MegaDownloadState {
+    var activeTasks: [Int: MegaDownloadTaskInfo] = [:]
+    var lastReportedProgressPercent: [Int: Int] = [:]
+
+    func addTask(_ info: MegaDownloadTaskInfo, for id: Int) {
+        activeTasks[id] = info
+    }
+
+    func removeTask(for id: Int) -> MegaDownloadTaskInfo? {
+        lastReportedProgressPercent.removeValue(forKey: id)
+        return activeTasks.removeValue(forKey: id)
+    }
+
+    func getTask(for id: Int) -> MegaDownloadTaskInfo? {
+        activeTasks[id]
+    }
+
+    /// Devuelve true si se debe emitir progreso y actualiza el último porcentaje reportado
+    func shouldEmitProgress(for id: Int, percent: Int, progress: Double) -> Bool {
+        let last = lastReportedProgressPercent[id] ?? -1
+        let should = percent >= last + 2 || percent == 0 || progress >= 0.99
+        if should {
+            lastReportedProgressPercent[id] = percent
+        }
+        return should
+    }
+}
+
 /// Session de descarga con progreso. Implementa URLSessionDownloadDelegate.
-final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable {
 
     private let eventBus: EventBusProtocol
-
-    private let lock = NSLock()
-    private var activeTasks: [Int: MegaDownloadTaskInfo] = [:]
-    private var lastReportedProgressPercent: [Int: Int] = [:]
-
-    private var session: URLSession!
+    private let state = MegaDownloadState()
+    // nonisolated(unsafe): session se inicializa en init() y nunca se reemplaza
+    nonisolated(unsafe) private var session: URLSession!
 
     init(eventBus: EventBusProtocol) {
         self.eventBus = eventBus
@@ -59,9 +85,8 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, @unchecke
             continuation: continuation,
             decryptAndSave: decryptAndSave
         )
-        lock.lock()
-        activeTasks[task.taskIdentifier] = info
-        lock.unlock()
+        let taskID = task.taskIdentifier
+        Task { [self] in await self.state.addTask(info, for: taskID) }
         task.resume()
     }
 
@@ -82,13 +107,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, @unchecke
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        lock.lock()
-        guard let info = activeTasks[downloadTask.taskIdentifier] else {
-            lock.unlock()
-            return
-        }
-        let songID = info.songID
-        lock.unlock()
+        let taskID = downloadTask.taskIdentifier
 
         let progress: Double
         if totalBytesExpectedToWrite > 0 {
@@ -98,18 +117,13 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, @unchecke
         }
 
         let percent = Int(progress * 100)
-        lock.lock()
-        let last = lastReportedProgressPercent[downloadTask.taskIdentifier] ?? -1
-        let shouldEmit = percent >= last + 2 || percent == 0 || progress >= 0.99
-        if shouldEmit {
-            lastReportedProgressPercent[downloadTask.taskIdentifier] = percent
-        }
-        lock.unlock()
 
-        if shouldEmit {
-            Task { @MainActor in
-                eventBus.emit(.progress(songID: songID, progress: progress))
-            }
+        Task { [weak self] in
+            guard let self else { return }
+            guard let info = await self.state.getTask(for: taskID) else { return }
+            guard await self.state.shouldEmitProgress(for: taskID, percent: percent, progress: progress) else { return }
+            let songID = info.songID
+            await MainActor.run { self.eventBus.emit(.progress(songID: songID, progress: progress)) }
         }
     }
 
@@ -118,33 +132,26 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, @unchecke
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        lock.lock()
-        guard let info = activeTasks.removeValue(forKey: downloadTask.taskIdentifier) else {
-            lock.unlock()
-            return
-        }
-        lastReportedProgressPercent.removeValue(forKey: downloadTask.taskIdentifier)
-        lock.unlock()
+        let taskID = downloadTask.taskIdentifier
 
-        let encryptedData: Data
-        do {
-            encryptedData = try Data(contentsOf: location)
-        } catch {
-            Task { @MainActor in
-                eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription))
+        Task { [weak self] in
+            guard let self else { return }
+            guard let info = await self.state.removeTask(for: taskID) else { return }
+
+            let encryptedData: Data
+            do {
+                encryptedData = try Data(contentsOf: location)
+            } catch {
+                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+                info.continuation.resume(throwing: error)
+                return
             }
-            info.continuation.resume(throwing: error)
-            return
-        }
 
-        Task {
             do {
                 let localURL = try await info.decryptAndSave(encryptedData)
                 info.continuation.resume(returning: localURL)
             } catch {
-                Task { @MainActor in
-                    eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription))
-                }
+                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
                 info.continuation.resume(throwing: error)
             }
         }
@@ -152,17 +159,13 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, @unchecke
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error else { return }
-        lock.lock()
-        guard let info = activeTasks.removeValue(forKey: task.taskIdentifier) else {
-            lock.unlock()
-            return
-        }
-        lastReportedProgressPercent.removeValue(forKey: task.taskIdentifier)
-        lock.unlock()
+        let taskID = task.taskIdentifier
 
-        Task { @MainActor in
-            eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription))
+        Task { [weak self] in
+            guard let self else { return }
+            guard let info = await self.state.removeTask(for: taskID) else { return }
+            await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+            info.continuation.resume(throwing: error)
         }
-        info.continuation.resume(throwing: error)
     }
 }

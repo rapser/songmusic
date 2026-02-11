@@ -148,6 +148,3 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     }
 }
 
-// MARK: - Sendable Conformance
-
-extension CloudStorageRepositoryImpl: @unchecked Sendable {}

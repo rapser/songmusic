@@ -172,7 +172,7 @@ final class DownloadViewModel {
         }
 
         // Crear tarea de descarga
-        let task = Task { @MainActor in
+        let task = Task { @MainActor [self] in
             // Iniciar progreso en 0%
             downloadProgress[songID] = 0.0
             isDownloading = true

@@ -13,6 +13,7 @@ import Foundation
 
 /// Protocolo básico de reproducción de audio
 /// SOLID: Interface Segregation - Solo métodos de playback básico
+@MainActor
 protocol AudioPlaybackProtocol {
     /// Reproduce una canción desde una URL
     /// - Parameters:
@@ -33,6 +34,7 @@ protocol AudioPlaybackProtocol {
 
 /// Protocolo para control del ecualizador
 /// SOLID: Interface Segregation - Solo funciones de ecualizador
+@MainActor
 protocol AudioEqualizerProtocol {
     /// Actualiza las bandas del ecualizador
     /// - Parameter bands: Array con los valores de ganancia de cada banda
@@ -43,6 +45,7 @@ protocol AudioEqualizerProtocol {
 /// SOLID: Interface Segregation - Composición de protocolos específicos
 /// Cumple con Dependency Inversion Principle (SOLID)
 /// Nota: Los eventos de estado y controles remotos se emiten via EventBus
+@MainActor
 protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioEqualizerProtocol {
     /// Actualiza la información de Now Playing en el sistema (REQUERIDO)
     /// - Parameters:

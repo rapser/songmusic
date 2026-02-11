@@ -84,6 +84,3 @@ final class AuthViewModel {
     }
 }
 
-// MARK: - Sendable Conformance
-
-extension AuthViewModel: @unchecked Sendable {}
