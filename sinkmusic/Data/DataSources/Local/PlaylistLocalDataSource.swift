@@ -47,14 +47,14 @@ final class PlaylistLocalDataSource {
     func create(_ playlist: PlaylistDTO) throws {
         modelContext.insert(playlist)
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifyPlaylistsChange()
     }
 
     /// Actualiza una playlist existente
     func update(_ playlist: PlaylistDTO) throws {
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifyPlaylistsChange()
     }
 
     /// Elimina una playlist por ID
@@ -62,7 +62,7 @@ final class PlaylistLocalDataSource {
         guard let playlist = try getByID(id) else { return }
         modelContext.delete(playlist)
         try modelContext.save()
-        notificationService.notifyChange()
+        notificationService.notifyPlaylistsChange()
     }
 
     // MARK: - Song Management

@@ -41,6 +41,7 @@ final class SettingsViewModel {
     var showClearCacheConfirmation: Bool = false
     var showSaveConfirmation: Bool = false
     var showDeleteCredentialsAlert: Bool = false
+    var showQRScanner: Bool = false
 
     // MARK: - Dependencies
 

@@ -21,6 +21,8 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>La cámara se usa para escanear el código QR de la carpeta de Mega y configurar la URL automáticamente.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppTransportSecurity</key>

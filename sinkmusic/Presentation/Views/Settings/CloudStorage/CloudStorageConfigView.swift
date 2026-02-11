@@ -257,7 +257,7 @@ private struct MegaConfigSection: View {
             // Instrucciones para Mega
             MegaInstructionsCard()
 
-            // Folder URL
+            // Folder URL + botón escanear QR
             VStack(alignment: .leading, spacing: 8) {
                 Label {
                     Text("URL de Carpeta Pública")
@@ -268,13 +268,35 @@ private struct MegaConfigSection: View {
                         .foregroundColor(.appPurple)
                 }
 
-                TextField("", text: $settings.megaFolderURL, prompt: Text("https://mega.nz/folder/...").foregroundColor(.textGray))
-                    .textFieldStyle(CustomTextFieldStyle())
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.URL)
+                HStack(spacing: 12) {
+                    TextField("", text: $settings.megaFolderURL, prompt: Text("https://mega.nz/folder/...").foregroundColor(.textGray))
+                        .textFieldStyle(CustomTextFieldStyle())
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+
+                    Button {
+                        settings.showQRScanner = true
+                    } label: {
+                        Image(systemName: "camera.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.appPurple)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, 16)
+            .sheet(isPresented: $settings.showQRScanner) {
+                NavigationStack {
+                    QRCodeScannerView { url in
+                        settings.megaFolderURL = url
+                        settings.showQRScanner = false
+                    }
+                }
+            }
 
             // Estado actual
             if settingsViewModel.hasMegaCredentials {
@@ -322,9 +344,9 @@ private struct MegaInstructionsCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 InstructionStep(number: 1, text: "Abre mega.nz en tu navegador")
                 InstructionStep(number: 2, text: "Navega a la carpeta con tu música")
-                InstructionStep(number: 3, text: "Haz clic derecho > Obtener enlace")
+                InstructionStep(number: 3, text: "Haz clic derecho > Obtener enlace (o comparte por QR)")
                 InstructionStep(number: 4, text: "Asegúrate que sea un enlace público")
-                InstructionStep(number: 5, text: "Copia la URL completa (incluye #)")
+                InstructionStep(number: 5, text: "Copia la URL o escanea el código QR con el botón de cámara")
             }
 
             Text("Ejemplo: https://mega.nz/folder/ABC123#key456")
