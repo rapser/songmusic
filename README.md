@@ -48,7 +48,7 @@ Una aplicacion de musica moderna para iOS con reproduccion de audio de alta cali
 
 ## Arquitectura
 
-Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con concurrencia moderna.
+Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con **strict concurrency** verificada por el compilador (cero `@unchecked Sendable`, cero `NSLock`, cero `DispatchQueue`).
 
 ### Diagrama de Arquitectura
 
@@ -381,6 +381,44 @@ Auth Module (7 archivos)
 - Sin capas de abstraccion innecesarias
 - Extensible via nuevas Strategies
 
+### Concurrencia Swift 6 — Patrones Utilizados
+
+El proyecto compila con cero advertencias en Swift 6 strict concurrency mode. Cada tipo tiene su aislamiento declarado explícitamente:
+
+| Patrón | Donde se usa | Por qué |
+|--------|-------------|---------|
+| `@MainActor class` | ViewModels, AudioPlayerService, DataSources | Todo el estado de UI y servicios de audio se accede desde el main thread |
+| `private actor State` | `MegaDownloadState`, `GoogleDriveDownloadState` | Estado mutable de descargas concurrentes — exclusividad garantizada por el compilador |
+| `nonisolated func` | Delegates de AVFoundation, URLSession, NotificationCenter | El sistema llama estos métodos en threads arbitrarios — no pueden ser `@MainActor` |
+| `Task { @MainActor [weak self] in }` | Dentro de callbacks `nonisolated` | Puente de regreso al main actor para emitir eventos y actualizar estado |
+| `await MainActor.run { }` | Dentro de Tasks en actors | Emitir eventos al EventBus (`@MainActor`) desde contexto de actor |
+| `[self]` / `[weak self]` | Todos los Task closures | Swift 6 requiere listas de captura explícitas en todos los closures concurrentes |
+
+```swift
+// Ejemplo: NSObject + @MainActor + nonisolated delegates
+@MainActor
+final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+
+    // ✅ Todos los métodos son @MainActor por defecto
+    func play(songID: UUID, url: URL) { ... }
+
+    // ✅ nonisolated para callbacks del sistema (llamados desde threads arbitrarios)
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully: Bool) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.eventBus.emit(.songFinished(self.currentlyPlayingID!))
+        }
+    }
+}
+
+// Ejemplo: actor para estado mutable concurrente
+private actor MegaDownloadState {
+    var activeTasks: [Int: MegaDownloadTaskInfo] = [:]
+    // Acceso exclusivo garantizado — sin NSLock, sin data races
+    func addTask(_ info: MegaDownloadTaskInfo, for id: Int) { activeTasks[id] = info }
+}
+```
+
 ### Principios SOLID
 
 | Principio | Implementacion |
@@ -409,10 +447,13 @@ Auth Module (7 archivos)
 - **Google Drive API** para sincronizacion
 - **Keychain Services** para almacenamiento seguro
 
-### Concurrencia
-- **@MainActor** para thread-safety en UI
-- **Task API** para concurrencia estructurada
-- **AsyncStream** para eventos reactivos
+### Concurrencia (Swift 6 Strict Mode — cero advertencias)
+- **@MainActor** para aislamiento al main thread en ViewModels y servicios
+- **actor** para estado mutable compartido en DataSources (`MegaDownloadState`, `GoogleDriveDownloadState`)
+- **Task API** para concurrencia estructurada (reemplaza GCD/DispatchQueue)
+- **AsyncStream** para el sistema de eventos reactivo (EventBus)
+- **nonisolated** en callbacks de sistema (AVFoundation, URLSession, NotificationCenter)
+- Sin `@unchecked Sendable` — toda la seguridad de concurrencia es verificada por el compilador
 
 ## Requisitos
 

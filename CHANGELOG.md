@@ -5,6 +5,159 @@ Todos los cambios notables en este proyecto seran documentados en este archivo.
 El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (12) - 2026-02-10
+
+### 🏗️ Arquitectura - Migración Swift 6 Strict Concurrency Completa
+
+Eliminación de toda la deuda técnica de concurrencia: cero `@unchecked Sendable`, cero `NSLock`, cero `DispatchQueue`. El proyecto compila con cero advertencias en Swift 6 strict concurrency mode.
+
+#### 🗑️ Eliminación de @unchecked Sendable (8 archivos)
+
+`@unchecked Sendable` desactiva las comprobaciones de data race del compilador Swift 6. Se eliminó de todos los archivos porque cada clase ya tiene aislamiento correcto:
+
+| Archivo | Razón del cambio |
+|---------|-----------------|
+| `Features/Auth/AuthFacade.swift` | Clase ya `@MainActor @Observable` — `Sendable` implícito |
+| `Features/Auth/AuthViewModel.swift` | Clase ya `@MainActor @Observable` — `Sendable` implícito |
+| `Features/Auth/AuthStrategy.swift` | `AppleAuthStrategy` — sin estado mutable compartido |
+| `Data/Repositories/CloudStorageRepositoryImpl.swift` | Clase ya `@MainActor` — `Sendable` implícito |
+| `Data/DataSources/Remote/MegaDataSource.swift` | Clase ya `@MainActor` — `Sendable` implícito |
+| `Core/EventBus/EventBus.swift` | Clase ya `@MainActor @Observable` — `Sendable` implícito |
+| `Infrastructure/Services/AudioPlayerService.swift` | Migrado a `@MainActor` (ver abajo) |
+| `Data/DataSources/Remote/MegaDownloadSession.swift` | Estado extraído a `actor` interno (ver abajo) |
+
+#### 🔄 NSLock → actor (3 archivos)
+
+`NSLock` manual es error-prone y no ofrece garantías en tiempo de compilación. Se reemplazó con tipos `actor` que garantizan exclusividad de acceso verificada por el compilador:
+
+**`MegaDownloadSession.swift`** — Nuevo `private actor MegaDownloadState`:
+```swift
+private actor MegaDownloadState {
+    var activeTasks: [Int: MegaDownloadTaskInfo] = [:]
+    var lastReportedProgressPercent: [Int: Int] = [:]
+
+    func addTask(_ info: MegaDownloadTaskInfo, for id: Int) { ... }
+    func removeTask(for id: Int) -> MegaDownloadTaskInfo? { ... }
+    func getTask(for id: Int) -> MegaDownloadTaskInfo? { ... }
+    func shouldEmitProgress(for id: Int, percent: Int, progress: Double) -> Bool { ... }
+}
+```
+
+**`GoogleDriveDataSource.swift`** — Nuevo `private actor GoogleDriveDownloadState`:
+```swift
+private actor GoogleDriveDownloadState {
+    var activeDownloads: [Int: (songID: UUID, continuation: CheckedContinuation<URL, Error>)] = [:]
+    var lastReportedProgress: [Int: Int] = [:]
+
+    func addDownload(songID: UUID, continuation: ..., for id: Int) { ... }
+    func removeDownload(for id: Int) -> ...? { ... }
+    func shouldLogProgress(for id: Int, percent: Int) -> Bool { ... }
+}
+```
+
+**`AudioPlayerService.swift`** — Añadido `@MainActor` a la clase completa:
+```swift
+@MainActor
+final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate {
+    // stateLock eliminado completamente — @MainActor garantiza aislamiento al main thread
+}
+```
+
+#### ⚡ DispatchQueue.main → Task.sleep (1 caso)
+
+Eliminado el único uso de GCD legacy en `AudioPlayerService.swift`:
+```swift
+// Antes — legacy GCD
+DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { ... }
+
+// Después — Swift 6 structured concurrency
+Task { @MainActor [weak self] in
+    try? await Task.sleep(for: .seconds(1))
+    // lógica de reanudación...
+}
+```
+
+#### 📋 @MainActor en protocolos de audio
+
+Error corregido: `"Conformance of 'AudioPlayerService' to protocol 'AudioEqualizerProtocol' crosses into main actor-isolated code"`. Causa: protocolos declarados sin `@MainActor` pero la clase conformante sí lo tenía.
+
+```swift
+// Domain/Interfaces/AudioPlayerProtocol.swift
+@MainActor protocol AudioPlaybackProtocol { ... }
+@MainActor protocol AudioEqualizerProtocol { func updateEqualizer(bands: [Float]) }
+@MainActor protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioEqualizerProtocol { ... }
+
+// Infrastructure/Protocols/AudioPlayerServiceProtocol.swift
+@MainActor protocol AudioPlayerServiceProtocol: Sendable { ... }
+```
+
+#### 🕐 Fix Timer @Sendable closure
+
+Error corregido: `"Main actor-isolated property 'playerNode' can not be referenced from a Sendable closure"`. El closure del `Timer` es `@Sendable` por definición — no puede leer propiedades `@MainActor` directamente. Solución: mover todas las lecturas al `@MainActor` mediante un `Task` anidado:
+
+```swift
+// Antes — ❌ acceso a @MainActor desde closure @Sendable
+playbackTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+    guard let self else { return }
+    let nodeTime = self.playerNode.lastRenderTime  // Error Swift 6
+    ...
+}
+
+// Después — ✅ todo dentro de Task { @MainActor }
+playbackTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+    Task { @MainActor [weak self] in
+        guard let self,
+              let nodeTime = self.playerNode.lastRenderTime,
+              let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
+              let audioFile = self.audioFile else { return }
+        let currentTime = Double(playerTime.sampleTime) / playerTime.sampleRate + self.seekOffset
+        let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+        self.eventBus.emit(.timeUpdated(current: currentTime, duration: duration))
+    }
+}
+```
+
+#### 🔑 Capturas explícitas en closures (16 advertencias corregidas)
+
+Swift 6 strict mode requiere lista de captura explícita en todos los `Task { ... }` y uso de `self.` después de `guard let self`. Corregido en 13 archivos:
+
+- `AudioPlayerService.swift` — métodos `nonisolated` (`handleAudioSessionInterruption`, `audioPlayerDidFinishPlaying`, scheduleFile callbacks)
+- `GoogleDriveDataSource.swift` — todos los delegate methods `URLSessionDownloadDelegate`
+- `MegaDownloadSession.swift` — todos los delegate methods `URLSessionDownloadDelegate`
+- `DownloadViewModel.swift` — `Task { @MainActor [self] in }` en `download()`
+- `BarView.swift` — `animationTask = Task { @MainActor [self] in }`
+
+### 📊 Métricas de Calidad
+
+| Métrica | Antes | Después | Delta |
+|---------|-------|---------|-------|
+| `@unchecked Sendable` | 8 | **0** | -100% |
+| `NSLock` | 3 | **0** | -100% |
+| `DispatchQueue.main` | 1 | **0** | -100% |
+| Advertencias Swift 6 concurrency | 16+ | **0** | -100% |
+| Tipos `actor` para estado mutable | 0 | **2** | +2 |
+| Clases con `@MainActor` explícito | ~6 | **+1** | AudioPlayerService |
+
+### 🔧 Archivos Modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `Infrastructure/Services/AudioPlayerService.swift` | `@MainActor`, sin `NSLock`, Timer fix, `nonisolated` delegates, `Task.sleep` |
+| `Data/DataSources/Remote/MegaDownloadSession.swift` | `actor MegaDownloadState`, sin `NSLock`, `Sendable` correcto |
+| `Data/DataSources/Remote/GoogleDriveDataSource.swift` | `actor GoogleDriveDownloadState`, sin `NSLock`, self explícito en delegates |
+| `Domain/Interfaces/AudioPlayerProtocol.swift` | `@MainActor` en `AudioPlaybackProtocol`, `AudioEqualizerProtocol`, `AudioPlayerProtocol` |
+| `Infrastructure/Protocols/AudioPlayerServiceProtocol.swift` | `@MainActor` en `AudioPlayerServiceProtocol` |
+| `Features/Auth/AuthFacade.swift` | Eliminada extensión `@unchecked Sendable` |
+| `Features/Auth/AuthViewModel.swift` | Eliminada extensión `@unchecked Sendable` |
+| `Features/Auth/AuthStrategy.swift` | Eliminado `, @unchecked Sendable` |
+| `Data/Repositories/CloudStorageRepositoryImpl.swift` | Eliminada extensión `@unchecked Sendable` |
+| `Data/DataSources/Remote/MegaDataSource.swift` | Eliminado `, @unchecked Sendable` |
+| `Core/EventBus/EventBus.swift` | Eliminado `, @unchecked Sendable` |
+| `Presentation/ViewModels/Download/DownloadViewModel.swift` | `[self]` en Task capture list |
+| `Presentation/Views/Bar/BarView.swift` | `[self]` en Task capture list |
+
+---
+
 ## [1.0.0] (13) - 2026-02-03
 
 ### 🏗️ Arquitectura - Migracion Auth a Facade + Strategy
