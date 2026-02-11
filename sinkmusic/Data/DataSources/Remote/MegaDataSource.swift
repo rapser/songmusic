@@ -90,7 +90,8 @@ final class MegaDataSource: MegaServiceProtocol {
             throw MegaError.decryptionFailed
         }
         let localURL = musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
-        try decrypted.write(to: localURL)
+        // Escritura atómica: evita que se lea el archivo antes de que esté completo en disco
+        try decrypted.write(to: localURL, options: [.atomic])
         eventBus.emit(.completed(songID: songID))
         return localURL
     }

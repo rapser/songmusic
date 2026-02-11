@@ -17,18 +17,20 @@ import OSLog
 final class MetadataService: MetadataServiceProtocol {
     private let logger = Logger(subsystem: "com.sinkmusic.app", category: "MetadataService")
 
-    /// Extrae los metadatos de un archivo de audio local
+    /// Extrae los metadatos de un archivo de audio local.
+    /// Si el archivo no es un formato válido o falla la lectura, retorna nil sin propagar error.
     func extractMetadata(from url: URL) async -> SongMetadata? {
         let asset = AVURLAsset(url: url)
 
-        // Obtener duración usando async/await (iOS 16+)
-        guard let duration = try? await asset.load(.duration) else {
-            return nil
-        }
-        let durationSeconds = CMTimeGetSeconds(duration)
-
-        // Obtener metadatos comunes usando async/await (iOS 16+)
-        guard let metadata = try? await asset.load(.metadata) else {
+        // Cargar duración y metadata; cualquier fallo de formato se ignora y retornamos nil
+        let durationSeconds: Double
+        let metadata: [AVMetadataItem]
+        do {
+            let duration = try await asset.load(.duration)
+            durationSeconds = CMTimeGetSeconds(duration)
+            metadata = try await asset.load(.metadata)
+        } catch {
+            logger.warning("No se pudo cargar asset (\(url.lastPathComponent)): \(String(describing: error))")
             return nil
         }
 

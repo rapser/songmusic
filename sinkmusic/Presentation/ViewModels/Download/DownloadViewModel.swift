@@ -108,10 +108,12 @@ final class DownloadViewModel {
                 // Mantener barra en 100% por 0.5 segundos para feedback visual
                 try? await Task.sleep(nanoseconds: 500_000_000)
 
-                // Limpiar progreso y tarea
+                // Limpiar progreso y tarea (liberar memoria por canción)
                 downloadProgress[songID] = nil
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
+                // Cuando no quede ninguna tarea, dejar estado limpio
+                if !isDownloading { downloadError = nil }
             }
 
         case .failed(let songID, let error):
@@ -124,6 +126,7 @@ final class DownloadViewModel {
                 // Limpiar tarea
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
+                if !isDownloading { downloadError = nil }
             }
 
         case .cancelled(let songID):
@@ -171,8 +174,10 @@ final class DownloadViewModel {
             return
         }
 
-        // Crear tarea de descarga
-        let task = Task { @MainActor [self] in
+        // Crear tarea de descarga (weak self para evitar ciclo de retención)
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+
             // Iniciar progreso en 0%
             downloadProgress[songID] = 0.0
             isDownloading = true
@@ -198,9 +203,10 @@ final class DownloadViewModel {
             }
 
             defer {
-                // Liberar slot al terminar (éxito o error)
-                Task {
-                    await queueManager.releaseDownloadSlot(for: provider)
+                // Liberar slot al terminar (éxito o error) para liberar memoria de cola
+                Task { [weak self] in
+                    guard let self else { return }
+                    await self.queueManager.releaseDownloadSlot(for: provider)
                 }
             }
 
@@ -214,7 +220,7 @@ final class DownloadViewModel {
                 // Nota: La limpieza de estado se hace en handleDownloadEvent(.completed)
 
             } catch let megaError as MegaError where megaError.isRateLimitError {
-                // Manejar límite de cuota de Mega
+                // Manejar límite de cuota de Mega: terminar proceso y liberar toda la memoria
                 let retryAfter = megaError.retryAfterSeconds ?? 3600
 
                 await queueManager.markQuotaExceeded(provider: provider, retryAfter: retryAfter)
@@ -222,19 +228,16 @@ final class DownloadViewModel {
                 quotaExceededProvider = provider
                 quotaResetTime = Date().addingTimeInterval(retryAfter)
                 showQuotaAlert = true
+                downloadError = megaError.localizedDescription
 
                 eventBus.emit(DownloadEvent.quotaExceeded(
                     provider: provider.rawValue,
                     resetTime: Date().addingTimeInterval(retryAfter)
                 ))
 
-                downloadProgress[songID] = nil
-                downloadError = megaError.localizedDescription
-                print("⚠️ \(downloadError!)")
-
-                // Limpiar tarea
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+                // Borrar todo lo que esté en memoria: cancelar todas las descargas y vaciar progreso
+                clearAllTasksAndProgress()
+                print("⚠️ Límite Mega alcanzado; descargas canceladas y estado limpiado")
 
             } catch {
                 // Nota: El error también se emite via EventBus
@@ -250,16 +253,22 @@ final class DownloadViewModel {
             }
         }
 
-        // Guardar tarea
+        // Guardar tarea y esperar a que termine (así "Descargar todo" es realmente secuencial)
         activeTasksManager.tasks[songID] = task
+        await task.value
     }
 
-    /// Descarga múltiples canciones
+    /// Descarga múltiples canciones en cola secuencial (una tras otra).
+    /// Cada petición pasa por el actor DownloadQueueManager (Swift 6); con Mega pueden
+    /// coexistir hasta 3 descargas si se lanzan por otros medios, pero aquí es secuencial.
+    /// Al terminar todo el proceso se deja el estado limpio (sin retenciones).
     /// - Parameter songIDs: IDs de las canciones a descargar
     func downloadMultiple(songIDs: [UUID]) async {
         for songID in songIDs {
             await download(songID: songID)
         }
+        // Limpieza explícita al terminar todo: sin ciclos de retención ni estado residual
+        cleanupWhenIdle()
     }
 
     /// Elimina la descarga de una canción
@@ -313,12 +322,35 @@ final class DownloadViewModel {
         }
 
         activeTasksManager.tasks.removeAll()
+        downloadProgress.removeAll()
+        downloadError = nil
         isDownloading = false
 
-        // Resetear cola
-        Task {
-            await queueManager.reset()
+        // Resetear cola (liberar continuations pendientes)
+        Task { [weak self] in
+            guard let self else { return }
+            await self.queueManager.reset()
         }
+    }
+
+    /// Deja el estado limpio cuando no hay descargas activas (evita retenciones residuales).
+    private func cleanupWhenIdle() {
+        guard activeTasksManager.tasks.isEmpty else { return }
+        isDownloading = false
+        downloadError = nil
+        // downloadProgress ya está vacío por cada .completed/.failed; por si acaso no quedar claves huérfanas
+        downloadProgress.removeAll()
+    }
+
+    /// Cancela todas las tareas de descarga y vacía el progreso (libera memoria).
+    /// Se usa cuando se alcanza el límite de Mega para que no quede nada ocupando memoria.
+    private func clearAllTasksAndProgress() {
+        for (_, task) in activeTasksManager.tasks {
+            task.cancel()
+        }
+        activeTasksManager.tasks.removeAll()
+        downloadProgress.removeAll()
+        isDownloading = false
     }
 
     // MARK: - Quota Management
@@ -346,6 +378,16 @@ final class DownloadViewModel {
     }
 
     // MARK: - Utilities
+
+    /// True si el proveedor actual es Mega (permite descarga masiva)
+    var isMegaProvider: Bool {
+        credentialsRepository.getSelectedCloudProvider() == .mega
+    }
+
+    /// True si Mega tiene el límite de cuota alcanzado (informar al usuario)
+    var isMegaQuotaExceeded: Bool {
+        quotaExceededProvider == .mega
+    }
 
     /// Verifica si una canción está siendo descargada
     /// - Parameter songID: ID de la canción

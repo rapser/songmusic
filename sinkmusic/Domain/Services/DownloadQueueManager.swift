@@ -5,13 +5,18 @@
 //  Created by miguel tomairo
 //  Clean Architecture - Domain Layer
 //
+//  Cola de descargas con Swift 6: actor + async/await.
+//  - Descarga individual o "Descargar todo": las peticiones se encolan y se atienden
+//    de forma ordenada; "Descargar todo" envía una canción tras otra (secuencial).
+//  - Límites por proveedor: Google Drive 1 concurrente, Mega hasta 3 concurrentes.
+//
 
 import Foundation
 
-/// Actor que gestiona la cola de descargas con límites por proveedor
-/// Google Drive: 1 descarga concurrente (se bloquea fácilmente)
-/// Mega: 3 descargas concurrentes (más permisivo)
-actor DownloadQueueManager {
+/// Actor que gestiona la cola de descargas con límites por proveedor (Swift 6 concurrency).
+/// - **Secuencial** cuando se usa "Descargar todo": una canción tras otra.
+/// - **Cola con límite**: Google Drive 1 descarga a la vez; Mega hasta 3 a la vez si se lanzan varias.
+actor DownloadQueueManager: Sendable {
 
     // MARK: - Configuration
 

@@ -62,12 +62,57 @@ struct DownloadMusicView: View {
         } else if libraryViewModel.isLoadingSongs {
             LoadingStateView()
         } else {
-            PendingSongsListView(
-                pendingSongs: pendingSongs,
-                playerViewModel: playerViewModel,
-                songForPlaylistSheet: $songForPlaylistSheet
-            )
+            VStack(spacing: 0) {
+                if downloadViewModel.isMegaProvider {
+                    bulkDownloadSection
+                }
+                PendingSongsListView(
+                    pendingSongs: pendingSongs,
+                    playerViewModel: playerViewModel,
+                    songForPlaylistSheet: $songForPlaylistSheet
+                )
+            }
         }
+    }
+
+    /// Botón "Descargar todo" solo para Mega; deshabilitado e informa si se alcanzó el límite
+    @ViewBuilder
+    private var bulkDownloadSection: some View {
+        let quotaExceeded = downloadViewModel.isMegaQuotaExceeded
+        VStack(spacing: 8) {
+            Button {
+                guard !quotaExceeded else {
+                    downloadViewModel.showQuotaAlert = true
+                    return
+                }
+                Task {
+                    await downloadViewModel.downloadMultiple(songIDs: pendingSongs.map(\.id))
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                    Text("Descargar todo")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(quotaExceeded ? .textGray : .white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(quotaExceeded ? Color.appGray : Color.appPurple)
+                .cornerRadius(10)
+            }
+            .disabled(quotaExceeded)
+            .buttonStyle(.plain)
+
+            if quotaExceeded {
+                Text("Límite de Mega alcanzado (5 GB/día). \(downloadViewModel.quotaResetTimeFormatted ?? "Espera para volver a descargar.")")
+                    .font(.caption)
+                    .foregroundColor(.textGray)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.appGray.opacity(0.5))
     }
 }
 
