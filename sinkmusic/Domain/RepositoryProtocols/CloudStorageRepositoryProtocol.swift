@@ -1,0 +1,68 @@
+//
+//  CloudStorageRepositoryProtocol.swift
+//  sinkmusic
+//
+//  Created by miguel tomairo
+//  Clean Architecture - Domain Layer
+//
+
+import Foundation
+
+/// Protocolo de repositorio para almacenamiento en la nube
+/// Abstrae cualquier servicio de almacenamiento (Google Drive, OneDrive, Mega, etc.)
+protocol CloudStorageRepositoryProtocol: Sendable {
+
+    // MARK: - Remote Operations
+
+    /// Obtiene lista de archivos de música desde el servicio cloud
+    func fetchSongsFromFolder() async throws -> [CloudFile]
+
+    /// Descarga un archivo desde el servicio cloud
+    /// El progreso se emite via EventBus como DownloadEvent.progress
+    func download(
+        fileID: String,
+        songID: UUID
+    ) async throws -> URL
+
+    /// Obtiene la duración de un archivo de audio local
+    @MainActor func getDuration(for url: URL) -> TimeInterval?
+
+    /// Elimina el archivo descargado localmente
+    @MainActor func deleteDownload(for songID: UUID) throws
+
+    /// Obtiene la URL local de un archivo descargado
+    @MainActor func localURL(for songID: UUID) -> URL?
+}
+
+/// Errores de almacenamiento en la nube
+enum CloudStorageError: Error, LocalizedError {
+    case credentialsNotConfigured
+    case missingAPIKey
+    case missingFolderId
+    case unsupportedProvider
+    case downloadFailed(Error)
+    case invalidFile
+    case fileNotFound
+    case providerNotSupported
+
+    var errorDescription: String? {
+        switch self {
+        case .credentialsNotConfigured:
+            return "Las credenciales del proveedor no están configuradas"
+        case .missingAPIKey:
+            return "Falta la API Key"
+        case .missingFolderId:
+            return "Falta el ID de carpeta"
+        case .unsupportedProvider:
+            return "Proveedor no soportado"
+        case .downloadFailed(let error):
+            return "Error al descargar: \(error.localizedDescription)"
+        case .invalidFile:
+            return "Archivo inválido"
+        case .fileNotFound:
+            return "Archivo no encontrado"
+        case .providerNotSupported:
+            return "Proveedor de almacenamiento no soportado"
+        }
+    }
+}

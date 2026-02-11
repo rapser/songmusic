@@ -2,7 +2,8 @@
 //  sinkmusicApp.swift
 //  sinkmusic
 //
-//  Created by miguel tomairo on 6/09/25.
+//  Refactorizado con Clean Architecture + EventBus
+//  Usa DIContainer para inyección de dependencias
 //
 
 import SwiftUI
@@ -10,12 +11,23 @@ import SwiftData
 
 @main
 struct sinkmusicApp: App {
-    @StateObject private var libraryViewModel = LibraryViewModel()
-    @StateObject private var playerViewModel = PlayerViewModel()
-    @StateObject private var songListViewModel = SongListViewModel()
-    @StateObject private var metadataViewModel = MetadataCacheViewModel()
-    @StateObject private var equalizerViewModel = EqualizerViewModel()
-    @StateObject private var authManager = AuthenticationManager.shared
+    // MARK: - DIContainer
+    @MainActor
+    private let container = DIContainer.shared
+
+    // MARK: - ViewModels creados con DIContainer
+    @State private var playerViewModel: PlayerViewModel?
+    @State private var libraryViewModel: LibraryViewModel?
+    @State private var homeViewModel: HomeViewModel?
+    @State private var searchViewModel: SearchViewModel?
+    @State private var playlistViewModel: PlaylistViewModel?
+    @State private var settingsViewModel: SettingsViewModel?
+    @State private var equalizerViewModel: EqualizerViewModel?
+    @State private var downloadViewModel: DownloadViewModel?
+    @State private var authViewModel: AuthViewModel?
+
+    // MARK: - UI Cache
+    @State private var metadataViewModel = MetadataCacheViewModel()
 
     init() {
         // Configurar apariencia del NavigationBar
@@ -36,41 +48,97 @@ struct sinkmusicApp: App {
         UINavigationBar.appearance().compactAppearance = appearance
         UINavigationBar.appearance().tintColor = .white
     }
-    
+
     var body: some Scene {
         WindowGroup {
             Group {
-                if authManager.isCheckingAuth {
-                    // Mostrar pantalla en blanco mientras se verifica la autenticación
+                if let authVM = authViewModel {
+                    if authVM.isCheckingAuth {
+                        // Pantalla de carga mientras verifica autenticación
+                        Color.appDark
+                            .ignoresSafeArea()
+                    } else if authVM.isAuthenticated {
+                        // App principal con ViewModels
+                        if let playerVM = playerViewModel,
+                           let libraryVM = libraryViewModel,
+                           let homeVM = homeViewModel,
+                           let searchVM = searchViewModel,
+                           let playlistVM = playlistViewModel,
+                           let settingsVM = settingsViewModel,
+                           let equalizerVM = equalizerViewModel,
+                           let downloadVM = downloadViewModel {
+
+                            MainAppView()
+                                .environment(playerVM)
+                                .environment(libraryVM)
+                                .environment(homeVM)
+                                .environment(searchVM)
+                                .environment(playlistVM)
+                                .environment(settingsVM)
+                                .environment(equalizerVM)
+                                .environment(downloadVM)
+                                .environment(metadataViewModel)
+                                .environment(authVM)
+                                .onAppear {
+                                    // Configurar CarPlay cuando la app aparece
+                                    container.carPlayService.configure(with: playerVM)
+                                }
+                        } else {
+                            // Fallback mientras se inicializan ViewModels
+                            ProgressView("Inicializando...")
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Color.appDark)
+                        }
+                    } else {
+                        LoginView()
+                            .environment(authVM)
+                            .transition(.opacity)
+                    }
+                } else {
+                    // Fallback mientras se crea AuthViewModel
                     Color.appDark
                         .ignoresSafeArea()
-                } else if authManager.isAuthenticated {
-                    MainAppView()
-                        .environmentObject(libraryViewModel)
-                        .environmentObject(playerViewModel)
-                        .environmentObject(songListViewModel)
-                        .environmentObject(metadataViewModel)
-                        .environmentObject(equalizerViewModel)
-                        .environmentObject(authManager)
-                        .onAppear {
-                            // Configurar CarPlay cuando la app aparece
-                            CarPlayService.shared.configure(with: playerViewModel)
-                        }
-                } else {
-                    LoginView(authManager: authManager)
-                        .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
+            .animation(.easeInOut(duration: 0.3), value: authViewModel?.isAuthenticated)
             .task {
-                // Configurar el ModelContext compartido en los ViewModels
-                // Esto permite que las descargas continúen y las estadísticas se actualicen
-                if let modelContext = try? ModelContext(ModelContainer(for: Song.self, Playlist.self)) {
-                    songListViewModel.configure(with: modelContext)
-                    playerViewModel.configure(with: modelContext)
-                }
+                // Configurar DIContainer con ModelContext
+                await configureDIContainer()
             }
         }
-        .modelContainer(for: [Song.self, Playlist.self])
+        .modelContainer(for: [SongDTO.self, PlaylistDTO.self])
+    }
+
+    // MARK: - Configuration
+
+    @MainActor
+    private func configureDIContainer() async {
+        do {
+            // Crear ModelContainer y ModelContext
+            let modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self)
+            let modelContext = ModelContext(modelContainer)
+
+            // Configurar DIContainer
+            container.configure(with: modelContext)
+
+            // Crear ViewModels usando DIContainer
+            // AuthViewModel primero para que pueda recibir eventos de autenticación
+            authViewModel = container.makeAuthViewModel()
+
+            playerViewModel = container.makePlayerViewModel()
+            libraryViewModel = container.makeLibraryViewModel()
+            homeViewModel = container.makeHomeViewModel()
+            searchViewModel = container.makeSearchViewModel()
+            playlistViewModel = container.makePlaylistViewModel()
+            settingsViewModel = container.makeSettingsViewModel()
+            equalizerViewModel = container.makeEqualizerViewModel()
+            downloadViewModel = container.makeDownloadViewModel()
+
+            print("✅ DIContainer configurado correctamente")
+
+        } catch {
+            print("❌ Error al configurar DIContainer: \(error)")
+        }
     }
 }
