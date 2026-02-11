@@ -59,6 +59,21 @@ final class LibraryViewModel {
         }
     }
 
+    /// Persiste el color dominante calculado del artwork (solo cuando aún no está guardado).
+    /// La primera vez se calcula y guarda; en siguientes cargas la lista usará el color guardado.
+    func persistDominantColorIfNeeded(songID: UUID, artworkData: Data?) async {
+        guard let artworkData = artworkData,
+              let rgb = Color.dominantColorRGB(from: artworkData) else { return }
+        do {
+            try await libraryUseCases.updateDominantColor(songID: songID, red: rgb.r, green: rgb.g, blue: rgb.b)
+            if let idx = songs.firstIndex(where: { $0.id == songID }) {
+                songs[idx] = songs[idx].with(dominantColor: Color(red: rgb.r, green: rgb.g, blue: rgb.b))
+            }
+        } catch {
+            print("❌ Error al guardar color dominante: \(error)")
+        }
+    }
+
     /// Sincroniza con almacenamiento cloud
     func syncLibraryWithCatalog() async {
         // Verificar credenciales

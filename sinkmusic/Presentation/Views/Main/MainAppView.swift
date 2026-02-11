@@ -71,6 +71,11 @@ struct MainAppView: View {
                 namespace: animation
             )
             .zIndex(2)
+            .task(id: currentSong.id) {
+                if currentSong.dominantColor == nil, currentSong.artworkThumbnail != nil {
+                    await libraryViewModel.persistDominantColorIfNeeded(songID: currentSong.id, artworkData: currentSong.artworkThumbnail)
+                }
+            }
         }
     }
 
@@ -92,6 +97,11 @@ struct MainAppView: View {
             .zIndex(1)
             .onTapGesture {
                 playerViewModel.showPlayerView = true
+            }
+            .task(id: currentSong.id) {
+                if currentSong.dominantColor == nil, currentSong.artworkThumbnail != nil {
+                    await libraryViewModel.persistDominantColorIfNeeded(songID: currentSong.id, artworkData: currentSong.artworkThumbnail)
+                }
             }
         }
     }

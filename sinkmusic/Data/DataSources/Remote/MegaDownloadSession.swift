@@ -19,30 +19,49 @@ struct MegaDownloadTaskInfo {
     let decryptAndSave: (Data) async throws -> URL
 }
 
+/// Intervalo mínimo entre emisiones de progreso (actualizaciones suaves tipo Spotify)
+private let kProgressEmitInterval: TimeInterval = 0.06
+/// Avance mínimo para emitir (evita saturar si el throttle por tiempo ya emite)
+private let kProgressEmitStep: Double = 0.005
+
+/// Clave única por tarea (evita que al reutilizar taskIdentifier se borre el estado de otra descarga)
+private struct TaskKey: Hashable {
+    let id: ObjectIdentifier
+    init(_ task: URLSessionTask) { id = ObjectIdentifier(task) }
+}
+
 /// Estado mutable de las descargas activas — aislado en un actor para Swift 6
 private actor MegaDownloadState {
-    var activeTasks: [Int: MegaDownloadTaskInfo] = [:]
-    var lastReportedProgressPercent: [Int: Int] = [:]
+    var activeTasks: [TaskKey: MegaDownloadTaskInfo] = [:]
+    var lastEmitProgress: [TaskKey: Double] = [:]
+    var lastEmitTime: [TaskKey: Date] = [:]
 
-    func addTask(_ info: MegaDownloadTaskInfo, for id: Int) {
-        activeTasks[id] = info
+    func addTask(_ info: MegaDownloadTaskInfo, for key: TaskKey) {
+        activeTasks[key] = info
+        lastEmitProgress[key] = nil
+        lastEmitTime[key] = nil
     }
 
-    func removeTask(for id: Int) -> MegaDownloadTaskInfo? {
-        lastReportedProgressPercent.removeValue(forKey: id)
-        return activeTasks.removeValue(forKey: id)
+    func removeTask(for key: TaskKey) -> MegaDownloadTaskInfo? {
+        lastEmitProgress.removeValue(forKey: key)
+        lastEmitTime.removeValue(forKey: key)
+        return activeTasks.removeValue(forKey: key)
     }
 
-    func getTask(for id: Int) -> MegaDownloadTaskInfo? {
-        activeTasks[id]
+    func getTask(for key: TaskKey) -> MegaDownloadTaskInfo? {
+        activeTasks[key]
     }
 
-    /// Devuelve true si se debe emitir progreso y actualiza el último porcentaje reportado
-    func shouldEmitProgress(for id: Int, percent: Int, progress: Double) -> Bool {
-        let last = lastReportedProgressPercent[id] ?? -1
-        let should = percent >= last + 2 || percent == 0 || progress >= 0.99
+    /// Emitir si pasó el intervalo mínimo o el progreso subió un poco (barra fluida, estilo Spotify).
+    func shouldEmitProgress(for key: TaskKey, progress: Double, now: Date) -> Bool {
+        let lastP = lastEmitProgress[key] ?? -0.01
+        let lastT = lastEmitTime[key] ?? .distantPast
+        let timeOk = now.timeIntervalSince(lastT) >= kProgressEmitInterval
+        let stepOk = progress >= lastP + kProgressEmitStep
+        let should = progress == 0 || progress >= 0.99 || stepOk || timeOk
         if should {
-            lastReportedProgressPercent[id] = percent
+            lastEmitProgress[key] = progress
+            lastEmitTime[key] = now
         }
         return should
     }
@@ -85,8 +104,8 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable 
             continuation: continuation,
             decryptAndSave: decryptAndSave
         )
-        let taskID = task.taskIdentifier
-        Task { [self] in await self.state.addTask(info, for: taskID) }
+        let key = TaskKey(task)
+        Task { [self] in await self.state.addTask(info, for: key) }
         task.resume()
     }
 
@@ -107,21 +126,21 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable 
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        let taskID = downloadTask.taskIdentifier
+        let key = TaskKey(downloadTask)
 
-        let progress: Double
+        // 0–99% = descarga real; 100% solo al terminar desencriptado y guardado (progreso continuo y honesto)
+        let rawProgress: Double
         if totalBytesExpectedToWrite > 0 {
-            progress = min(0.99, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+            rawProgress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
         } else {
-            progress = min(0.95, Double(totalBytesWritten) / Double(10 * 1024 * 1024))
+            rawProgress = Double(totalBytesWritten) / Double(10 * 1024 * 1024)
         }
-
-        let percent = Int(progress * 100)
+        let progress = min(0.99, rawProgress)
 
         Task { [weak self] in
             guard let self else { return }
-            guard let info = await self.state.getTask(for: taskID) else { return }
-            guard await self.state.shouldEmitProgress(for: taskID, percent: percent, progress: progress) else { return }
+            guard let info = await self.state.getTask(for: key) else { return }
+            guard await self.state.shouldEmitProgress(for: key, progress: progress, now: Date()) else { return }
             let songID = info.songID
             await MainActor.run { self.eventBus.emit(.progress(songID: songID, progress: progress)) }
         }
@@ -132,23 +151,30 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable 
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        let taskID = downloadTask.taskIdentifier
+        let key = TaskKey(downloadTask)
+        // Leer el archivo aquí de forma síncrona: el temp file solo existe durante este callback.
+        // Si lo leemos dentro del Task, el callback ya habrá retornado y el sistema puede haber borrado el archivo.
+        let dataResult = Result { try Data(contentsOf: location) }
 
         Task { [weak self] in
             guard let self else { return }
-            guard let info = await self.state.removeTask(for: taskID) else { return }
+            guard let info = await self.state.removeTask(for: key) else { return }
 
             let encryptedData: Data
-            do {
-                encryptedData = try Data(contentsOf: location)
-            } catch {
+            switch dataResult {
+            case .success(let data):
+                encryptedData = data
+            case .failure(let error):
                 await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
                 info.continuation.resume(throwing: error)
                 return
             }
 
+            // Pequeño avance al iniciar desencriptado (evita sensación de congelado en 99%)
+            await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.995)) }
             do {
                 let localURL = try await info.decryptAndSave(encryptedData)
+                await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 1.0)) }
                 info.continuation.resume(returning: localURL)
             } catch {
                 await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
@@ -159,11 +185,11 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable 
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error else { return }
-        let taskID = task.taskIdentifier
+        let key = TaskKey(task)
 
         Task { [weak self] in
             guard let self else { return }
-            guard let info = await self.state.removeTask(for: taskID) else { return }
+            guard let info = await self.state.removeTask(for: key) else { return }
             await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
             info.continuation.resume(throwing: error)
         }

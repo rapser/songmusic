@@ -144,6 +144,30 @@ final class LibraryUseCases {
 
     // MARK: - Song Management
 
+    /// Guarda el color dominante calculado del artwork para una canción (primera vez que se muestra).
+    /// En siguientes cargas se usará el valor guardado.
+    func updateDominantColor(songID: UUID, red: Double, green: Double, blue: Double) async throws {
+        guard let existing = try await songRepository.getByID(songID) else { return }
+        let color = RGBColor(red: red, green: green, blue: blue)
+        let updated = Song(
+            id: existing.id,
+            title: existing.title,
+            artist: existing.artist,
+            album: existing.album,
+            author: existing.author,
+            fileID: existing.fileID,
+            isDownloaded: existing.isDownloaded,
+            duration: existing.duration,
+            artworkData: existing.artworkData,
+            artworkThumbnail: existing.artworkThumbnail,
+            artworkMediumThumbnail: existing.artworkMediumThumbnail,
+            playCount: existing.playCount,
+            lastPlayedAt: existing.lastPlayedAt,
+            dominantColor: color
+        )
+        try await songRepository.update(updated)
+    }
+
     /// Elimina una canción de la biblioteca
     func deleteSong(_ id: UUID) async throws {
         // Eliminar archivo descargado si existe

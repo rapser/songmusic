@@ -13,16 +13,30 @@ extension Color {
     /// - Parameter imageData: Datos de la imagen (artwork)
     /// - Returns: Color dominante o appGray si no se puede calcular
     static func dominantColor(from imageData: Data?) -> Color {
+        guard let rgb = dominantColorRGB(from: imageData) else { return Color.appGray }
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
+
+    /// Extrae el color dominante como componentes RGB (para persistir y reutilizar).
+    /// - Parameter imageData: Datos de la imagen (artwork)
+    /// - Returns: (r, g, b) en 0...1 o nil si no se puede calcular
+    static func dominantColorRGB(from imageData: Data?) -> (r: Double, g: Double, b: Double)? {
         guard let imageData = imageData,
               let uiImage = UIImage(data: imageData),
               let cgImage = uiImage.cgImage else {
+            return nil
+        }
+        return extractDominantColorRGB(from: cgImage)
+    }
+
+    private static func extractDominantColor(from cgImage: CGImage) -> Color {
+        guard let rgb = extractDominantColorRGB(from: cgImage) else {
             return Color.appGray
         }
-
-        return extractDominantColor(from: cgImage)
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
     }
-    
-    private static func extractDominantColor(from cgImage: CGImage) -> Color {
+
+    private static func extractDominantColorRGB(from cgImage: CGImage) -> (r: Double, g: Double, b: Double)? {
         let width = cgImage.width
         let height = cgImage.height
         let bytesPerPixel = 4
@@ -40,7 +54,7 @@ extension Color {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {
-            return Color.appGray
+            return nil
         }
         
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
@@ -74,22 +88,17 @@ extension Color {
         
         // Encontrar el color más común
         guard let dominantColor = colorCounts.max(by: { $0.value.count < $1.value.count })?.value.color else {
-            return Color.appGray
+            return nil
         }
         
-        // Ajustar saturación y brillo estilo Spotify - colores oscuros pero con mejor claridad
+        // Ajustar para fondo: mantener matiz y variedad, brillo medio para que se distingan los colores
         let hsb = rgbToHSB(r: dominantColor.r, g: dominantColor.g, b: dominantColor.b)
-        let adjustedColor = hsbToRGB(
+        let adjusted = hsbToRGB(
             h: hsb.h,
-            s: min(hsb.s * 0.8, 1.0),
-            b: hsb.b * 0.55
+            s: min(hsb.s * 0.95, 1.0),
+            b: min(0.78, max(0.5, hsb.b * 0.85))
         )
-        
-        return Color(
-            red: adjustedColor.r,
-            green: adjustedColor.g,
-            blue: adjustedColor.b
-        )
+        return (adjusted.r, adjusted.g, adjusted.b)
     }
     
     private static func rgbToHSB(r: Double, g: Double, b: Double) -> (h: Double, s: Double, b: Double) {

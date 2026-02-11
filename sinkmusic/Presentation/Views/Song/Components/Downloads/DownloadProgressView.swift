@@ -26,7 +26,7 @@ struct DownloadProgressView: View {
                     .fill(Color.appPurple)
                     .frame(width: 100 * progress, height: 4)
                     .cornerRadius(2)
-                    .animation(.linear(duration: 0.2), value: progress)
+                    .animation(.linear(duration: 0.1), value: progress)
             }
 
             Text("\(Int(progress * 100))%")

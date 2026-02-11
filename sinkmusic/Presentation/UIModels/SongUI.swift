@@ -37,8 +37,30 @@ struct SongUI: Identifiable, Hashable, Sendable {
         artworkThumbnail != nil
     }
 
-    /// Color de fondo derivado del artwork o default
+    /// Color de fondo derivado del artwork (carátula) o default.
+    /// Si no hay color en caché, se calcula a partir del artwork para que cada canción tenga su propio color.
     var backgroundColor: Color {
-        dominantColor ?? Color.appPurple
+        if let cached = dominantColor { return cached }
+        guard artworkThumbnail != nil else { return .appPurple }
+        return Color.dominantColor(from: artworkThumbnail)
+    }
+
+    /// Copia la canción con un nuevo color dominante (para actualizar en lista tras persistir).
+    func with(dominantColor newColor: Color?) -> SongUI {
+        SongUI(
+            id: id,
+            title: title,
+            artist: artist,
+            album: album,
+            duration: duration,
+            durationSeconds: durationSeconds,
+            artworkThumbnail: artworkThumbnail,
+            artworkSmallThumbnail: artworkSmallThumbnail,
+            isDownloaded: isDownloaded,
+            playCount: playCount,
+            playCountText: playCountText,
+            dominantColor: newColor,
+            artistAlbumInfo: artistAlbumInfo
+        )
     }
 }
