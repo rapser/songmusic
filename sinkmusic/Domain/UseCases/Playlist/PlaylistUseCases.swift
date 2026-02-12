@@ -123,24 +123,17 @@ final class PlaylistUseCases {
 
     /// Reordena canciones en una playlist
     func reorderSongs(in playlistID: UUID, fromOffsets: IndexSet, toOffset: Int) async throws {
-        guard var playlist = try await playlistRepository.getByID(playlistID) else {
+        guard let playlist = try await playlistRepository.getByID(playlistID) else {
             throw PlaylistError.notFound
         }
 
-        var songs = playlist.songs
-        songs.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        // Reordenar el array de IDs y persistir con updateSongsOrder,
+        // que escribe directamente playlist.songs en SwiftData.
+        // update() no toca el array de canciones — por eso el orden se perdía.
+        var songIDs = playlist.songs.map { $0.id }
+        songIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
 
-        playlist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            description: playlist.description,
-            createdAt: playlist.createdAt,
-            updatedAt: Date(),
-            coverImageData: playlist.coverImageData,
-            songs: songs
-        )
-
-        try await playlistRepository.update(playlist)
+        try await playlistRepository.updateSongsOrder(playlistID: playlistID, songIDs: songIDs)
     }
 
     /// Limpia una playlist (remueve todas las canciones)

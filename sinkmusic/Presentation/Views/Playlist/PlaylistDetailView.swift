@@ -95,43 +95,75 @@ struct PlaylistDetailView: View {
     // MARK: - View Components
 
     private var mainContentView: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        // List es necesario para que .onMove (drag & drop) funcione.
+        // LazyVStack + ScrollView acepta .onMove sin error pero nunca lo activa.
+        List {
+            // Header y botones como sección sin separadores
+            Section {
                 headerView
                     .padding(.top, 20)
                     .padding(.bottom, 24)
+                    // frame(maxWidth: .infinity) es necesario para que el VStack
+                    // interno centre su contenido horizontalmente en el List.
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.appDark)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
 
                 actionButtonsView
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.appDark)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
+            }
 
-                songsListView
+            // Sección de canciones con drag & drop
+            songsListView
 
-                Spacer(minLength: 100)
+            // Espaciado inferior para el mini-player
+            Section {
+                Color.clear.frame(height: 80)
+                    .listRowBackground(Color.appDark)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.appDark)
+        // El handle de drag nativo usa el tint del List como color.
+        // Se fuerza blanco para máxima visibilidad en fondos oscuros.
+        .tint(Color.white)
+        // Propagar editMode al List para que .onMove muestre el handle de arrastre
+        .environment(\.editMode, $editMode)
     }
 
+    @ViewBuilder
     private var songsListView: some View {
-        Group {
-            if viewModel.songsInPlaylist.isEmpty {
+        if viewModel.songsInPlaylist.isEmpty {
+            Section {
                 EmptyPlaylistSongsView(onAddSongs: { showAddSongsSheet = true })
-            } else {
-                songsList
+                    .listRowBackground(Color.appDark)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
             }
+        } else {
+            songsList
         }
     }
 
     private var songsList: some View {
-        LazyVStack(spacing: 0) {
+        Section {
             ForEach(viewModel.songsInPlaylist) { song in
                 songRowView(for: song)
-
-                if song.id != viewModel.songsInPlaylist.last?.id {
-                    Divider()
-                        .background(Color.white.opacity(0.1))
-                        .padding(.leading, 20)
-                }
+                    .listRowBackground(Color.appDark)
+                    .listRowSeparator(.hidden)
+                    // SongRow ya tiene .padding(.horizontal, 20) propio.
+                    // Eliminamos los insets del sistema para no duplicar el padding izquierdo.
+                    // El handle de drag del List ocupa su espacio natural a la derecha.
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             }
             .onMove { source, destination in
                 Task {
@@ -139,7 +171,6 @@ struct PlaylistDetailView: View {
                 }
             }
         }
-        .environment(\.editMode, $editMode)
     }
 
     private func songRowView(for song: SongUI) -> some View {
@@ -148,6 +179,7 @@ struct PlaylistDetailView: View {
             songQueue: viewModel.songsInPlaylist,
             isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
             isPlaying: playerViewModel.isPlaying,
+            isReordering: editMode == .active,
             onPlay: {
                 Task {
                     await playerViewModel.play(songID: song.id, queue: viewModel.songsInPlaylist)
@@ -169,7 +201,7 @@ struct PlaylistDetailView: View {
     }
 
     private var headerView: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .center, spacing: 16) {
             // Cover Image
             coverImageView
                 .cornerRadius(8)
@@ -179,6 +211,7 @@ struct PlaylistDetailView: View {
             playlistInfoView
                 .padding(.horizontal, 20)
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var coverImageView: some View {
@@ -236,6 +269,7 @@ struct PlaylistDetailView: View {
 
     private var actionButtonsView: some View {
         HStack(spacing: 16) {
+            Spacer(minLength: 0)
             // Play All Button
             if !playlist.songs.isEmpty {
                 Button(action: { playAll() }) {
@@ -250,6 +284,7 @@ struct PlaylistDetailView: View {
                     .padding(.vertical, 10)
                     .background(Color.appPurple)
                     .cornerRadius(24)
+                    .fixedSize()
                 }
             }
 
@@ -266,6 +301,7 @@ struct PlaylistDetailView: View {
                 .padding(.vertical, 10)
                 .background(Color.white.opacity(0.1))
                 .cornerRadius(24)
+                .fixedSize()
             }
 
             // Edit Button
@@ -277,6 +313,7 @@ struct PlaylistDetailView: View {
                     .background(Color.white.opacity(0.1))
                     .cornerRadius(16)
             }
+            Spacer(minLength: 0)
         }
     }
 

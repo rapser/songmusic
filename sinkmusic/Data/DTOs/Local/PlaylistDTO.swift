@@ -20,8 +20,15 @@ final class PlaylistDTO {
     var coverImageData: Data?
 
     // Relación con canciones (muchos a muchos)
+    // SwiftData no garantiza el orden de los arrays en relaciones @Relationship —
+    // internamente usa un Set de Core Data. El campo songOrder guarda los UUIDs
+    // como "uuid1,uuid2,uuid3" y se usa al leer para restablecer el orden correcto.
     @Relationship(deleteRule: .nullify, inverse: \SongDTO.playlists)
     var songs: [SongDTO]
+
+    /// UUIDs de canciones en orden, separados por coma.
+    /// Fuente de verdad para el orden dentro de la playlist.
+    var songOrder: String = ""
 
     init(
         id: UUID = UUID(),
@@ -39,6 +46,7 @@ final class PlaylistDTO {
         self.updatedAt = updatedAt
         self.coverImageData = coverImageData
         self.songs = songs
+        self.songOrder = songs.map { $0.id.uuidString }.joined(separator: ",")
     }
 
     var songCount: Int {

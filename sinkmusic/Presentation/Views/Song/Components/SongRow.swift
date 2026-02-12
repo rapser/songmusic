@@ -13,6 +13,9 @@ struct SongRow: View {
     let songQueue: [SongUI]
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
+    /// true cuando el List está en modo edición (reordenamiento activo).
+    /// Oculta el botón de acción para que el handle de drag no comprima el layout.
+    var isReordering: Bool = false
     let onPlay: () -> Void
     let onPause: () -> Void
 
@@ -37,18 +40,20 @@ struct SongRow: View {
 
             Spacer(minLength: 0)
 
-            // Componente de acción (descarga, menú, progreso)
-            SongActionView(
-                isDownloaded: song.isDownloaded,
-                downloadProgress: downloadViewModel.downloadProgress[song.id],
-                showMenu: $showSongMenu,
-                onDownload: {
-                    print("Download button pressed for \(song.title)")
-                    Task {
-                        await downloadViewModel.download(songID: song.id)
+            // En modo reordenamiento se oculta el menú de acción para que el
+            // handle de drag del List no comprima el layout hacia la izquierda.
+            if !isReordering {
+                SongActionView(
+                    isDownloaded: song.isDownloaded,
+                    downloadProgress: downloadViewModel.downloadProgress[song.id],
+                    showMenu: $showSongMenu,
+                    onDownload: {
+                        Task {
+                            await downloadViewModel.download(songID: song.id)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 20)
@@ -59,7 +64,9 @@ struct SongRow: View {
         .listRowBackground(Color.appDark)
         .contentShape(Rectangle())
         .onTapGesture {
-            onPlay()
+            if !isReordering {
+                onPlay()
+            }
         }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
             Button(action: {
