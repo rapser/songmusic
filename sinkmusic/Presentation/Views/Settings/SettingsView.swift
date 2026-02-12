@@ -88,14 +88,11 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private func makeUserProfile() -> UserProfileData? {
-        guard let fullName = authViewModel.userFullName,
-              let email = authViewModel.userEmail,
-              let userID = authViewModel.userID else {
-            return nil
-        }
+        // Solo requiere userID — Apple solo envía email/fullName en el primer login
+        guard let userID = authViewModel.userID else { return nil }
         return UserProfileData(
-            fullName: fullName,
-            email: email,
+            fullName: authViewModel.userFullName,
+            email: authViewModel.userEmail,
             userID: userID,
             isAppleAccount: true
         )
