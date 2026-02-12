@@ -5,6 +5,68 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (14) - 2026-02-12
+
+### 🎨 UI/UX — Playlists
+
+#### Reordenamiento manual de canciones en playlist
+- Drag-to-reorder: arrastrar canciones directamente en el listado de un playlist para cambiar su orden
+- Botón **Editar / Listo** en la barra de navegación (solo visible si hay canciones)
+  - En modo edición: aparece el handle `≡` nativo del `List` (blanco, visible en fondos oscuros) y se oculta el botón de acción `···`
+  - Fuera de modo edición: celda normal con botón de acción, sin handles
+- El tap gesture de reproducción se desactiva en modo edición para no interferir con el drag
+
+#### Persistencia del orden de canciones
+- **Problema raíz**: `SwiftData @Relationship` arrays se almacenan internamente como `Set` no deterministas — el orden no sobrevive al fetch
+- **Solución**: campo `songOrder: String` en `PlaylistDTO` con los UUIDs separados por coma como fuente de verdad del orden
+- Migración automática (SwiftData lightweight): propiedad con valor por defecto `""`
+- `PlaylistMapper.toDomainWithSongs()` reconstruye el array ordenado desde `songOrder` en cada fetch
+- `PlaylistLocalDataSource` sincroniza `songOrder` en `addSong()`, `removeSong()` y `updateSongsOrder()`
+
+#### Actualización optimista del orden
+- `PlaylistViewModel.reorderSongs()` aplica `songsInPlaylist.move()` de forma inmediata antes del `await` de persistencia
+- Si la persistencia falla, se revierte cargando el orden real desde SwiftData
+
+#### Corrección de bug en UseCase y Repositorio
+- `PlaylistUseCases.reorderSongs()` llamaba a `update()` en lugar de `updateSongsOrder()` — corregido
+- `PlaylistRepositoryImpl.update()` nunca actualizaba `dto.songs` — ahora el orden se persiste exclusivamente a través de `updateSongsOrder()`
+
+#### Migración de LazyVStack → List para drag & drop
+- `.onMove` solo funciona dentro de `List` — en `LazyVStack + ScrollView` se acepta sin error pero nunca se activa
+- `List` con `.listStyle(.plain)`, `.scrollContentBackground(.hidden)`, `.background(Color.appDark)`
+- `.tint(.white)` en el `List` para que el handle nativo sea visible en fondos oscuros
+- `.environment(\.editMode, $editMode)` para controlar el modo de edición desde el botón del toolbar
+- Header y botones de acción centrados con `.frame(maxWidth: .infinity)` y `VStack(alignment: .center)`
+
+#### Botones de acción — texto completo garantizado
+- `.fixedSize()` en los botones **Reproducir** y **Agregar** para que siempre muestren el texto completo sin truncar, independientemente del espacio disponible
+
+### 🐛 Corregido
+
+#### Settings — datos de cuenta no aparecen en dispositivo físico
+- **Causa**: Apple Sign In solo envía `email` y `fullName` en el **primer** login; en sesiones posteriores devuelve `nil`
+- **Fix**: `makeUserProfile()` en `SettingsView` ahora solo requiere `userID` en el `guard`; `email` y `fullName` se pasan como opcionales
+
+#### Audio — chasquidos al enfocar TextField mientras suena música
+- **Causa**: `AVAudioEngine` se detiene automáticamente al recibir `AVAudioEngineConfigurationChange` (el teclado virtual renegocia la ruta de hardware de audio)
+- **Fix**: Observer para `.AVAudioEngineConfigurationChange` en `AudioPlayerService` que reconecta el grafo de audio y reinicia el engine de forma transparente
+
+### 🔧 Archivos Modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `Presentation/Views/Playlist/PlaylistDetailView.swift` | `List` con `editMode`, botón Editar/Listo, `.tint(.white)`, `.fixedSize()` en botones, centrado de header |
+| `Presentation/Views/Song/Components/SongRow.swift` | `isReordering: Bool` — oculta botón de acción y desactiva tap en modo edición |
+| `Presentation/ViewModels/Playlist/PlaylistViewModel.swift` | Actualización optimista con rollback en `reorderSongs()` |
+| `Domain/UseCases/Playlist/PlaylistUseCases.swift` | `reorderSongs()` llama a `updateSongsOrder()` en lugar de `update()` |
+| `Data/DTOs/Local/PlaylistDTO.swift` | Campo `songOrder: String = ""` para persistir orden explícito |
+| `Data/DataSources/Local/PlaylistLocalDataSource.swift` | Sincronización de `songOrder` en `addSong()`, `removeSong()`, `updateSongsOrder()` |
+| `Data/Mappers/PlaylistMapper.swift` | `toDomainWithSongs()` reconstruye array ordenado desde `songOrder` |
+| `Infrastructure/Services/AudioPlayerService.swift` | Observer `.AVAudioEngineConfigurationChange` con reconexión de grafo y restart |
+| `Presentation/Views/Settings/SettingsView.swift` | `makeUserProfile()` solo requiere `userID` |
+
+---
+
 ## [1.0.0] (13) - 2026-02-11
 
 ### Descargas
