@@ -46,7 +46,8 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
 
         switch provider {
         case .googleDrive:
-            let googleDriveFiles = try await googleDriveDataSource.fetchSongsFromFolder()
+            let source = googleDriveDataSource
+            let googleDriveFiles = try await source.fetchSongsFromFolder()
             return CloudFileMapper.toDomain(from: googleDriveFiles)
 
         case .mega:
@@ -74,7 +75,8 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
 
         switch provider {
         case .googleDrive:
-            return try await googleDriveDataSource.download(
+            let source = googleDriveDataSource
+            return try await source.download(
                 fileID: fileID,
                 songID: songID
             )

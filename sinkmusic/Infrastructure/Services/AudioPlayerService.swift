@@ -60,10 +60,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
             // CRÍTICO: Configurar la categoría para permitir reproducción en background
             // y mostrar controles en el lock screen
+            // .mixWithOthers: la música sigue sonando sin cortes al abrir teclado, modales o PhotosPicker (como Spotify).
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
-                options: []
+                options: [.mixWithOthers]
             )
 
             // Activar la sesión de audio
@@ -328,17 +329,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         }
     }
 
-    deinit {
-        playbackTimer?.invalidate()
-        playbackTimer = nil
-
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
-
-        NotificationCenter.default.removeObserver(self)
-    }
-
     // MARK: - Now Playing Info & Remote Commands
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
@@ -399,15 +389,20 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
 
-        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime)
+        // Evitar NaN/infinitos: el sistema puede hacer INVOP al asignar nowPlayingInfo
+        let safeDuration = duration.isFinite && duration >= 0 ? duration : 0
+        let safeCurrentTime = currentTime.isFinite && currentTime >= 0 ? currentTime : 0
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: safeDuration)
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: safeCurrentTime)
 
         let playbackRate = playerNode.isPlaying ? 1.0 : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: playbackRate)
 
         if let artworkData = artwork, let image = UIImage(data: artworkData) {
-            let artworkImage = MPMediaItemArtwork(boundsSize: image.size) { _ in
-                return image
+            let size = image.size
+            // El sistema invoca el closure desde otro hilo: debe ser @Sendable y solo capturar Sendable (Data).
+            let artworkImage = MPMediaItemArtwork(boundsSize: size) { @Sendable _ in
+                UIImage(data: artworkData) ?? UIImage()
             }
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artworkImage
         }

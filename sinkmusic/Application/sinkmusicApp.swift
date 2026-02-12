@@ -11,6 +11,8 @@ import SwiftData
 
 @main
 struct sinkmusicApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     // MARK: - DIContainer
     @MainActor
     private let container = DIContainer.shared

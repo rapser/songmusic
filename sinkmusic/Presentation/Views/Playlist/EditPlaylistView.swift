@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 
+@MainActor
 struct EditPlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PlaylistViewModel.self) private var viewModel
@@ -19,6 +20,7 @@ struct EditPlaylistView: View {
     @State private var selectedImage: PhotosPickerItem?
     @State private var coverImageData: Data?
     @State private var cachedCoverImage: UIImage?
+    @State private var showCoverPicker = false
 
     init(playlist: PlaylistUI) {
         self.playlist = playlist
@@ -37,55 +39,14 @@ struct EditPlaylistView: View {
 
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Cover Image Picker
-                        PhotosPicker(selection: $selectedImage, matching: .images) {
-                            ZStack {
-                                if let cachedImage = cachedCoverImage {
-                                    Image(uiImage: cachedImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 180, height: 180)
-                                        .clipped()
-                                        .cornerRadius(8)
-                                } else if coverImageData != nil {
-                                    // Mostrar placeholder mientras carga
-                                    Color.appGray
-                                        .frame(width: 180, height: 180)
-                                        .cornerRadius(8)
-                                        .overlay(
-                                            ProgressView()
-                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        )
-                                } else {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.appGray)
-                                        .frame(width: 180, height: 180)
-                                        .overlay(
-                                            VStack(spacing: 8) {
-                                                Image(systemName: "photo")
-                                                    .font(.system(size: 40))
-                                                    .foregroundColor(.white.opacity(0.6))
-
-                                                Text("Elegir foto")
-                                                    .font(.system(size: 14, weight: .medium))
-                                                    .foregroundColor(.white)
-                                            }
-                                        )
-                                }
-                            }
-                        }
-                        .onChange(of: selectedImage) { _, newValue in
-                            Task.detached(priority: .userInitiated) {
-                                // Cargar la imagen en background para no bloquear el UI ni el audio
-                                if let data = try? await newValue?.loadTransferable(type: Data.self) {
-                                    // Decodificar la imagen en background
-                                    let image = UIImage(data: data)
-                                    await MainActor.run {
-                                        coverImageData = data
-                                        cachedCoverImage = image
-                                    }
-                                }
-                            }
+                        if showCoverPicker {
+                            CoverImagePickerContent(
+                                selectedImage: $selectedImage,
+                                coverImageData: $coverImageData,
+                                cachedCoverImage: $cachedCoverImage
+                            )
+                        } else {
+                            CoverImagePlaceholder(cachedImage: cachedCoverImage, isLoading: coverImageData != nil)
                         }
 
                         // Text Fields
@@ -149,6 +110,12 @@ struct EditPlaylistView: View {
                     .disabled(playlistName.isEmpty)
                 }
             }
+            .onAppear {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(280))
+                    showCoverPicker = true
+                }
+            }
         }
     }
 
@@ -161,6 +128,74 @@ struct EditPlaylistView: View {
                 coverImageData: coverImageData
             )
             dismiss()
+        }
+    }
+}
+
+// MARK: - Cover image picker (subvista @MainActor; lee estado en body y pasa snapshot al closure)
+@MainActor
+private struct CoverImagePickerContent: View {
+    @Binding var selectedImage: PhotosPickerItem?
+    @Binding var coverImageData: Data?
+    @Binding var cachedCoverImage: UIImage?
+
+    var body: some View {
+        let cached = cachedCoverImage
+        let isLoading = coverImageData != nil
+        PhotosPicker(selection: $selectedImage, matching: .images) {
+            CoverImagePlaceholder(cachedImage: cached, isLoading: isLoading)
+        }
+        .onChange(of: selectedImage) { _, newValue in
+            Task.detached(priority: .userInitiated) {
+                if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                    let image = UIImage(data: data)
+                    await MainActor.run {
+                        coverImageData = data
+                        cachedCoverImage = image
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Muestra la imagen en caché, placeholder de carga o botón "Elegir foto". Solo recibe valores (no bindings) para que el PhotosPicker content no toque MainActor.
+private struct CoverImagePlaceholder: View {
+    let cachedImage: UIImage?
+    let isLoading: Bool
+
+    var body: some View {
+        ZStack {
+            if let cachedImage {
+                Image(uiImage: cachedImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 180, height: 180)
+                    .clipped()
+                    .cornerRadius(8)
+            } else if isLoading {
+                Color.appGray
+                    .frame(width: 180, height: 180)
+                    .cornerRadius(8)
+                    .overlay(
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.appGray)
+                    .frame(width: 180, height: 180)
+                    .overlay(
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 40))
+                                .foregroundColor(.white.opacity(0.6))
+                            Text("Elegir foto")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                    )
+            }
         }
     }
 }

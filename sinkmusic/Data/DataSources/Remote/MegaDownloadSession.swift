@@ -11,12 +11,16 @@
 
 import Foundation
 
+/// Handler para desencriptar y guardar un archivo descargado.
+/// @MainActor + @Sendable: se ejecuta siempre en el MainActor y es seguro cruzar actores.
+typealias MegaDecryptAndSaveHandler = @MainActor @Sendable (Data) async throws -> URL
+
 /// Información de una descarga en curso
-struct MegaDownloadTaskInfo {
+struct MegaDownloadTaskInfo: Sendable {
     let songID: UUID
     let file: MegaFile
     let continuation: CheckedContinuation<URL, Error>
-    let decryptAndSave: (Data) async throws -> URL
+    let decryptAndSave: MegaDecryptAndSaveHandler
 }
 
 /// Intervalo mínimo entre emisiones de progreso (actualizaciones suaves tipo Spotify)
@@ -67,22 +71,32 @@ private actor MegaDownloadState {
     }
 }
 
-/// Session de descarga con progreso. Implementa URLSessionDownloadDelegate.
-final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable {
+/// Identificador de la sesión de fondo (mismo ID para reconectar tras cierre de app)
+private let kMegaBackgroundSessionIdentifier = "com.sinkmusic.mega.downloads"
+
+/// Session de descarga con progreso. Usa configuración background para que las descargas
+/// continúen cuando la pantalla se apaga o la app va a segundo plano.
+final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessionDelegate {
 
     private let eventBus: EventBusProtocol
+    /// Solo se usa desde urlSessionDidFinishEvents → Task { @MainActor in completionService.completeBackgroundSession() }.
+    nonisolated(unsafe) private let completionService: BackgroundSessionCompletionServiceProtocol?
     private let state = MegaDownloadState()
-    // nonisolated(unsafe): session se inicializa en init() y nunca se reemplaza
+    /// Requerido en Swift 6: URLSession no es Sendable y los callbacks del delegate son nonisolated.
+    /// La sesión se usa solo en init/startDownload/invalidate; los delegates reciben la sesión por parámetro.
     nonisolated(unsafe) private var session: URLSession!
 
-    init(eventBus: EventBusProtocol) {
+    init(eventBus: EventBusProtocol, completionService: BackgroundSessionCompletionServiceProtocol?) {
         self.eventBus = eventBus
+        self.completionService = completionService
         super.init()
-        let config = URLSessionConfiguration.default
+        let config = URLSessionConfiguration.background(withIdentifier: kMegaBackgroundSessionIdentifier)
+        config.sessionSendsLaunchEvents = true
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 600
-        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        config.isDiscretionary = false
+        session = URLSession(configuration: config, delegate: self, delegateQueue: OperationQueue())
     }
 
     /// Inicia una descarga. El progreso se emite por EventBus. Al terminar se llama decryptAndSave con los datos.
@@ -91,7 +105,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable 
         songID: UUID,
         file: MegaFile,
         continuation: CheckedContinuation<URL, Error>,
-        decryptAndSave: @escaping (Data) async throws -> URL
+        decryptAndSave: @escaping MegaDecryptAndSaveHandler
     ) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 600
@@ -192,6 +206,13 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, Sendable 
             guard let info = await self.state.removeTask(for: key) else { return }
             await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
             info.continuation.resume(throwing: error)
+        }
+    }
+
+    nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        guard let completionService else { return }
+        Task { @MainActor in
+            completionService.completeBackgroundSession()
         }
     }
 }

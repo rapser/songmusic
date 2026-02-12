@@ -53,6 +53,9 @@ final class DIContainer {
     /// CarPlayService - Creado una sola vez
     private(set) lazy var carPlayService: CarPlayServiceProtocol = CarPlayService()
 
+    /// Completion handler de sesiones de descarga en segundo plano (iOS). Sin modelContext.
+    private(set) lazy var backgroundSessionCompletionService: BackgroundSessionCompletionServiceProtocol = BackgroundSessionCompletionService()
+
     // MARK: - Auth Module (Facade + Strategy)
 
     /// Proveedor de autenticación configurado
@@ -136,7 +139,7 @@ final class DIContainer {
         }
         let songLocalDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
         let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
-        let megaDataSource = MegaDataSource(eventBus: eventBus)
+        let megaDataSource = MegaDataSource(eventBus: eventBus, backgroundSessionCompletion: backgroundSessionCompletionService)
         return CloudStorageRepositoryImpl(
             googleDriveDataSource: googleDriveDataSource,
             megaDataSource: megaDataSource,

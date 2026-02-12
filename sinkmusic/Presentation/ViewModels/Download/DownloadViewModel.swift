@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// Gestor de tareas de descarga (no aislado al MainActor para acceso en deinit)
+/// Gestor de tareas de descarga activas para cancelación
 private final class ActiveTasksManager {
     var tasks: [UUID: Task<Void, Never>] = [:]
 }
@@ -108,7 +108,8 @@ final class DownloadViewModel {
                 // Mantener barra en 100% por 0.5 segundos para feedback visual
                 try? await Task.sleep(nanoseconds: 500_000_000)
 
-                // Limpiar progreso y tarea (liberar memoria por canción)
+                // Limpiar progreso y tarea (liberar memoria por canción).
+                // Misma ruta con pantalla activa o en background: el evento llega al reabrir si terminó en segundo plano.
                 downloadProgress[songID] = nil
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
@@ -403,19 +404,4 @@ final class DownloadViewModel {
         return downloadProgress[songID]
     }
 
-    // MARK: - Cleanup
-
-    deinit {
-        // Cancelar observación de eventos
-        downloadEventTask?.cancel()
-
-        // Capturar las tareas activas antes de crear el Task para evitar capturar 'self'
-        let tasksToCancel = activeTasksManager.tasks
-        Task { @MainActor in
-            for (_, task) in tasksToCancel {
-                task.cancel()
-            }
-            print("🗑️ DownloadViewModel deinicializado - tareas canceladas")
-        }
-    }
 }
