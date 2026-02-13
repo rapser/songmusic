@@ -30,18 +30,23 @@ struct SongRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Componente de información de la canción
+            // Área principal: tap = reproducir (estilo Spotify).
             SongInfoView(
                 title: song.title,
                 artist: song.artist,
                 isCurrentlyPlaying: isCurrentlyPlaying,
                 isPlaying: isPlaying
             )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isReordering {
+                    onPlay()
+                }
+            }
 
             Spacer(minLength: 0)
 
-            // En modo reordenamiento se oculta el menú de acción para que el
-            // handle de drag del List no comprima el layout hacia la izquierda.
+            // Tres puntos: abren confirmationDialog (evita advertencias de Menu en List).
             if !isReordering {
                 SongActionView(
                     isDownloaded: song.isDownloaded,
@@ -62,37 +67,29 @@ struct SongRow: View {
                 .fill(isCurrentlyPlaying ? Color.appGray.opacity(0.3) : Color.clear)
         )
         .listRowBackground(Color.appDark)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if !isReordering {
-                onPlay()
-            }
-        }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
-            Button(action: {
+            Button {
                 if isCurrentlyPlaying && isPlaying {
                     onPause()
                 } else {
                     onPlay()
                 }
-            }) {
+            } label: {
                 Label(
                     isCurrentlyPlaying && isPlaying ? "Pausar" : "Reproducir",
                     systemImage: isCurrentlyPlaying && isPlaying ? "pause.fill" : "play.fill"
                 )
             }
-
-            Button(action: { showAddToPlaylistForSong = song }) {
+            Button {
+                showAddToPlaylistForSong = song
+            } label: {
                 Label("Agregar a playlist", systemImage: "plus")
             }
-
-            // Mostrar opción de eliminar solo si estamos en una playlist
             if playlist != nil, let removeAction = onRemoveFromPlaylist {
                 Button(role: .destructive, action: removeAction) {
                     Label("Eliminar de playlist", systemImage: "trash")
                 }
             }
-
             Button("Cancelar", role: .cancel) {}
         }
         .onChange(of: downloadViewModel.downloadError) { _, newValue in

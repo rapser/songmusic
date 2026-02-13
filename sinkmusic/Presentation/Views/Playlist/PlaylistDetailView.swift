@@ -98,13 +98,11 @@ struct PlaylistDetailView: View {
         // List es necesario para que .onMove (drag & drop) funcione.
         // LazyVStack + ScrollView acepta .onMove sin error pero nunca lo activa.
         List {
-            // Header y botones como sección sin separadores
+            // Header y botones: zIndex para que los toques no caigan en la primera canción.
             Section {
                 headerView
                     .padding(.top, 20)
                     .padding(.bottom, 24)
-                    // frame(maxWidth: .infinity) es necesario para que el VStack
-                    // interno centre su contenido horizontalmente en el List.
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.appDark)
                     .listRowSeparator(.hidden)
@@ -112,12 +110,13 @@ struct PlaylistDetailView: View {
 
                 actionButtonsView
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
-                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, minHeight: 64)
                     .listRowBackground(Color.appDark)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets())
             }
+            .zIndex(1)
 
             // Sección de canciones con drag & drop
             songsListView
@@ -154,6 +153,7 @@ struct PlaylistDetailView: View {
         }
     }
 
+    /// Opciones de canción solo mediante el menú de 3 puntos en SongRow; sin swipe.
     private var songsList: some View {
         Section {
             ForEach(viewModel.songsInPlaylist) { song in
@@ -267,52 +267,62 @@ struct PlaylistDetailView: View {
         }
     }
 
+    /// Botones de acción de la playlist. Cada uno debe ejecutar solo su acción;
+    /// usamos .buttonStyle(.plain) y área táctil explícita para que el List no envíe el tap a la fila de abajo.
     private var actionButtonsView: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             Spacer(minLength: 0)
-            // Play All Button
+            // Reproducir todo: solo llama a playAll(), no abre modal ni toca otra cosa.
             if !playlist.songs.isEmpty {
                 Button(action: { playAll() }) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 16))
+                            .font(.system(size: 15))
                         Text("Reproducir")
                             .font(.system(size: 14, weight: .semibold))
+                            .lineLimit(1)
                     }
                     .foregroundColor(.black)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 18)
                     .padding(.vertical, 10)
                     .background(Color.appPurple)
                     .cornerRadius(24)
-                    .fixedSize()
+                    .fixedSize(horizontal: true, vertical: false)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
 
-            // Add Songs Button
+            // Agregar: solo abre la sheet para agregar canciones a la playlist.
             Button(action: { showAddSongsSheet = true }) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: "plus")
-                        .font(.system(size: 16))
+                        .font(.system(size: 15))
                     Text("Agregar")
                         .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
                 }
                 .foregroundColor(.white)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 10)
                 .background(Color.white.opacity(0.1))
                 .cornerRadius(24)
-                .fixedSize()
+                .fixedSize(horizontal: true, vertical: false)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            // Edit Button
+            // Opciones de playlist (editar/eliminar): solo abre el diálogo de opciones.
             Button(action: { showEditSheet = true }) {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.textGray)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
                     .background(Color.white.opacity(0.1))
                     .cornerRadius(16)
             }
+            .buttonStyle(.plain)
             Spacer(minLength: 0)
         }
     }
