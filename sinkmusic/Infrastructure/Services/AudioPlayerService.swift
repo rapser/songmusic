@@ -60,10 +60,10 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         do {
             let audioSession = AVAudioSession.sharedInstance()
 
-            // .playback sin opciones: app como reproductor principal → Lock Screen y Control Center.
-            // .measurement: mínimo procesamiento del sistema (sin EQ automático del OS, sin
-            // normalización de volumen, sin realce de graves) — mismo principio que Tidal Hi-Fi.
-            try audioSession.setCategory(.playback, mode: .measurement, options: [])
+            // .playback + .default: reproductor principal (Lock Screen, Control Center)
+            // con volumen de salida completo del hardware, igual que Spotify y Tidal.
+            // .measurement reducía el volumen de salida del sistema — revertido.
+            try audioSession.setCategory(.playback, mode: .default, options: [])
 
             // Solicitar la mayor sample rate soportada por el hardware del dispositivo.
             // En iPhone con AirPods Pro / auriculares Lightning esto puede llegar a 48000 Hz.
