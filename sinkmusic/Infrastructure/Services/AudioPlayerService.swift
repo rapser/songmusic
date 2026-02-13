@@ -23,7 +23,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
-    // Audio Engine: ecualizador + mixer para audio estéreo balanceado
+    // Audio Engine: ecualizador + mixer para reproducción de alta fidelidad (estilo Tidal Hi-Fi)
     private let audioEngine: AVAudioEngine
     private let playerNode: AVAudioPlayerNode
     private var audioFile: AVAudioFile?
@@ -60,9 +60,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         do {
             let audioSession = AVAudioSession.sharedInstance()
 
-            // Sin .mixWithOthers: el sistema trata la app como reproductor principal y muestra
-            // controles en Lock Screen y Control Center. Con .mixWithOthers no se mostraba.
-            try audioSession.setCategory(.playback, mode: .default)
+            // .playback sin opciones: app como reproductor principal → Lock Screen y Control Center.
+            // .measurement: mínimo procesamiento del sistema (sin EQ automático del OS, sin
+            // normalización de volumen, sin realce de graves) — mismo principio que Tidal Hi-Fi.
+            try audioSession.setCategory(.playback, mode: .measurement, options: [])
+
+            // Solicitar la mayor sample rate soportada por el hardware del dispositivo.
+            // En iPhone con AirPods Pro / auriculares Lightning esto puede llegar a 48000 Hz.
+            try audioSession.setPreferredSampleRate(audioSession.sampleRate)
 
             try audioSession.setActive(true)
         } catch {
@@ -75,18 +80,15 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         audioEngine.attach(eq)
         audioEngine.attach(mixerNode)
 
-        // Mixer con pan y volumen neutros: garantiza salida estéreo balanceada
-        // sin importar si el archivo fuente es mono, estéreo o multicanal.
+        // Mixer neutro: pan centrado, volumen máximo, sin colorear el sonido.
         mixerNode.pan = 0.0
         mixerNode.outputVolume = 1.0
 
-        let frequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
-        for (index, frequency) in frequencies.enumerated() where index < eq.bands.count {
-            eq.bands[index].filterType = .parametric
-            eq.bands[index].frequency = frequency
-            eq.bands[index].bandwidth = 1.0
-            eq.bands[index].gain = 0.0
-            eq.bands[index].bypass = false
+        // EQ completamente en bypass: señal sin tocar, fidelidad máxima.
+        // El usuario puede activar bandas desde el ecualizador de la app si lo desea.
+        // Tidal Hi-Fi no aplica ningún procesamiento de señal por defecto.
+        for index in 0..<eq.bands.count {
+            eq.bands[index].bypass = true
         }
     }
 
@@ -135,10 +137,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                     isFirstConnection = false
                 }
 
-                // Cadena: playerNode → eq (formato del archivo) → mixerNode (convierte a estéreo) → mainMixerNode
+                // Cadena Hi-Fi: playerNode → eq (bypass) → mixerNode (estéreo) → mainMixerNode
+                // Sin efectos intermedios: señal lo más pura posible, igual que Tidal.
+                let outFormat = stereoFormat ?? fileFormat
                 audioEngine.connect(playerNode, to: eq, format: fileFormat)
                 audioEngine.connect(eq, to: mixerNode, format: fileFormat)
-                audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: stereoFormat ?? fileFormat)
+                audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
 
                 // Pan neutro: canal izquierdo y derecho con igual peso
                 playerNode.pan = 0
@@ -267,15 +271,26 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
     // MARK: - Equalizer
 
+    private static let eqFrequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
+
     func updateEqualizer(bands: [Float]) {
         for (index, gain) in bands.enumerated() where index < eq.bands.count {
+            eq.bands[index].filterType = .parametric
+            eq.bands[index].frequency = index < Self.eqFrequencies.count ? Self.eqFrequencies[index] : 1000
+            eq.bands[index].bandwidth = 1.0
             eq.bands[index].gain = gain
+            // Bypass si la banda está a 0 dB — señal sin tocar, fidelidad máxima
+            eq.bands[index].bypass = (gain == 0)
         }
     }
 
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
         for (index, band) in bands.enumerated() where index < eq.bands.count {
+            eq.bands[index].filterType = .parametric
+            eq.bands[index].frequency = index < Self.eqFrequencies.count ? Self.eqFrequencies[index] : 1000
+            eq.bands[index].bandwidth = 1.0
             eq.bands[index].gain = Float(band.gain)
+            eq.bands[index].bypass = (band.gain == 0)
         }
     }
 
