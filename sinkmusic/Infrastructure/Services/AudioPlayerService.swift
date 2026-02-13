@@ -23,11 +23,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
-    // Audio Engine para ecualizador
+    // Audio Engine: ecualizador + mixer para audio estéreo balanceado
     private let audioEngine: AVAudioEngine
     private let playerNode: AVAudioPlayerNode
     private var audioFile: AVAudioFile?
     private let eq: AVAudioUnitEQ
+    private let mixerNode: AVAudioMixerNode
 
     // State flags con sincronización
     private var useAudioEngine = true
@@ -46,6 +47,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
         self.eq = AVAudioUnitEQ(numberOfBands: 6)
+        self.mixerNode = AVAudioMixerNode()
 
         super.init()
         setupAudioSession()
@@ -71,6 +73,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private func setupAudioEngine() {
         audioEngine.attach(playerNode)
         audioEngine.attach(eq)
+        audioEngine.attach(mixerNode)
+
+        // Mixer con pan y volumen neutros: garantiza salida estéreo balanceada
+        // sin importar si el archivo fuente es mono, estéreo o multicanal.
+        mixerNode.pan = 0.0
+        mixerNode.outputVolume = 1.0
 
         let frequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
         for (index, frequency) in frequencies.enumerated() where index < eq.bands.count {
@@ -105,6 +113,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
                 let fileFormat = audioFile.processingFormat
 
+                // Formato estéreo estándar para la salida del mixer.
+                // Evita que archivos mono o con masterización desbalanceada suenen
+                // más en un canal del audífono que en el otro (comportamiento tipo Spotify).
+                let stereoFormat = AVAudioFormat(
+                    standardFormatWithSampleRate: fileFormat.sampleRate,
+                    channels: 2
+                )
+
                 if !isFirstConnection {
                     playerNode.reset()
 
@@ -112,14 +128,20 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                         audioEngine.stop()
                     }
 
-                    audioEngine.disconnectNodeInput(playerNode)
+                    audioEngine.disconnectNodeInput(audioEngine.mainMixerNode)
+                    audioEngine.disconnectNodeInput(mixerNode)
                     audioEngine.disconnectNodeInput(eq)
                 } else {
                     isFirstConnection = false
                 }
 
+                // Cadena: playerNode → eq (formato del archivo) → mixerNode (convierte a estéreo) → mainMixerNode
                 audioEngine.connect(playerNode, to: eq, format: fileFormat)
-                audioEngine.connect(eq, to: audioEngine.mainMixerNode, format: fileFormat)
+                audioEngine.connect(eq, to: mixerNode, format: fileFormat)
+                audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: stereoFormat ?? fileFormat)
+
+                // Pan neutro: canal izquierdo y derecho con igual peso
+                playerNode.pan = 0
 
                 audioEngine.prepare()
 
@@ -228,6 +250,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             Task { @MainActor [weak self] in
                 guard let self,
                       let nodeTime = self.playerNode.lastRenderTime,
+                      (nodeTime.isSampleTimeValid || nodeTime.isHostTimeValid),
                       let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
                       let audioFile = self.audioFile else {
                     return
