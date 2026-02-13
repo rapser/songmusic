@@ -59,6 +59,12 @@ final class LibraryViewModel {
         }
     }
 
+    /// Devuelve el artwork en resolución completa de una canción (para player grande).
+    /// Se usa solo para la canción en reproducción para no cargar todas las carátulas en memoria.
+    func getArtworkData(songID: UUID) async -> Data? {
+        (try? await libraryUseCases.getSongByID(songID))?.artworkData
+    }
+
     /// Persiste el color dominante calculado del artwork (solo cuando aún no está guardado).
     /// La primera vez se calcula y guarda; en siguientes cargas la lista usará el color guardado.
     func persistDominantColorIfNeeded(songID: UUID, artworkData: Data?) async {

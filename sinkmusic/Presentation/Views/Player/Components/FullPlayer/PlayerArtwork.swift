@@ -22,6 +22,7 @@ struct PlayerArtwork: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: UIScreen.main.bounds.width - 40, height: UIScreen.main.bounds.width - 40)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .drawingGroup() // Renderizado nítido al escalar imagen de alta resolución
                     .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 5)
             } else {
                 ZStack {
