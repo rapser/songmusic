@@ -58,16 +58,10 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         do {
             let audioSession = AVAudioSession.sharedInstance()
 
-            // CRÍTICO: Configurar la categoría para permitir reproducción en background
-            // y mostrar controles en el lock screen
-            // .mixWithOthers: la música sigue sonando sin cortes al abrir teclado, modales o PhotosPicker (como Spotify).
-            try audioSession.setCategory(
-                .playback,
-                mode: .default,
-                options: [.mixWithOthers]
-            )
+            // Sin .mixWithOthers: el sistema trata la app como reproductor principal y muestra
+            // controles en Lock Screen y Control Center. Con .mixWithOthers no se mostraba.
+            try audioSession.setCategory(.playback, mode: .default)
 
-            // Activar la sesión de audio
             try audioSession.setActive(true)
         } catch {
             // Error al configurar la sesión de audio
@@ -89,6 +83,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     }
 
     func play(songID: UUID, url: URL) {
+        // Asegurar sesión activa para que Lock Screen y Control Center muestren Now Playing
+        try? AVAudioSession.sharedInstance().setActive(true)
+
         if currentlyPlayingID == songID {
             if !playerNode.isPlaying {
                 playerNode.play()
