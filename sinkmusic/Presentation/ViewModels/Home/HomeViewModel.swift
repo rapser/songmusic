@@ -19,6 +19,7 @@ final class HomeViewModel {
     // MARK: - Published State (Clean Architecture - UIModels only)
 
     var playlists: [PlaylistUI] = []
+    var mostPlayedPlaylists: [PlaylistUI] = []
     var recentSongs: [SongUI] = []
     var mostPlayedSongs: [SongUI] = []
     var downloadedSongs: [SongUI] = []
@@ -62,6 +63,7 @@ final class HomeViewModel {
 
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadPlaylists() }
+            group.addTask { await self.loadMostPlayedPlaylists() }
             group.addTask { await self.loadRecentSongs() }
             group.addTask { await self.loadMostPlayedSongs() }
             group.addTask { await self.loadDownloadedSongs() }
@@ -77,6 +79,16 @@ final class HomeViewModel {
             playlists = entities.map { PlaylistMapper.toUI($0) }
         } catch {
             print("❌ Error al cargar playlists: \(error)")
+        }
+    }
+
+    /// Carga playlists más escuchadas (ordenadas por reproducciones totales), máximo 10.
+    private func loadMostPlayedPlaylists() async {
+        do {
+            let entities = try await playlistUseCases.getMostPlayedPlaylists(limit: 10)
+            mostPlayedPlaylists = entities.map { PlaylistMapper.toUI($0) }
+        } catch {
+            print("❌ Error al cargar playlists más escuchadas: \(error)")
         }
     }
 
@@ -139,6 +151,7 @@ final class HomeViewModel {
 
         case .playlistsUpdated:
             await loadPlaylists()
+            await loadMostPlayedPlaylists()
 
         case .songDownloaded:
             await loadDownloadedSongs()
@@ -162,7 +175,7 @@ final class HomeViewModel {
 
     /// Indica si hay contenido para mostrar
     var hasContent: Bool {
-        !playlists.isEmpty || !recentSongs.isEmpty || !mostPlayedSongs.isEmpty
+        !playlists.isEmpty || !mostPlayedPlaylists.isEmpty || !recentSongs.isEmpty || !mostPlayedSongs.isEmpty
     }
 
     /// Cuenta total de canciones

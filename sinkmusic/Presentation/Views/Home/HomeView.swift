@@ -36,10 +36,13 @@ struct HomeView: View {
                                 .padding()
                         } else {
                             // Playlists Grid
-                            PlaylistGridView(playlists: Array(viewModel.playlists.prefix(8)))
+                            PlaylistGridView(playlists: Array(viewModel.playlists.prefix(4)))
 
                             // Top Songs Carousel
                             TopSongsCarousel(songs: topSongs)
+
+                            // Playlists más escuchadas (horizontal, máx. 10)
+                            PlaylistsCarouselView(playlists: Array(viewModel.mostPlayedPlaylists.prefix(10)))
                         }
 
                         Spacer(minLength: 100)

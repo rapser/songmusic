@@ -35,6 +35,20 @@ final class PlaylistUseCases {
         return try await playlistRepository.getAll()
     }
 
+    /// Obtiene las playlists más escuchadas (ordenadas por suma de playCount de sus canciones).
+    /// Útil para la sección horizontal "Playlists más escuchadas" en Inicio.
+    func getMostPlayedPlaylists(limit: Int = 10) async throws -> [Playlist] {
+        let all = try await playlistRepository.getAll()
+        return Array(
+            all.sorted { p1, p2 in
+                let total1 = p1.songs.reduce(0) { $0 + $1.playCount }
+                let total2 = p2.songs.reduce(0) { $0 + $1.playCount }
+                return total1 > total2
+            }
+            .prefix(limit)
+        )
+    }
+
     /// Obtiene una playlist por ID
     func getPlaylistByID(_ id: UUID) async throws -> Playlist? {
         return try await playlistRepository.getByID(id)
