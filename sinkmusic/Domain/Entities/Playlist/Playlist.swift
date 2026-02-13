@@ -16,6 +16,8 @@ struct Playlist: Identifiable, Hashable, Sendable {
     let createdAt: Date
     let updatedAt: Date
     let coverImageData: Data?
+    /// Índice del color del placeholder (0 a N-1). nil = color por id.
+    let placeholderColorIndex: Int?
     let songs: [Song]
 
     // MARK: - Computed Properties (Lógica de Dominio)

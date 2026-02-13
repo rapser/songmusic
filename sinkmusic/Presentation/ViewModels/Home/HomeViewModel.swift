@@ -147,6 +147,7 @@ final class HomeViewModel {
         case .songsUpdated:
             await loadRecentSongs()
             await loadMostPlayedSongs()
+            await loadMostPlayedPlaylists() // El orden depende del playCount de las canciones
             await loadDownloadedSongs()
 
         case .playlistsUpdated:

@@ -22,11 +22,9 @@ struct PlaylistGridCard: View {
                         .frame(width: 50, height: 50)
                         .clipped()
                 } else {
+                    let (c1, c2) = PlaylistPlaceholderColors.gradient(for: playlist)
                     LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.6, brightness: 0.5),
-                            Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.7, brightness: 0.3)
-                        ]),
+                        gradient: Gradient(colors: [c1, c2]),
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

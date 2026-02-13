@@ -230,11 +230,9 @@ struct PlaylistDetailView: View {
     }
 
     private var defaultCoverView: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.6, brightness: 0.5),
-                Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.7, brightness: 0.3)
-            ]),
+        let (c1, c2) = PlaylistPlaceholderColors.gradient(for: playlist)
+        return LinearGradient(
+            gradient: Gradient(colors: [c1, c2]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

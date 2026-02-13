@@ -57,7 +57,7 @@ final class PlaylistUseCases {
     // MARK: - Playlist Management
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> Playlist {
+    func createPlaylist(name: String, description: String?, coverImageData: Data?, placeholderColorIndex: Int? = nil) async throws -> Playlist {
         let newPlaylist = Playlist(
             id: UUID(),
             name: name,
@@ -65,6 +65,7 @@ final class PlaylistUseCases {
             createdAt: Date(),
             updatedAt: Date(),
             coverImageData: coverImageData,
+            placeholderColorIndex: placeholderColorIndex,
             songs: []
         )
 
@@ -94,6 +95,7 @@ final class PlaylistUseCases {
             createdAt: playlist.createdAt,
             updatedAt: Date(),
             coverImageData: playlist.coverImageData,
+            placeholderColorIndex: playlist.placeholderColorIndex,
             songs: playlist.songs
         )
 
@@ -163,6 +165,7 @@ final class PlaylistUseCases {
             createdAt: playlist.createdAt,
             updatedAt: Date(),
             coverImageData: playlist.coverImageData,
+            placeholderColorIndex: playlist.placeholderColorIndex,
             songs: []
         )
 

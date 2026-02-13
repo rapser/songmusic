@@ -21,6 +21,7 @@ enum PlaylistMapper {
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt,
             coverImageData: dto.coverImageData,
+            placeholderColorIndex: dto.placeholderColorIndex,
             songs: songs
         )
     }
@@ -66,7 +67,8 @@ enum PlaylistMapper {
             createdAt: playlist.createdAt,
             updatedAt: playlist.updatedAt,
             coverImageData: playlist.coverImageData,
-            songs: [] // Las relaciones se manejan por separado
+            placeholderColorIndex: playlist.placeholderColorIndex,
+            songs: []
         )
     }
 
@@ -82,6 +84,7 @@ enum PlaylistMapper {
             formattedDuration: playlist.formattedDuration,
             displayInfo: playlist.displayInfo,
             coverImageData: playlist.coverImageData,
+            placeholderColorIndex: playlist.placeholderColorIndex,
             songs: playlist.songs.map { SongMapper.toUI($0) },
             downloadProgress: playlist.downloadProgress,
             isEmpty: playlist.isEmpty

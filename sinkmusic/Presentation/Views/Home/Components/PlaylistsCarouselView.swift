@@ -58,11 +58,9 @@ private struct PlaylistCarouselCard: View {
                         .frame(width: size, height: size)
                         .overlay(ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)).scaleEffect(0.7))
                 } else {
+                    let (c1, c2) = PlaylistPlaceholderColors.gradient(for: playlist)
                     LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.6, brightness: 0.5),
-                            Color(hue: Double(playlist.name.hash % 100) / 100, saturation: 0.7, brightness: 0.3)
-                        ]),
+                        gradient: Gradient(colors: [c1, c2]),
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

@@ -18,6 +18,8 @@ final class PlaylistDTO {
     var createdAt: Date
     var updatedAt: Date
     var coverImageData: Data?
+    /// Índice del color del placeholder (0 a N-1). nil = usar color por id.
+    var placeholderColorIndex: Int?
 
     // Relación con canciones (muchos a muchos)
     // SwiftData no garantiza el orden de los arrays en relaciones @Relationship —
@@ -37,6 +39,7 @@ final class PlaylistDTO {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         coverImageData: Data? = nil,
+        placeholderColorIndex: Int? = nil,
         songs: [SongDTO] = []
     ) {
         self.id = id
@@ -45,6 +48,7 @@ final class PlaylistDTO {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.coverImageData = coverImageData
+        self.placeholderColorIndex = placeholderColorIndex
         self.songs = songs
         self.songOrder = songs.map { $0.id.uuidString }.joined(separator: ",")
     }

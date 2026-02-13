@@ -22,6 +22,8 @@ struct CreatePlaylistView: View {
     @State private var cachedCoverImage: UIImage?
     /// Retrasar el PhotosPicker al abrir el modal para evitar tocar la sesión de audio (la sesión se configura solo en AudioPlayerService).
     @State private var showCoverPicker = false
+    /// Índice para uno de los 10 colores del placeholder (fondo con icono de música).
+    @State private var placeholderColorIndex = 0
 
     var body: some View {
         NavigationStack {
@@ -34,10 +36,11 @@ struct CreatePlaylistView: View {
                             CoverImagePickerContent(
                                 selectedImage: $selectedImage,
                                 coverImageData: $coverImageData,
-                                cachedCoverImage: $cachedCoverImage
+                                cachedCoverImage: $cachedCoverImage,
+                                placeholderColorIndex: placeholderColorIndex
                             )
                         } else {
-                            CoverImagePlaceholder(cachedImage: nil, isLoading: false)
+                            CoverImagePlaceholder(cachedImage: nil, isLoading: false, gradient: PlaylistPlaceholderColors.gradient(at: placeholderColorIndex))
                         }
 
                         // Text Fields
@@ -102,6 +105,7 @@ struct CreatePlaylistView: View {
                 }
             }
             .onAppear {
+                placeholderColorIndex = Int.random(in: 0..<15)
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(280))
                     showCoverPicker = true
@@ -115,7 +119,8 @@ struct CreatePlaylistView: View {
             let newPlaylistID = try? await viewModel.createPlaylist(
                 name: playlistName,
                 description: playlistDescription.isEmpty ? nil : playlistDescription,
-                coverImageData: coverImageData
+                coverImageData: coverImageData,
+                placeholderColorIndex: placeholderColorIndex
             )
 
             // Si se creó la playlist y hay una canción para agregar, agregarla
@@ -134,12 +139,13 @@ private struct CoverImagePickerContent: View {
     @Binding var selectedImage: PhotosPickerItem?
     @Binding var coverImageData: Data?
     @Binding var cachedCoverImage: UIImage?
+    var placeholderColorIndex: Int = 0
 
     var body: some View {
         let cached = cachedCoverImage
         let isLoading = coverImageData != nil
         PhotosPicker(selection: $selectedImage, matching: .images) {
-            CoverImagePlaceholder(cachedImage: cached, isLoading: isLoading)
+            CoverImagePlaceholder(cachedImage: cached, isLoading: isLoading, gradient: PlaylistPlaceholderColors.gradient(at: placeholderColorIndex))
         }
         .onChange(of: selectedImage) { _, newValue in
             Task.detached(priority: .userInitiated) {
@@ -156,9 +162,11 @@ private struct CoverImagePickerContent: View {
 }
 
 /// Muestra la imagen en caché, placeholder de carga o botón "Elegir foto". Solo recibe valores (no bindings) para que el PhotosPicker content no toque MainActor.
+/// Si se pasa gradient, el fondo sin foto usa uno de los 10 colores de playlist; si no, gris.
 private struct CoverImagePlaceholder: View {
     let cachedImage: UIImage?
     let isLoading: Bool
+    var gradient: (Color, Color)? = nil
 
     var body: some View {
         ZStack {
@@ -178,19 +186,29 @@ private struct CoverImagePlaceholder: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     )
             } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.appGray)
-                    .frame(width: 180, height: 180)
-                    .overlay(
-                        VStack(spacing: 8) {
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white.opacity(0.6))
-                            Text("Elegir foto")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                    )
+                Group {
+                    if let (c1, c2) = gradient {
+                        LinearGradient(
+                            gradient: Gradient(colors: [c1, c2]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    } else {
+                        Color.appGray
+                    }
+                }
+                .frame(width: 180, height: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 40))
+                            .foregroundColor(.white.opacity(0.6))
+                        Text("Elegir foto")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                )
             }
         }
     }
