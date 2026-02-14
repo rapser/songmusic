@@ -35,6 +35,20 @@ final class PlaylistUseCases {
         return try await playlistRepository.getAll()
     }
 
+    /// Obtiene las playlists más escuchadas (ordenadas por suma de playCount de sus canciones).
+    /// Útil para la sección horizontal "Playlists más escuchadas" en Inicio.
+    func getMostPlayedPlaylists(limit: Int = 10) async throws -> [Playlist] {
+        let all = try await playlistRepository.getAll()
+        return Array(
+            all.sorted { p1, p2 in
+                let total1 = p1.songs.reduce(0) { $0 + $1.playCount }
+                let total2 = p2.songs.reduce(0) { $0 + $1.playCount }
+                return total1 > total2
+            }
+            .prefix(limit)
+        )
+    }
+
     /// Obtiene una playlist por ID
     func getPlaylistByID(_ id: UUID) async throws -> Playlist? {
         return try await playlistRepository.getByID(id)
@@ -43,7 +57,7 @@ final class PlaylistUseCases {
     // MARK: - Playlist Management
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> Playlist {
+    func createPlaylist(name: String, description: String?, coverImageData: Data?, placeholderColorIndex: Int? = nil) async throws -> Playlist {
         let newPlaylist = Playlist(
             id: UUID(),
             name: name,
@@ -51,6 +65,7 @@ final class PlaylistUseCases {
             createdAt: Date(),
             updatedAt: Date(),
             coverImageData: coverImageData,
+            placeholderColorIndex: placeholderColorIndex,
             songs: []
         )
 
@@ -80,6 +95,7 @@ final class PlaylistUseCases {
             createdAt: playlist.createdAt,
             updatedAt: Date(),
             coverImageData: playlist.coverImageData,
+            placeholderColorIndex: playlist.placeholderColorIndex,
             songs: playlist.songs
         )
 
@@ -123,24 +139,17 @@ final class PlaylistUseCases {
 
     /// Reordena canciones en una playlist
     func reorderSongs(in playlistID: UUID, fromOffsets: IndexSet, toOffset: Int) async throws {
-        guard var playlist = try await playlistRepository.getByID(playlistID) else {
+        guard let playlist = try await playlistRepository.getByID(playlistID) else {
             throw PlaylistError.notFound
         }
 
-        var songs = playlist.songs
-        songs.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        // Reordenar el array de IDs y persistir con updateSongsOrder,
+        // que escribe directamente playlist.songs en SwiftData.
+        // update() no toca el array de canciones — por eso el orden se perdía.
+        var songIDs = playlist.songs.map { $0.id }
+        songIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
 
-        playlist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            description: playlist.description,
-            createdAt: playlist.createdAt,
-            updatedAt: Date(),
-            coverImageData: playlist.coverImageData,
-            songs: songs
-        )
-
-        try await playlistRepository.update(playlist)
+        try await playlistRepository.updateSongsOrder(playlistID: playlistID, songIDs: songIDs)
     }
 
     /// Limpia una playlist (remueve todas las canciones)
@@ -156,6 +165,7 @@ final class PlaylistUseCases {
             createdAt: playlist.createdAt,
             updatedAt: Date(),
             coverImageData: playlist.coverImageData,
+            placeholderColorIndex: playlist.placeholderColorIndex,
             songs: []
         )
 

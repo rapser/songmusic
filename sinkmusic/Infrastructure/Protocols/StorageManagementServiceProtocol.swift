@@ -18,7 +18,7 @@ protocol StorageManagementServiceProtocol: Sendable {
     /// Calcula el espacio usado por las canciones descargadas
     /// - Parameter songs: Lista de canciones a evaluar
     /// - Returns: String formateado con el tamaño (ej: "150 MB")
-    func calculateStorageUsed(for songs: [Song]) -> String
+    @MainActor func calculateStorageUsed(for songs: [Song]) -> String
 
     // MARK: - Filtering
 

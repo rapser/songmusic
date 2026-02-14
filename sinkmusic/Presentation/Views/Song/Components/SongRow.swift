@@ -13,6 +13,9 @@ struct SongRow: View {
     let songQueue: [SongUI]
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
+    /// true cuando el List está en modo edición (reordenamiento activo).
+    /// Oculta el botón de acción para que el handle de drag no comprima el layout.
+    var isReordering: Bool = false
     let onPlay: () -> Void
     let onPause: () -> Void
 
@@ -27,28 +30,35 @@ struct SongRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Componente de información de la canción
+            // Área principal: tap = reproducir (estilo Spotify).
             SongInfoView(
                 title: song.title,
                 artist: song.artist,
                 isCurrentlyPlaying: isCurrentlyPlaying,
                 isPlaying: isPlaying
             )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isReordering {
+                    onPlay()
+                }
+            }
 
             Spacer(minLength: 0)
 
-            // Componente de acción (descarga, menú, progreso)
-            SongActionView(
-                isDownloaded: song.isDownloaded,
-                downloadProgress: downloadViewModel.downloadProgress[song.id],
-                showMenu: $showSongMenu,
-                onDownload: {
-                    print("Download button pressed for \(song.title)")
-                    Task {
-                        await downloadViewModel.download(songID: song.id)
+            // Tres puntos: abren confirmationDialog (evita advertencias de Menu en List).
+            if !isReordering {
+                SongActionView(
+                    isDownloaded: song.isDownloaded,
+                    downloadProgress: downloadViewModel.downloadProgress[song.id],
+                    showMenu: $showSongMenu,
+                    onDownload: {
+                        Task {
+                            await downloadViewModel.download(songID: song.id)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 20)
@@ -57,35 +67,29 @@ struct SongRow: View {
                 .fill(isCurrentlyPlaying ? Color.appGray.opacity(0.3) : Color.clear)
         )
         .listRowBackground(Color.appDark)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onPlay()
-        }
         .confirmationDialog("Opciones", isPresented: $showSongMenu, titleVisibility: .hidden) {
-            Button(action: {
+            Button {
                 if isCurrentlyPlaying && isPlaying {
                     onPause()
                 } else {
                     onPlay()
                 }
-            }) {
+            } label: {
                 Label(
                     isCurrentlyPlaying && isPlaying ? "Pausar" : "Reproducir",
                     systemImage: isCurrentlyPlaying && isPlaying ? "pause.fill" : "play.fill"
                 )
             }
-
-            Button(action: { showAddToPlaylistForSong = song }) {
+            Button {
+                showAddToPlaylistForSong = song
+            } label: {
                 Label("Agregar a playlist", systemImage: "plus")
             }
-
-            // Mostrar opción de eliminar solo si estamos en una playlist
             if playlist != nil, let removeAction = onRemoveFromPlaylist {
                 Button(role: .destructive, action: removeAction) {
                     Label("Eliminar de playlist", systemImage: "trash")
                 }
             }
-
             Button("Cancelar", role: .cancel) {}
         }
         .onChange(of: downloadViewModel.downloadError) { _, newValue in

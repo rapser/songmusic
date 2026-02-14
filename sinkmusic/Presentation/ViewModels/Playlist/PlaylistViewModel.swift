@@ -60,7 +60,7 @@ final class PlaylistViewModel {
     }
 
     /// Crea una nueva playlist
-    func createPlaylist(name: String, description: String?, coverImageData: Data?) async throws -> UUID {
+    func createPlaylist(name: String, description: String?, coverImageData: Data?, placeholderColorIndex: Int? = nil) async throws -> UUID {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "El nombre de la playlist no puede estar vacío"
             throw PlaylistError.emptyName
@@ -68,7 +68,7 @@ final class PlaylistViewModel {
 
         isLoading = true
         do {
-            let playlist = try await playlistUseCases.createPlaylist(name: name, description: description, coverImageData: coverImageData)
+            let playlist = try await playlistUseCases.createPlaylist(name: name, description: description, coverImageData: coverImageData, placeholderColorIndex: placeholderColorIndex)
             await loadPlaylists()
             errorMessage = nil
             isLoading = false
@@ -81,7 +81,7 @@ final class PlaylistViewModel {
     }
 
     /// Actualiza una playlist existente
-    func updatePlaylist(id: UUID, name: String, description: String?, coverImageData: Data?) async {
+    func updatePlaylist(id: UUID, name: String, description: String?, coverImageData: Data?, placeholderColorIndex: Int? = nil) async {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "El nombre de la playlist no puede estar vacío"
             return
@@ -104,6 +104,7 @@ final class PlaylistViewModel {
                 createdAt: currentPlaylist.createdAt,
                 updatedAt: Date(),
                 coverImageData: coverImageData,
+                placeholderColorIndex: placeholderColorIndex,
                 songs: currentPlaylist.songs
             )
 
@@ -200,12 +201,19 @@ final class PlaylistViewModel {
     }
 
     /// Reordena canciones en la playlist
+    /// Aplica el cambio de forma optimista en la UI antes de persistir para que
+    /// el drag & drop se sienta inmediato sin esperar a SwiftData.
     func reorderSongs(in playlistID: UUID, fromOffsets: IndexSet, toOffset: Int) async {
+        // Actualización optimista: mover en el array local primero
+        songsInPlaylist.move(fromOffsets: fromOffsets, toOffset: toOffset)
+
+        // Persistir en segundo plano
         do {
             try await playlistUseCases.reorderSongs(in: playlistID, fromOffsets: fromOffsets, toOffset: toOffset)
-            await loadSongsInPlaylist(playlistID)
             errorMessage = nil
         } catch {
+            // Revertir si falla la persistencia
+            await loadSongsInPlaylist(playlistID)
             errorMessage = "Error al reordenar canciones: \(error.localizedDescription)"
         }
     }

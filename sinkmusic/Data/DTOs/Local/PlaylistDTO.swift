@@ -18,10 +18,19 @@ final class PlaylistDTO {
     var createdAt: Date
     var updatedAt: Date
     var coverImageData: Data?
+    /// Índice del color del placeholder (0 a N-1). nil = usar color por id.
+    var placeholderColorIndex: Int?
 
     // Relación con canciones (muchos a muchos)
+    // SwiftData no garantiza el orden de los arrays en relaciones @Relationship —
+    // internamente usa un Set de Core Data. El campo songOrder guarda los UUIDs
+    // como "uuid1,uuid2,uuid3" y se usa al leer para restablecer el orden correcto.
     @Relationship(deleteRule: .nullify, inverse: \SongDTO.playlists)
     var songs: [SongDTO]
+
+    /// UUIDs de canciones en orden, separados por coma.
+    /// Fuente de verdad para el orden dentro de la playlist.
+    var songOrder: String = ""
 
     init(
         id: UUID = UUID(),
@@ -30,6 +39,7 @@ final class PlaylistDTO {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         coverImageData: Data? = nil,
+        placeholderColorIndex: Int? = nil,
         songs: [SongDTO] = []
     ) {
         self.id = id
@@ -38,7 +48,9 @@ final class PlaylistDTO {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.coverImageData = coverImageData
+        self.placeholderColorIndex = placeholderColorIndex
         self.songs = songs
+        self.songOrder = songs.map { $0.id.uuidString }.joined(separator: ",")
     }
 
     var songCount: Int {

@@ -13,6 +13,7 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 - Reanudacion automatica despues de llamadas telefonicas (comportamiento tipo Spotify)
 - Pausa automatica al desconectar auriculares
 - Manejo robusto de interrupciones de audio (llamadas, alarmas, Siri, etc.)
+- Reconexión transparente del engine ante cambios de ruta de hardware (`AVAudioEngineConfigurationChange`) — sin chasquidos al abrir teclado
 
 ### CarPlay
 - Integracion nativa con CarPlay
@@ -36,6 +37,9 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 ### Playlists
 - Creacion y gestion de playlists personalizadas
 - Agregar/remover canciones con gestos intuitivos
+- **Reordenamiento manual** arrastrando canciones directamente (drag-to-reorder con handle `≡`)
+- Orden persistido de forma explícita (campo `songOrder` en SwiftData para orden determinista)
+- Actualización optimista del orden con rollback automático si falla la persistencia
 - Contador de reproducciones y ultimas canciones reproducidas
 - Grid view estilo Spotify con top songs carousel
 

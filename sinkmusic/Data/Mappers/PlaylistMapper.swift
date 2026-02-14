@@ -21,14 +21,33 @@ enum PlaylistMapper {
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt,
             coverImageData: dto.coverImageData,
+            placeholderColorIndex: dto.placeholderColorIndex,
             songs: songs
         )
     }
 
     /// Convierte DTO con sus canciones a Domain (mapea canciones también)
+    /// Aplica el orden guardado en songOrder para restaurar el orden manual del usuario.
+    /// SwiftData no garantiza orden en relaciones @Relationship — songOrder es la fuente de verdad.
     static func toDomainWithSongs(_ dto: PlaylistDTO) -> Playlist {
-        let songs = dto.songs.map { SongMapper.toDomain($0) }
-        return toDomain(dto, songs: songs)
+        let songMap = Dictionary(uniqueKeysWithValues: dto.songs.map { ($0.id, SongMapper.toDomain($0)) })
+
+        // Reconstruir en el orden guardado
+        let orderedIDs = dto.songOrder
+            .split(separator: ",")
+            .compactMap { UUID(uuidString: String($0)) }
+
+        var orderedSongs: [Song] = orderedIDs.compactMap { songMap[$0] }
+
+        // Añadir al final cualquier canción no presente en songOrder
+        // (por ejemplo, canciones añadidas antes de que existiera este campo)
+        let orderedIDSet = Set(orderedIDs)
+        let unordered = dto.songs
+            .filter { !orderedIDSet.contains($0.id) }
+            .map { SongMapper.toDomain($0) }
+        orderedSongs.append(contentsOf: unordered)
+
+        return toDomain(dto, songs: orderedSongs)
     }
 
     /// Convierte array de DTOs a Domain
@@ -48,7 +67,8 @@ enum PlaylistMapper {
             createdAt: playlist.createdAt,
             updatedAt: playlist.updatedAt,
             coverImageData: playlist.coverImageData,
-            songs: [] // Las relaciones se manejan por separado
+            placeholderColorIndex: playlist.placeholderColorIndex,
+            songs: []
         )
     }
 
@@ -64,6 +84,7 @@ enum PlaylistMapper {
             formattedDuration: playlist.formattedDuration,
             displayInfo: playlist.displayInfo,
             coverImageData: playlist.coverImageData,
+            placeholderColorIndex: playlist.placeholderColorIndex,
             songs: playlist.songs.map { SongMapper.toUI($0) },
             downloadProgress: playlist.downloadProgress,
             isEmpty: playlist.isEmpty
