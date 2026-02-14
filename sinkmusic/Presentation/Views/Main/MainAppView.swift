@@ -108,12 +108,19 @@ struct MainAppView: View {
 
     private func handlePlayingIDChange(_ newValue: UUID?) {
         if let playingID = newValue {
-            if let song = libraryViewModel.songs.first(where: { $0.id == playingID }) {
-                metadataViewModel.cacheArtwork(
-                    from: song.artworkThumbnail,
-                    thumbnail: song.artworkThumbnail
-                )
-                currentSong = song
+            guard let song = libraryViewModel.songs.first(where: { $0.id == playingID }) else { return }
+            currentSong = song
+            // Mini player: thumbnail pequeño (32x32) es suficiente.
+            metadataViewModel.cacheArtwork(from: nil, thumbnail: song.artworkSmallThumbnail ?? song.artworkThumbnail)
+            // Player grande: cargar artwork en resolución completa en segundo plano.
+            Task {
+                let fullArtwork = await libraryViewModel.getArtworkData(songID: playingID)
+                await MainActor.run {
+                    metadataViewModel.cacheArtwork(
+                        from: fullArtwork,
+                        thumbnail: song.artworkSmallThumbnail ?? song.artworkThumbnail
+                    )
+                }
             }
         } else {
             metadataViewModel.clearCache()

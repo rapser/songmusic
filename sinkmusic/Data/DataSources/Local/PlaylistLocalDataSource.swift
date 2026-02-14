@@ -82,6 +82,8 @@ final class PlaylistLocalDataSource {
         }
 
         playlist.songs.append(song)
+        // Mantener songOrder sincronizado con el array actual
+        playlist.songOrder = playlist.songs.map { $0.id.uuidString }.joined(separator: ",")
         playlist.updatedAt = Date()
         try modelContext.save()
         notificationService.notifyPlaylistsChange()
@@ -98,6 +100,8 @@ final class PlaylistLocalDataSource {
         }
 
         playlist.songs.remove(at: index)
+        // Mantener songOrder sincronizado
+        playlist.songOrder = playlist.songs.map { $0.id.uuidString }.joined(separator: ",")
         playlist.updatedAt = Date()
         try modelContext.save()
         notificationService.notifyPlaylistsChange()
@@ -109,7 +113,7 @@ final class PlaylistLocalDataSource {
             throw PlaylistError.notFound
         }
 
-        // Reconstruir el array de canciones según el nuevo orden
+        // Reconstruir el array de SongDTO en el nuevo orden
         var reorderedSongs: [SongDTO] = []
         for songID in songIDs {
             if let song = try songDataSource.getByID(songID) {
@@ -118,6 +122,8 @@ final class PlaylistLocalDataSource {
         }
 
         playlist.songs = reorderedSongs
+        // Guardar el orden como string de UUIDs — fuente de verdad para el orden
+        playlist.songOrder = songIDs.map { $0.uuidString }.joined(separator: ",")
         playlist.updatedAt = Date()
         try modelContext.save()
         notificationService.notifyPlaylistsChange()

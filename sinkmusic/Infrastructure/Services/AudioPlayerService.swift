@@ -23,11 +23,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
-    // Audio Engine para ecualizador
+    // Audio Engine: ecualizador + mixer para reproducción de alta fidelidad (estilo Tidal Hi-Fi)
     private let audioEngine: AVAudioEngine
     private let playerNode: AVAudioPlayerNode
     private var audioFile: AVAudioFile?
     private let eq: AVAudioUnitEQ
+    private let mixerNode: AVAudioMixerNode
 
     // State flags con sincronización
     private var useAudioEngine = true
@@ -46,6 +47,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
         self.eq = AVAudioUnitEQ(numberOfBands: 6)
+        self.mixerNode = AVAudioMixerNode()
 
         super.init()
         setupAudioSession()
@@ -58,15 +60,15 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         do {
             let audioSession = AVAudioSession.sharedInstance()
 
-            // CRÍTICO: Configurar la categoría para permitir reproducción en background
-            // y mostrar controles en el lock screen
-            try audioSession.setCategory(
-                .playback,
-                mode: .default,
-                options: []
-            )
+            // .playback + .default: reproductor principal (Lock Screen, Control Center)
+            // con volumen de salida completo del hardware, igual que Spotify y Tidal.
+            // .measurement reducía el volumen de salida del sistema — revertido.
+            try audioSession.setCategory(.playback, mode: .default, options: [])
 
-            // Activar la sesión de audio
+            // Solicitar la mayor sample rate soportada por el hardware del dispositivo.
+            // En iPhone con AirPods Pro / auriculares Lightning esto puede llegar a 48000 Hz.
+            try audioSession.setPreferredSampleRate(audioSession.sampleRate)
+
             try audioSession.setActive(true)
         } catch {
             // Error al configurar la sesión de audio
@@ -76,18 +78,24 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private func setupAudioEngine() {
         audioEngine.attach(playerNode)
         audioEngine.attach(eq)
+        audioEngine.attach(mixerNode)
 
-        let frequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
-        for (index, frequency) in frequencies.enumerated() where index < eq.bands.count {
-            eq.bands[index].filterType = .parametric
-            eq.bands[index].frequency = frequency
-            eq.bands[index].bandwidth = 1.0
-            eq.bands[index].gain = 0.0
-            eq.bands[index].bypass = false
+        // Mixer neutro: pan centrado, volumen máximo, sin colorear el sonido.
+        mixerNode.pan = 0.0
+        mixerNode.outputVolume = 1.0
+
+        // EQ completamente en bypass: señal sin tocar, fidelidad máxima.
+        // El usuario puede activar bandas desde el ecualizador de la app si lo desea.
+        // Tidal Hi-Fi no aplica ningún procesamiento de señal por defecto.
+        for index in 0..<eq.bands.count {
+            eq.bands[index].bypass = true
         }
     }
 
     func play(songID: UUID, url: URL) {
+        // Asegurar sesión activa para que Lock Screen y Control Center muestren Now Playing
+        try? AVAudioSession.sharedInstance().setActive(true)
+
         if currentlyPlayingID == songID {
             if !playerNode.isPlaying {
                 playerNode.play()
@@ -107,6 +115,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
                 let fileFormat = audioFile.processingFormat
 
+                // Formato estéreo estándar para la salida del mixer.
+                // Evita que archivos mono o con masterización desbalanceada suenen
+                // más en un canal del audífono que en el otro (comportamiento tipo Spotify).
+                let stereoFormat = AVAudioFormat(
+                    standardFormatWithSampleRate: fileFormat.sampleRate,
+                    channels: 2
+                )
+
                 if !isFirstConnection {
                     playerNode.reset()
 
@@ -114,14 +130,22 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                         audioEngine.stop()
                     }
 
-                    audioEngine.disconnectNodeInput(playerNode)
+                    audioEngine.disconnectNodeInput(audioEngine.mainMixerNode)
+                    audioEngine.disconnectNodeInput(mixerNode)
                     audioEngine.disconnectNodeInput(eq)
                 } else {
                     isFirstConnection = false
                 }
 
+                // Cadena Hi-Fi: playerNode → eq (bypass) → mixerNode (estéreo) → mainMixerNode
+                // Sin efectos intermedios: señal lo más pura posible, igual que Tidal.
+                let outFormat = stereoFormat ?? fileFormat
                 audioEngine.connect(playerNode, to: eq, format: fileFormat)
-                audioEngine.connect(eq, to: audioEngine.mainMixerNode, format: fileFormat)
+                audioEngine.connect(eq, to: mixerNode, format: fileFormat)
+                audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
+
+                // Pan neutro: canal izquierdo y derecho con igual peso
+                playerNode.pan = 0
 
                 audioEngine.prepare()
 
@@ -230,6 +254,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             Task { @MainActor [weak self] in
                 guard let self,
                       let nodeTime = self.playerNode.lastRenderTime,
+                      (nodeTime.isSampleTimeValid || nodeTime.isHostTimeValid),
                       let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
                       let audioFile = self.audioFile else {
                     return
@@ -246,15 +271,26 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
     // MARK: - Equalizer
 
+    private static let eqFrequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
+
     func updateEqualizer(bands: [Float]) {
         for (index, gain) in bands.enumerated() where index < eq.bands.count {
+            eq.bands[index].filterType = .parametric
+            eq.bands[index].frequency = index < Self.eqFrequencies.count ? Self.eqFrequencies[index] : 1000
+            eq.bands[index].bandwidth = 1.0
             eq.bands[index].gain = gain
+            // Bypass si la banda está a 0 dB — señal sin tocar, fidelidad máxima
+            eq.bands[index].bypass = (gain == 0)
         }
     }
 
     func applyEqualizerSettings(_ bands: [EqualizerBand]) {
         for (index, band) in bands.enumerated() where index < eq.bands.count {
+            eq.bands[index].filterType = .parametric
+            eq.bands[index].frequency = index < Self.eqFrequencies.count ? Self.eqFrequencies[index] : 1000
+            eq.bands[index].bandwidth = 1.0
             eq.bands[index].gain = Float(band.gain)
+            eq.bands[index].bypass = (band.gain == 0)
         }
     }
 
@@ -328,17 +364,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         }
     }
 
-    deinit {
-        playbackTimer?.invalidate()
-        playbackTimer = nil
-
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
-
-        NotificationCenter.default.removeObserver(self)
-    }
-
     // MARK: - Now Playing Info & Remote Commands
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
@@ -399,15 +424,20 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
 
-        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime)
+        // Evitar NaN/infinitos: el sistema puede hacer INVOP al asignar nowPlayingInfo
+        let safeDuration = duration.isFinite && duration >= 0 ? duration : 0
+        let safeCurrentTime = currentTime.isFinite && currentTime >= 0 ? currentTime : 0
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: safeDuration)
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: safeCurrentTime)
 
         let playbackRate = playerNode.isPlaying ? 1.0 : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: playbackRate)
 
         if let artworkData = artwork, let image = UIImage(data: artworkData) {
-            let artworkImage = MPMediaItemArtwork(boundsSize: image.size) { _ in
-                return image
+            let size = image.size
+            // El sistema invoca el closure desde otro hilo: debe ser @Sendable y solo capturar Sendable (Data).
+            let artworkImage = MPMediaItemArtwork(boundsSize: size) { @Sendable _ in
+                UIImage(data: artworkData) ?? UIImage()
             }
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artworkImage
         }

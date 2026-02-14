@@ -8,18 +8,11 @@
 
 import SwiftUI
 
-struct SearchResultRow: View, Equatable {
+struct SearchResultRow: View {
     let song: SongUI
     let currentlyPlayingID: UUID?
     let isPlaying: Bool
     let onTap: () -> Void
-
-    // Implementar Equatable para optimizar re-renderizados
-    static func == (lhs: SearchResultRow, rhs: SearchResultRow) -> Bool {
-        lhs.song.id == rhs.song.id &&
-        lhs.currentlyPlayingID == rhs.currentlyPlayingID &&
-        lhs.isPlaying == rhs.isPlaying
-    }
 
     private var cachedImage: UIImage? {
         if let thumbnailData = song.artworkThumbnail {

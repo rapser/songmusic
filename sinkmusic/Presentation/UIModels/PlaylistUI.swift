@@ -17,6 +17,8 @@ struct PlaylistUI: Identifiable, Hashable, Sendable {
     let formattedDuration: String // Ya formateado (ej: "2 h 35 min")
     let displayInfo: String // Ya formateado (ej: "15 canciones • 1 h 20 min")
     let coverImageData: Data?
+    /// Índice del color del placeholder. nil = color por id.
+    let placeholderColorIndex: Int?
     let songs: [SongUI]
     let downloadProgress: Double // 0.0 a 1.0
     let isEmpty: Bool

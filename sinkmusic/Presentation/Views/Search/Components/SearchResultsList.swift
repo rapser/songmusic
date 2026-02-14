@@ -26,7 +26,6 @@ struct SearchResultsList: View {
                             }
                         }
                     )
-                    .equatable() // Usar Equatable para evitar re-renderizados innecesarios
                     .id(song.id)
                 }
             }

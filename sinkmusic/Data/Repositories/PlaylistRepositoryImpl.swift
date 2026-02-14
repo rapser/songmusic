@@ -59,6 +59,7 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
         dto.name = playlist.name
         dto.desc = playlist.description
         dto.coverImageData = playlist.coverImageData
+        dto.placeholderColorIndex = playlist.placeholderColorIndex
 
         try localDataSource.update(dto)
     }

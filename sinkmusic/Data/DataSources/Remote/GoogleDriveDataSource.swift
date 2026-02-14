@@ -42,6 +42,7 @@ private actor GoogleDriveDownloadState {
 /// DataSource remoto para Google Drive API
 /// Implementa GoogleDriveServiceProtocol para abstraer el acceso a archivos en la nube
 /// SOLID: Dependency Inversion - Depende de abstracciones (KeychainServiceProtocol, EventBusProtocol)
+@MainActor
 final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Dependencies (Inyectadas)
@@ -290,7 +291,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             guard let self else { return }
             guard let downloadInfo = await self.downloadState.removeDownload(for: taskID) else { return }
 
-            guard let destinationURL = self.localURL(for: downloadInfo.songID) else {
+            guard let destinationURL = await self.localURL(for: downloadInfo.songID) else {
                 let error = NSError(domain: "GoogleDriveService", code: 0, userInfo: [NSLocalizedDescriptionKey: "No se pudo crear URL de destino"])
                 print("❌ No se pudo obtener URL de destino para songID: \(downloadInfo.songID.uuidString)")
                 downloadInfo.continuation.resume(throwing: error)

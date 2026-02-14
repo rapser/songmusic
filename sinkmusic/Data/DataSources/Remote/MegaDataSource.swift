@@ -20,6 +20,7 @@ final class MegaDataSource: MegaServiceProtocol {
     private let crypto: MegaCrypto
     private let apiClient: MegaAPIClient
     private let downloadSession: MegaDownloadSession
+    private let backgroundSessionCompletion: BackgroundSessionCompletionServiceProtocol
 
     // MARK: - State
 
@@ -29,11 +30,12 @@ final class MegaDataSource: MegaServiceProtocol {
 
     // MARK: - Initialization
 
-    init(eventBus: EventBusProtocol) {
+    init(eventBus: EventBusProtocol, backgroundSessionCompletion: BackgroundSessionCompletionServiceProtocol) {
         self.eventBus = eventBus
+        self.backgroundSessionCompletion = backgroundSessionCompletion
         self.crypto = MegaCrypto()
         self.apiClient = MegaAPIClient()
-        self.downloadSession = MegaDownloadSession(eventBus: eventBus)
+        self.downloadSession = MegaDownloadSession(eventBus: eventBus, completionService: backgroundSessionCompletion)
 
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.musicDirectory = documents.appendingPathComponent("Music")

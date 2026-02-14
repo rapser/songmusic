@@ -7,10 +7,10 @@
 
 import Foundation
 
-/// Protocolo consolidado que define las capacidades del servicio de Google Drive
-/// Incluye funcionalidad de descarga y manejo de archivos locales
-/// Cumple con Dependency Inversion Principle (SOLID)
-protocol GoogleDriveServiceProtocol {
+/// Protocolo consolidado que define las capacidades del servicio de Google Drive.
+/// @MainActor: uso solo desde MainActor; evita "Sending risks data races" al await en el repositorio.
+@MainActor
+protocol GoogleDriveServiceProtocol: AnyObject {
     // MARK: - Fetch Songs
 
     /// Obtiene la lista de canciones de una carpeta de Google Drive

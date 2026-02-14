@@ -166,7 +166,7 @@ struct LockScreenLiveActivityView: View {
 import AppIntents
 
 struct PlayPauseIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Play/Pause"
+    static var title: LocalizedStringResource { "Play/Pause" }
 
     func perform() async throws -> some IntentResult {
         // Esta acción será manejada por el PlayerViewModel
@@ -176,7 +176,7 @@ struct PlayPauseIntent: LiveActivityIntent {
 }
 
 struct NextTrackIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Next Track"
+    static var title: LocalizedStringResource { "Next Track" }
 
     func perform() async throws -> some IntentResult {
         NotificationCenter.default.post(name: .nextTrackFromLiveActivity, object: nil)
@@ -185,7 +185,7 @@ struct NextTrackIntent: LiveActivityIntent {
 }
 
 struct PreviousTrackIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Previous Track"
+    static var title: LocalizedStringResource { "Previous Track" }
 
     func perform() async throws -> some IntentResult {
         NotificationCenter.default.post(name: .previousTrackFromLiveActivity, object: nil)

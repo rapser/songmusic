@@ -21,6 +21,7 @@ final class StorageManagementService: StorageManagementServiceProtocol, Settings
 
     // MARK: - SettingsServiceProtocol
 
+    @MainActor
     func calculateStorageUsed(for songs: [Song]) -> String {
         let fileManager = FileManager.default
         var totalSize: Int64 = 0
