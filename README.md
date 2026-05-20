@@ -497,31 +497,79 @@ open sinkmusic.xcodeproj
 
 ## Testing
 
-La arquitectura con DI facilita el testing:
+El target `sinkmusicTests` cubre los 7 use cases de la capa de dominio con **mocks en memoria** — sin SwiftData, sin red, sin filesystem. Cada mock implementa el protocolo de repositorio correspondiente y expone contadores/resultados configurables para hacer asserts precisos.
+
+### Estructura
+
+```
+sinkmusicTests/
+├── Helpers/
+│   └── TestFixtures.swift          — Song.make(), Playlist.make(), CloudFile.make()
+├── Mocks/
+│   ├── MockSongRepository.swift
+│   ├── MockPlaylistRepository.swift
+│   ├── MockAudioPlayerRepository.swift
+│   ├── MockCloudStorageRepository.swift
+│   ├── MockCredentialsRepository.swift
+│   └── MockMetadataRepository.swift
+└── UseCases/
+    ├── PlayerUseCasesTests.swift   — 11 tests
+    ├── LibraryUseCasesTests.swift  — 12 tests
+    ├── PlaylistUseCasesTests.swift — 14 tests
+    ├── SearchUseCasesTests.swift   — 16 tests
+    ├── DownloadUseCasesTests.swift — 12 tests
+    ├── EqualizerUseCasesTests.swift — 10 tests
+    └── SettingsUseCasesTests.swift — 16 tests
+```
+
+### Patrón de mocks
+
+Todos los mocks son `@MainActor final class` para cumplir con Swift 6 strict concurrency:
 
 ```swift
-// Mock de EventBus
-class MockEventBus: EventBusProtocol {
-    var emittedEvents: [DataChangeEvent] = []
+@MainActor
+final class MockSongRepository: SongRepositoryProtocol {
+    var songs: [Song] = []
+    var createCallCount = 0
 
-    func emit(_ event: DataChangeEvent) {
-        emittedEvents.append(event)
+    func getAll() async throws -> [Song] { songs }
+    func create(_ song: Song) async throws {
+        createCallCount += 1
+        songs.append(song)
+    }
+    // ...
+}
+```
+
+### Patrón de test
+
+Clases de test `@MainActor` con `setUp`/`tearDown` síncronos y métodos `async`:
+
+```swift
+@MainActor
+final class PlayerUseCasesTests: XCTestCase {
+    private var sut: PlayerUseCases!
+    private var mockAudioPlayer: MockAudioPlayerRepository!
+
+    override func setUp() {
+        super.setUp()
+        mockAudioPlayer = MockAudioPlayerRepository()
+        sut = PlayerUseCases(audioPlayerRepository: mockAudioPlayer, songRepository: MockSongRepository())
+    }
+
+    func test_play_songNotFound_throwsSongNotFound() async {
+        do {
+            try await sut.play(songID: UUID())
+            XCTFail("Expected PlayerError.songNotFound")
+        } catch PlayerError.songNotFound { }
     }
 }
+```
 
-// Test de ViewModel
-func testViewModel() {
-    let mockEventBus = MockEventBus()
-    let mockUseCases = MockUseCases()
-    let viewModel = PlayerViewModel(
-        playerUseCases: mockUseCases,
-        eventBus: mockEventBus
-    )
+### Ejecutar tests
 
-    viewModel.play()
-
-    XCTAssertTrue(mockUseCases.playCalled)
-}
+```
+Cmd+U  (Xcode) — corre todos los tests del target sinkmusicTests
 ```
 
 ## Changelog

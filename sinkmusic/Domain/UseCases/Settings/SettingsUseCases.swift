@@ -117,6 +117,10 @@ final class SettingsUseCases {
         }
     }
 
+    // MARK: - Constants
+
+    private static let estimatedFileSizeMB: Double = 5.0
+
     // MARK: - Data Management
 
     /// Obtiene el tamaño estimado de los datos de la app
@@ -124,11 +128,10 @@ final class SettingsUseCases {
         let songs = try await songRepository.getAll()
         let downloadedSongs = songs.filter { $0.isDownloaded }
 
-        // Estimar tamaño (5MB por canción descargada)
-        let estimatedSize = Double(downloadedSongs.count) * 5.0
+        let estimatedSize = Double(downloadedSongs.count) * SettingsUseCases.estimatedFileSizeMB
 
         // Calcular tamaño de artwork cacheado
-        let artworkSize = songs.compactMap { $0.artworkData?.count ?? 0 }.reduce(0, +)
+        let artworkSize = songs.map { $0.artworkData?.count ?? 0 }.reduce(0, +)
         let artworkSizeMB = Double(artworkSize) / (1024 * 1024)
 
         return StorageInfo(

@@ -21,6 +21,7 @@ final class PlayerUseCases {
     // MARK: - State
 
     private var currentSongID: UUID?
+    private var currentSong: Song?
     private var isPlaying: Bool = false
 
     // MARK: - Initialization
@@ -51,6 +52,7 @@ final class PlayerUseCases {
 
         try await audioPlayerRepository.play(songID: songID, url: localURL)
         currentSongID = songID
+        currentSong = songEntity
         isPlaying = true
 
         // Marcar como reproduciendo en Lock Screen (rate 1.0)
@@ -70,6 +72,7 @@ final class PlayerUseCases {
     func stop() async {
         await audioPlayerRepository.stop()
         currentSongID = nil
+        currentSong = nil
         isPlaying = false
     }
 
@@ -101,10 +104,7 @@ final class PlayerUseCases {
     }
 
     func updateNowPlayingTime(currentTime: TimeInterval, duration: TimeInterval) async {
-        guard let songID = currentSongID,
-              let songEntity = try? await songRepository.getByID(songID) else {
-            return
-        }
+        guard let songEntity = currentSong else { return }
 
         await audioPlayerRepository.updateNowPlayingInfo(
             title: songEntity.title,

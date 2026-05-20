@@ -31,24 +31,22 @@ final class DownloadUseCases {
         self.metadataRepository = metadataRepository
     }
 
+    // MARK: - Constants
+
+    private static let estimatedFileSizeMB: Double = 5.0
+
     // MARK: - Download Operations
 
     /// Descarga una canción desde el almacenamiento cloud
     /// El progreso se emite via EventBus como DownloadEvent.progress
     func downloadSong(_ songID: UUID) async throws {
-        // Obtener la canción
         guard var song = try await songRepository.getByID(songID) else {
             throw DownloadError.songNotFound
         }
 
-        // Verificar que no esté ya descargada
         if song.isDownloaded {
             throw DownloadError.alreadyDownloaded
         }
-
-        print("📥 Descargando canción: \(song.title)")
-        print("   FileID: \(song.fileID)")
-        print("   SongID: \(songID)")
 
         // Descargar archivo (el progreso se emite via EventBus desde el DataSource)
         let localURL = try await cloudStorageRepository.download(
@@ -182,8 +180,7 @@ final class DownloadUseCases {
         let totalSongs = songs.count
         let downloadedDuration = downloadedSongs.compactMap { $0.duration }.reduce(0, +)
 
-        // Calcular tamaño aproximado (estimado en 5MB por canción)
-        let estimatedSize = Double(totalDownloaded) * 5.0
+        let estimatedSize = Double(totalDownloaded) * DownloadUseCases.estimatedFileSizeMB
 
         return DownloadStats(
             totalDownloaded: totalDownloaded,

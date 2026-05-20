@@ -5,6 +5,48 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (21) - 2026-05-19
+
+### 🧪 Unit Tests — Domain Use Cases
+
+#### Target sinkmusicTests añadido al proyecto Xcode
+- Nuevo target `sinkmusicTests` configurado en `project.pbxproj` con `PBXFileSystemSynchronizedRootGroup` (Xcode 15+)
+- Bundle loader apuntando al host app (`sinkmusic.app`) para `@testable import sinkmusic`
+- Swift 6 strict concurrency habilitado en el target de tests
+
+#### Cobertura: 91 tests para los 7 use cases
+- **PlayerUseCasesTests** (11 tests): `play()` errores/éxito, `pause`, `stop`, `togglePlayPause`, `seek`, `getSongsByIDs`
+- **LibraryUseCasesTests** (12 tests): `getAllSongs`, `getRecentlyPlayedSongs` (orden/límite), `sync` (sin credenciales / nuevas / duplicadas), `deleteSong`, `getLibraryStats`, `hasCredentials`
+- **PlaylistUseCasesTests** (14 tests): CRUD de playlists, `addSong/removeSong`, `clearPlaylist`, `getPlaylistStats`, `getMostPlayedPlaylists`
+- **SearchUseCasesTests** (16 tests): búsqueda por título/artista/álbum, filtros avanzados, ordenamiento (6 opciones), `getAllArtists`, `getSongCountByArtist`
+- **DownloadUseCasesTests** (12 tests): descarga con/sin metadata, `deleteDownload`, `isDownloaded`, `getDownloadStats`
+- **EqualizerUseCasesTests** (10 tests): `updateBands`, `applyPreset`, `reset`, validación de bandas de todos los presets
+- **SettingsUseCasesTests** (16 tests): validación de credenciales GDrive/MEGA, `getStorageInfo`, `getAppInfo`, formateo de tamaño
+
+#### Infraestructura de mocks
+- 6 mocks `@MainActor final class` — compatibles con Swift 6 strict concurrency:
+  `MockSongRepository`, `MockPlaylistRepository`, `MockAudioPlayerRepository`, `MockCloudStorageRepository`, `MockCredentialsRepository`, `MockMetadataRepository`
+- `TestFixtures.swift` con helpers `Song.make()`, `Playlist.make()`, `CloudFile.make()` para reducir boilerplate
+
+### 🛠 Mejoras de buenas prácticas — Use Cases
+
+#### PlayerUseCases — caché de canción actual
+- Añadida propiedad `currentSong: Song?` que se asigna en `play()` y se limpia en `stop()`
+- `updateNowPlayingTime()` usa la caché en lugar de hacer un `await songRepository.getByID()` en cada actualización de tiempo (llamada potencialmente cada segundo), eliminando round-trips al repositorio durante la reproducción
+
+#### LibraryUseCases — eliminación de print() de depuración
+- Removidos 6 `print()` de `syncWithCloudStorage()` que exponian datos internos en consola de producción
+
+#### DownloadUseCases — constante y limpieza
+- Removidos 3 `print()` de `downloadSong()` con datos internos de descarga
+- Magic number `5.0` (MB estimados por canción) extraído a `private static let estimatedFileSizeMB: Double`
+
+#### SettingsUseCases — semántica de colección
+- Corregido `compactMap { $0.artworkData?.count ?? 0 }` → `map { $0.artworkData?.count ?? 0 }`: el closure nunca retorna `nil` por el fallback `?? 0`, por lo que `map` es semánticamente correcto
+- Alineada constante `estimatedFileSizeMB` con `DownloadUseCases` para consistencia
+
+---
+
 ## [1.0.0] (14) - 2026-02-12
 
 ### 🎨 UI/UX — Playlists
