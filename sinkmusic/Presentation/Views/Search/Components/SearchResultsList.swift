@@ -12,10 +12,17 @@ struct SearchResultsList: View {
     let songs: [SongUI]
     @Environment(PlayerViewModel.self) private var playerViewModel
 
+    @State private var displayedCount = 50
+    private let pageSize = 30
+
+    private var displayedSongs: [SongUI] {
+        Array(songs.prefix(displayedCount))
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
-                ForEach(songs) { song in
+                ForEach(displayedSongs) { song in
                     SearchResultRow(
                         song: song,
                         currentlyPlayingID: playerViewModel.currentlyPlayingID,
@@ -28,9 +35,20 @@ struct SearchResultsList: View {
                     )
                     .id(song.id)
                 }
+
+                if displayedCount < songs.count {
+                    Color.clear
+                        .frame(height: 1)
+                        .onAppear {
+                            displayedCount = min(displayedCount + pageSize, songs.count)
+                        }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 100)
+        }
+        .onChange(of: songs.first?.id) {
+            displayedCount = 50
         }
     }
 }
