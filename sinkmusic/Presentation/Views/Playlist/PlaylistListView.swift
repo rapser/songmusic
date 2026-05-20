@@ -14,7 +14,6 @@ struct PlaylistListView: View {
     @Environment(PlayerViewModel.self) private var playerViewModel
 
     @State private var showCreatePlaylist = false
-    @State private var skeletonOpacity: Double = 0.4
 
     var body: some View {
         ZStack {
@@ -39,9 +38,11 @@ struct PlaylistListView: View {
                 .padding(.top, 20)
                 .padding(.bottom, 16)
 
-                // Loading State
+                // Loading State (sólo activo durante operaciones de escritura)
                 if viewModel.isLoading {
-                    playlistSkeletonGrid
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .padding()
                 }
                 // Playlists Grid
                 else if viewModel.playlists.isEmpty {
@@ -77,51 +78,6 @@ struct PlaylistListView: View {
         }
     }
 
-    // MARK: - Skeleton
-
-    private var playlistSkeletonGrid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-                spacing: 16
-            ) {
-                ForEach(0..<6, id: \.self) { _ in
-                    playlistSkeletonCard
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 100)
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                skeletonOpacity = 0.15
-            }
-        }
-    }
-
-    private var playlistSkeletonCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.appGray)
-                .frame(height: 160)
-                .opacity(skeletonOpacity)
-
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.appGray)
-                .frame(height: 13)
-                .padding(.leading, 4)
-                .padding(.trailing, 32)
-                .opacity(skeletonOpacity)
-
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.appGray)
-                .frame(height: 11)
-                .padding(.leading, 4)
-                .padding(.trailing, 56)
-                .opacity(skeletonOpacity)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
 }
 
 #Preview {
