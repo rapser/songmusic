@@ -63,12 +63,16 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
 
     // MARK: - Private Properties
 
-    private lazy var urlSession: URLSession = {
+    private var _urlSession: URLSession?
+    private var urlSession: URLSession {
+        if let existing = _urlSession { return existing }
         let config = URLSessionConfiguration.default
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
-    }()
+        let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        _urlSession = session
+        return session
+    }
 
     private let downloadState = GoogleDriveDownloadState()
 
@@ -226,11 +230,11 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
         return "https://drive.google.com/uc?export=download&id=\(fileId)"
     }
 
-    // NOTA: No usar deinit aquí porque:
-    // 1. GoogleDriveService se usa como instancia compartida entre ViewModels
-    // 2. invalidateAndCancel() cancelaría todas las descargas activas
-    // 3. URLSession se limpia automáticamente al finalizar la app
-    // 4. Para evitar el retain cycle, se usa weak self en los delegates
+    deinit {
+        // finishTasksAndInvalidate permite que las descargas en curso terminen
+        // y libera el strong reference que URLSession mantiene sobre self (el delegate).
+        _urlSession?.finishTasksAndInvalidate()
+    }
 }
 
 // MARK: - URLSessionDownloadDelegate

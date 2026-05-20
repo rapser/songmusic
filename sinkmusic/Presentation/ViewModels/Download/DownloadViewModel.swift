@@ -10,7 +10,7 @@ import Foundation
 import os
 
 /// Gestor de tareas de descarga activas para cancelación
-private final class ActiveTasksManager {
+private final class ActiveTasksManager: @unchecked Sendable {
     var tasks: [UUID: Task<Void, Never>] = [:]
 }
 
@@ -71,6 +71,11 @@ final class DownloadViewModel {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
         startObservingEvents()
+    }
+
+    deinit {
+        downloadEventTask?.cancel()
+        for (_, task) in activeTasksManager.tasks { task.cancel() }
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
