@@ -38,7 +38,7 @@ protocol AudioPlayerServiceProtocol: Sendable {
 
     // MARK: - Now Playing Info
 
-    /// Actualiza la información de Now Playing (Lock Screen, CarPlay)
+    /// Actualiza la información de Now Playing (Lock Screen)
     func updateNowPlayingInfo(
         title: String,
         artist: String,

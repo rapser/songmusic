@@ -68,9 +68,6 @@ final class DIContainer {
     /// LiveActivityService - Creado una sola vez
     private(set) lazy var liveActivityService: LiveActivityServiceProtocol = LiveActivityService()
 
-    /// CarPlayService - Creado una sola vez
-    private(set) lazy var carPlayService: CarPlayServiceProtocol = CarPlayService()
-
     /// Completion handler de sesiones de descarga en segundo plano (iOS). Sin modelContext.
     private(set) lazy var backgroundSessionCompletionService: BackgroundSessionCompletionServiceProtocol = BackgroundSessionCompletionService()
 

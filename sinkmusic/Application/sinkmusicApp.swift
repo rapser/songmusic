@@ -89,10 +89,6 @@ struct sinkmusicApp: App {
                                 .environment(downloadVM)
                                 .environment(metadataViewModel)
                                 .environment(authVM)
-                                .onAppear {
-                                    // Configurar CarPlay cuando la app aparece
-                                    container.carPlayService.configure(with: playerVM)
-                                }
                         } else {
                             // Fallback mientras se inicializan ViewModels
                             ProgressView("Inicializando...")
