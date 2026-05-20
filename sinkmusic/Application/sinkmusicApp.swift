@@ -17,8 +17,9 @@ struct sinkmusicApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     // MARK: - DIContainer
-    @MainActor
-    private let container = DIContainer.shared
+    // Creado aquí para que sinkmusicApp sea el dueño explícito del ciclo de vida.
+    // DIContainer.shared queda registrado para que AppDelegate pueda accederlo.
+    private let container: DIContainer
 
     // MARK: - ViewModels creados con DIContainer
     @State private var playerViewModel: PlayerViewModel?
@@ -35,6 +36,10 @@ struct sinkmusicApp: App {
     @State private var metadataViewModel = MetadataCacheViewModel()
 
     init() {
+        // Crear e registrar el contenedor antes de que cualquier AppDelegate
+        // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
+        container = DIContainer.createShared()
+
         // Configurar apariencia del NavigationBar
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()

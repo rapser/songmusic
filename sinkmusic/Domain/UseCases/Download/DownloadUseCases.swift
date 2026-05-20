@@ -19,6 +19,7 @@ final class DownloadUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let metadataRepository: MetadataRepositoryProtocol
+    private let credentialsRepository: CredentialsRepositoryProtocol
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
@@ -27,11 +28,21 @@ final class DownloadUseCases {
     init(
         songRepository: SongRepositoryProtocol,
         cloudStorageRepository: CloudStorageRepositoryProtocol,
-        metadataRepository: MetadataRepositoryProtocol
+        metadataRepository: MetadataRepositoryProtocol,
+        credentialsRepository: CredentialsRepositoryProtocol
     ) {
         self.songRepository = songRepository
         self.cloudStorageRepository = cloudStorageRepository
         self.metadataRepository = metadataRepository
+        self.credentialsRepository = credentialsRepository
+    }
+
+    // MARK: - Provider
+
+    /// Proveedor de almacenamiento cloud actualmente seleccionado.
+    /// Los ViewModels consultan esto a través del UseCase, sin acceder al repositorio directamente.
+    func currentCloudProvider() -> CloudStorageProvider {
+        credentialsRepository.getSelectedCloudProvider()
     }
 
     // MARK: - Constants

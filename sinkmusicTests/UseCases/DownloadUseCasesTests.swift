@@ -13,16 +13,19 @@ final class DownloadUseCasesTests: XCTestCase {
     private var mockSongRepo: MockSongRepository!
     private var mockCloudStorage: MockCloudStorageRepository!
     private var mockMetadata: MockMetadataRepository!
+    private var mockCredentials: MockCredentialsRepository!
 
     override func setUp() {
         super.setUp()
         mockSongRepo = MockSongRepository()
         mockCloudStorage = MockCloudStorageRepository()
         mockMetadata = MockMetadataRepository()
+        mockCredentials = MockCredentialsRepository()
         sut = DownloadUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
-            metadataRepository: mockMetadata
+            metadataRepository: mockMetadata,
+            credentialsRepository: mockCredentials
         )
     }
 
@@ -31,7 +34,18 @@ final class DownloadUseCasesTests: XCTestCase {
         mockSongRepo = nil
         mockCloudStorage = nil
         mockMetadata = nil
+        mockCredentials = nil
         super.tearDown()
+    }
+
+    // MARK: - currentCloudProvider()
+
+    func test_currentCloudProvider_delegatesToCredentialsRepository() {
+        mockCredentials.selectedProvider = .mega
+        XCTAssertEqual(sut.currentCloudProvider(), .mega)
+
+        mockCredentials.selectedProvider = .googleDrive
+        XCTAssertEqual(sut.currentCloudProvider(), .googleDrive)
     }
 
     // MARK: - downloadSong()

@@ -91,10 +91,14 @@ struct PreviewContainer {
 // MARK: - ViewModels de prueba
 @MainActor
 struct PreviewViewModels {
-    // Configurar DIContainer con el PreviewContainer
+    // Configurar DIContainer con el PreviewContainer.
+    // En previews, sinkmusicApp.init() no se ejecuta, así que creamos
+    // el shared aquí si todavía no existe.
     private static func setupDI() {
-        let container = PreviewContainer.shared.container
-        DIContainer.shared.configure(with: container.mainContext)
+        if DIContainer.shared == nil {
+            _ = DIContainer.createShared()
+        }
+        DIContainer.shared.configure(with: PreviewContainer.shared.container.mainContext)
     }
 
     static func libraryVM() -> LibraryViewModel {
@@ -135,11 +139,7 @@ struct PreviewViewModels {
 
     static func downloadVM() -> DownloadViewModel {
         setupDI()
-        return DownloadViewModel(
-            downloadUseCases: DIContainer.shared.downloadUseCases,
-            eventBus: DIContainer.shared.eventBus,
-            credentialsRepository: DIContainer.shared.credentialsRepository
-        )
+        return DIContainer.shared.makeDownloadViewModel()
     }
 
     static func settingsVM() -> SettingsViewModel {

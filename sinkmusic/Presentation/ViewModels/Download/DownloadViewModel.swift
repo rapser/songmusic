@@ -48,7 +48,6 @@ final class DownloadViewModel {
 
     private let downloadUseCases: DownloadUseCases
     private let eventBus: EventBusProtocol
-    private let credentialsRepository: CredentialsRepositoryProtocol
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
@@ -68,10 +67,9 @@ final class DownloadViewModel {
 
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol, credentialsRepository: CredentialsRepositoryProtocol) {
+    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
-        self.credentialsRepository = credentialsRepository
         startObservingEvents()
     }
 
@@ -164,7 +162,7 @@ final class DownloadViewModel {
         guard activeTasksManager.tasks[songID] == nil else { return }
 
         // Obtener proveedor actual
-        let provider = credentialsRepository.getSelectedCloudProvider()
+        let provider = downloadUseCases.currentCloudProvider()
 
         // Verificar si la cuota está excedida
         if let resetTime = await queueManager.getQuotaResetTime(for: provider) {
@@ -379,7 +377,7 @@ final class DownloadViewModel {
 
     /// True si el proveedor actual es Mega (permite descarga masiva)
     var isMegaProvider: Bool {
-        credentialsRepository.getSelectedCloudProvider() == .mega
+        downloadUseCases.currentCloudProvider() == .mega
     }
 
     /// True si Mega tiene el límite de cuota alcanzado (informar al usuario)
