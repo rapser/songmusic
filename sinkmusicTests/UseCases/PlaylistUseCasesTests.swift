@@ -224,4 +224,106 @@ final class PlaylistUseCasesTests: XCTestCase {
         let stats = PlaylistStats(songCount: 1, totalDuration: 3661, totalPlays: 0, downloadedSongs: 0)
         XCTAssertEqual(stats.formattedDuration, "1h 1m")
     }
+
+    // MARK: - getPlaylistByID()
+
+    func test_getPlaylistByID_returnsNil_forUnknownID() async throws {
+        let result = try await sut.getPlaylistByID(UUID())
+        XCTAssertNil(result)
+    }
+
+    func test_getPlaylistByID_returnsCorrectPlaylist() async throws {
+        let playlist = Playlist.make(name: "Jazz")
+        mockPlaylistRepo.playlists = [playlist]
+
+        let result = try await sut.getPlaylistByID(playlist.id)
+
+        XCTAssertEqual(result?.name, "Jazz")
+    }
+
+    // MARK: - removeSongFromPlaylist()
+
+    func test_removeSongFromPlaylist_callsRepository() async throws {
+        let song = Song.make()
+        let playlist = Playlist.make(songs: [song])
+        mockPlaylistRepo.playlists = [playlist]
+
+        try await sut.removeSongFromPlaylist(songID: song.id, playlistID: playlist.id)
+
+        XCTAssertEqual(mockPlaylistRepo.removeSongCallCount, 1)
+    }
+
+    // MARK: - addSongsToPlaylist()
+
+    func test_addSongsToPlaylist_addsAllSongs() async throws {
+        let songs = [Song.make(), Song.make(), Song.make()]
+        let playlist = Playlist.make()
+        mockSongRepo.songs = songs
+        mockPlaylistRepo.playlists = [playlist]
+
+        try await sut.addSongsToPlaylist(songIDs: songs.map { $0.id }, playlistID: playlist.id)
+
+        XCTAssertEqual(mockPlaylistRepo.addSongCallCount, 3)
+    }
+
+    func test_addSongsToPlaylist_stopsOnFirstSongNotFound() async {
+        let song = Song.make()
+        let playlist = Playlist.make()
+        mockSongRepo.songs = [song]
+        mockPlaylistRepo.playlists = [playlist]
+
+        do {
+            try await sut.addSongsToPlaylist(songIDs: [song.id, UUID()], playlistID: playlist.id)
+            XCTFail("Expected PlaylistError.songNotFound")
+        } catch PlaylistError.songNotFound {
+            // pass
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(mockPlaylistRepo.addSongCallCount, 1)
+    }
+
+    // MARK: - reorderSongs()
+
+    func test_reorderSongs_notFound_throwsError() async {
+        do {
+            try await sut.reorderSongs(in: UUID(), fromOffsets: IndexSet([0]), toOffset: 1)
+            XCTFail("Expected PlaylistError.notFound")
+        } catch PlaylistError.notFound {
+            // pass
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_reorderSongs_callsRepositoryWithCorrectOrder() async throws {
+        let songs = (0..<4).map { Song.make(title: "Song \($0)") }
+        let playlist = Playlist.make(songs: songs)
+        mockPlaylistRepo.playlists = [playlist]
+
+        // Move last element to first position
+        try await sut.reorderSongs(in: playlist.id, fromOffsets: IndexSet([3]), toOffset: 0)
+
+        XCTAssertEqual(mockPlaylistRepo.updateSongsOrderCallCount, 1)
+        let order = mockPlaylistRepo.lastUpdatedSongsOrder
+        XCTAssertEqual(order?[0], songs[3].id)
+        XCTAssertEqual(order?[1], songs[0].id)
+        XCTAssertEqual(order?[2], songs[1].id)
+        XCTAssertEqual(order?[3], songs[2].id)
+    }
+
+    func test_reorderSongs_movingFirstToLast_producesCorrectOrder() async throws {
+        let songs = (0..<3).map { Song.make(title: "S\($0)") }
+        let playlist = Playlist.make(songs: songs)
+        mockPlaylistRepo.playlists = [playlist]
+
+        // Move first element to after the last (toOffset: 3 on a 3-element array)
+        try await sut.reorderSongs(in: playlist.id, fromOffsets: IndexSet([0]), toOffset: 3)
+
+        let order = mockPlaylistRepo.lastUpdatedSongsOrder
+        XCTAssertEqual(order?[0], songs[1].id)
+        XCTAssertEqual(order?[1], songs[2].id)
+        XCTAssertEqual(order?[2], songs[0].id)
+    }
 }

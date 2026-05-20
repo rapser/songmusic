@@ -189,4 +189,108 @@ final class LibraryUseCasesTests: XCTestCase {
 
         XCTAssertFalse(sut.hasCredentials())
     }
+
+    // MARK: - getSongByID()
+
+    func test_getSongByID_returnsNil_forUnknownID() async throws {
+        let result = try await sut.getSongByID(UUID())
+        XCTAssertNil(result)
+    }
+
+    func test_getSongByID_returnsCorrectSong() async throws {
+        let song = Song.make(title: "Requiem")
+        mockSongRepo.songs = [song]
+
+        let result = try await sut.getSongByID(song.id)
+
+        XCTAssertEqual(result?.title, "Requiem")
+    }
+
+    // MARK: - syncWithCloudStorage() — proveedor Mega
+
+    func test_sync_mega_noCredentials_throwsError() async {
+        mockCredentials.selectedProvider = .mega
+        mockCredentials.hasMegaCredentialsValue = false
+
+        do {
+            _ = try await sut.syncWithCloudStorage()
+            XCTFail("Expected LibraryError.credentialsNotConfigured")
+        } catch LibraryError.credentialsNotConfigured {
+            // pass
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_sync_mega_withCredentials_addsNewSongs() async throws {
+        mockCredentials.selectedProvider = .mega
+        mockCredentials.hasMegaCredentialsValue = true
+        mockCloudStorage.remoteFiles = [
+            CloudFile.make(id: "mega-1", provider: .mega),
+            CloudFile.make(id: "mega-2", provider: .mega)
+        ]
+        mockSongRepo.songs = []
+
+        let added = try await sut.syncWithCloudStorage()
+
+        XCTAssertEqual(added, 2)
+        XCTAssertEqual(mockSongRepo.createCallCount, 2)
+    }
+
+    func test_sync_mega_skipsAlreadyLocalSongs() async throws {
+        mockCredentials.selectedProvider = .mega
+        mockCredentials.hasMegaCredentialsValue = true
+        mockCloudStorage.remoteFiles = [CloudFile.make(id: "mega-file")]
+        mockSongRepo.songs = [Song.make(fileID: "mega-file")]
+
+        let added = try await sut.syncWithCloudStorage()
+
+        XCTAssertEqual(added, 0)
+        XCTAssertEqual(mockSongRepo.createCallCount, 0)
+    }
+
+    // MARK: - deleteSong() — limpieza cloud
+
+    func test_deleteSong_attemptsToDeleteCloudFile() async throws {
+        let song = Song.make(isDownloaded: true)
+        mockSongRepo.songs = [song]
+
+        try await sut.deleteSong(song.id)
+
+        XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 1)
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 1)
+    }
+
+    func test_deleteSong_continuesEvenWhenCloudDeleteFails() async throws {
+        let song = Song.make(isDownloaded: true)
+        mockSongRepo.songs = [song]
+        mockCloudStorage.shouldThrowOnDelete = true
+
+        // deleteSong usa try? en cloudStorage, no debe propagar el error
+        try await sut.deleteSong(song.id)
+
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 1)
+    }
+
+    // MARK: - updateDominantColor()
+
+    func test_updateDominantColor_persistsColorToRepository() async throws {
+        let song = Song.make()
+        mockSongRepo.songs = [song]
+
+        try await sut.updateDominantColor(songID: song.id, red: 0.8, green: 0.2, blue: 0.5)
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 1)
+        let color = mockSongRepo.lastUpdatedSong?.dominantColor
+        XCTAssertNotNil(color)
+        XCTAssertEqual(color!.red, 0.8, accuracy: 0.001)
+        XCTAssertEqual(color!.green, 0.2, accuracy: 0.001)
+        XCTAssertEqual(color!.blue, 0.5, accuracy: 0.001)
+    }
+
+    func test_updateDominantColor_silentlyIgnoresUnknownSong() async throws {
+        try await sut.updateDominantColor(songID: UUID(), red: 1.0, green: 0.0, blue: 0.0)
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 0)
+    }
 }

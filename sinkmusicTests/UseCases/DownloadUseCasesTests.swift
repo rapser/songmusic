@@ -225,4 +225,103 @@ final class DownloadUseCasesTests: XCTestCase {
 
         XCTAssertTrue(stats.formattedSize.contains("GB"))
     }
+
+    // MARK: - downloadSong() — rama sin metadata
+
+    func test_download_withNilMetadata_usesDurationFromCloudStorage() async throws {
+        let songID = UUID()
+        let song = Song.make(id: songID, title: "Original", isDownloaded: false)
+        mockSongRepo.songs = [song]
+        // metadata = nil (default) → fallback a getDuration del CloudStorage
+        let expectedURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("\(songID.uuidString).m4a")
+        mockCloudStorage.durations[expectedURL] = 240
+
+        try await sut.downloadSong(songID)
+
+        XCTAssertEqual(mockSongRepo.lastUpdatedSong?.duration, 240)
+        XCTAssertEqual(mockSongRepo.lastUpdatedSong?.title, "Original")
+        XCTAssertTrue(mockSongRepo.lastUpdatedSong?.isDownloaded == true)
+    }
+
+    func test_download_withNilMetadataAndNilDuration_marksAsDownloaded() async throws {
+        let songID = UUID()
+        let song = Song.make(id: songID, isDownloaded: false)
+        mockSongRepo.songs = [song]
+        // metadata = nil, durations dict vacío → getDuration retorna nil
+
+        try await sut.downloadSong(songID)
+
+        XCTAssertTrue(mockSongRepo.lastUpdatedSong?.isDownloaded == true)
+        XCTAssertNil(mockSongRepo.lastUpdatedSong?.artworkData)
+    }
+
+    // MARK: - downloadMultipleSongs()
+
+    func test_downloadMultipleSongs_downloadsAllSongs() async {
+        let songs = [Song.make(isDownloaded: false), Song.make(isDownloaded: false)]
+        mockSongRepo.songs = songs
+
+        await sut.downloadMultipleSongs(songs.map { $0.id })
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 2)
+    }
+
+    func test_downloadMultipleSongs_skipsFailuresAndContinues() async {
+        let goodSong = Song.make(isDownloaded: false)
+        // Segundo ID no existe → .songNotFound es ignorado silenciosamente
+        mockSongRepo.songs = [goodSong]
+
+        await sut.downloadMultipleSongs([goodSong.id, UUID()])
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 1)
+    }
+
+    func test_downloadMultipleSongs_emptyList_makesNoCalls() async {
+        await sut.downloadMultipleSongs([])
+
+        XCTAssertEqual(mockCloudStorage.downloadCallCount, 0)
+        XCTAssertEqual(mockSongRepo.updateCallCount, 0)
+    }
+
+    // MARK: - deleteAllDownloads()
+
+    func test_deleteAllDownloads_deletesOnlyDownloadedSongs() async throws {
+        mockSongRepo.songs = [
+            Song.make(isDownloaded: true),
+            Song.make(isDownloaded: true),
+            Song.make(isDownloaded: false)
+        ]
+
+        try await sut.deleteAllDownloads()
+
+        XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 2)
+        XCTAssertEqual(mockSongRepo.updateCallCount, 2)
+    }
+
+    func test_deleteAllDownloads_emptyLibrary_makesNoCalls() async throws {
+        mockSongRepo.songs = []
+
+        try await sut.deleteAllDownloads()
+
+        XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 0)
+        XCTAssertEqual(mockSongRepo.updateCallCount, 0)
+    }
+
+    // MARK: - getLocalURL()
+
+    func test_getLocalURL_delegatesToCloudStorage() {
+        let songID = UUID()
+        let url = URL(fileURLWithPath: "/tmp/\(songID).m4a")
+        mockCloudStorage.downloadedURLs[songID] = url
+
+        let result = sut.getLocalURL(for: songID)
+
+        XCTAssertEqual(result, url)
+    }
+
+    func test_getLocalURL_returnsNil_whenNotDownloaded() {
+        let result = sut.getLocalURL(for: UUID())
+        XCTAssertNil(result)
+    }
 }

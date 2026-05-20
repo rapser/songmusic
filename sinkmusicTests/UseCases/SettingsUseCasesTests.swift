@@ -194,4 +194,114 @@ final class SettingsUseCasesTests: XCTestCase {
         let info = AppInfo(version: "1.0.0", build: "19", displayName: "SinkMusic")
         XCTAssertEqual(info.fullVersion, "1.0.0 (19)")
     }
+
+    // MARK: - clearCache()
+
+    func test_clearCache_clearsArtworkOfNonDownloadedSongs() async throws {
+        let nonDownloaded = Song.make(isDownloaded: false, artworkData: Data([0xFF, 0xD8]))
+        let downloaded = Song.make(isDownloaded: true, artworkData: Data([0xFF, 0xD8]))
+        mockSongRepo.songs = [nonDownloaded, downloaded]
+
+        try await sut.clearCache()
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 1)
+        XCTAssertNil(mockSongRepo.lastUpdatedSong?.artworkData)
+        XCTAssertFalse(mockSongRepo.lastUpdatedSong?.isDownloaded ?? true)
+    }
+
+    func test_clearCache_doesNotTouchDownloadedSongs() async throws {
+        mockSongRepo.songs = [Song.make(isDownloaded: true, artworkData: Data([0x01]))]
+
+        try await sut.clearCache()
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 0)
+    }
+
+    func test_clearCache_emptyLibrary_makesNoCalls() async throws {
+        mockSongRepo.songs = []
+
+        try await sut.clearCache()
+
+        XCTAssertEqual(mockSongRepo.updateCallCount, 0)
+    }
+
+    // MARK: - deleteAllSongs()
+
+    func test_deleteAllSongs_deletesFilesAndDBRecords() async throws {
+        mockSongRepo.songs = [
+            Song.make(isDownloaded: true),
+            Song.make(isDownloaded: true),
+            Song.make(isDownloaded: false)
+        ]
+
+        try await sut.deleteAllSongs()
+
+        XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 2)
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 3)
+        XCTAssertTrue(mockSongRepo.songs.isEmpty)
+    }
+
+    func test_deleteAllSongs_emptyLibrary_makesNoCalls() async throws {
+        mockSongRepo.songs = []
+
+        try await sut.deleteAllSongs()
+
+        XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 0)
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 0)
+    }
+
+    func test_deleteAllSongs_onlyCallsCloudDeleteForDownloadedSongs() async throws {
+        mockSongRepo.songs = [
+            Song.make(isDownloaded: false),
+            Song.make(isDownloaded: false)
+        ]
+
+        try await sut.deleteAllSongs()
+
+        XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 0)
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 2)
+    }
+
+    // MARK: - testCloudStorageConnection()
+
+    func test_testCloudConnection_success_returnsTrue() async throws {
+        mockCloudStorage.shouldThrowOnFetch = false
+
+        let result = try await sut.testCloudStorageConnection()
+
+        XCTAssertTrue(result)
+    }
+
+    func test_testCloudConnection_failure_throwsConnectionFailed() async {
+        mockCloudStorage.shouldThrowOnFetch = true
+
+        do {
+            _ = try await sut.testCloudStorageConnection()
+            XCTFail("Expected SettingsError.connectionFailed")
+        } catch is SettingsError {
+            // pass
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    // MARK: - deleteGoogleDriveCredentials() / deleteMegaCredentials()
+
+    func test_deleteGoogleDriveCredentials_clearsCredentials() {
+        mockCredentials.hasGoogleDriveCredentialsValue = true
+
+        sut.deleteGoogleDriveCredentials()
+
+        XCTAssertFalse(mockCredentials.hasGoogleDriveCredentials())
+        XCTAssertEqual(mockCredentials.googleDriveAPIKey, "")
+    }
+
+    func test_deleteMegaCredentials_clearsCredentials() {
+        mockCredentials.hasMegaCredentialsValue = true
+
+        sut.deleteMegaCredentials()
+
+        XCTAssertFalse(mockCredentials.hasMegaCredentials())
+        XCTAssertEqual(mockCredentials.megaFolderURL, "")
+    }
 }
