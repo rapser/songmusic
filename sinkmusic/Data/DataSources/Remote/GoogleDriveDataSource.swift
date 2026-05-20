@@ -8,6 +8,9 @@
 
 import Foundation
 import AVFoundation
+import os
+
+private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "GoogleDrive")
 
 // Typealias para compatibilidad con código existente
 typealias DownloadService = GoogleDriveDataSource
@@ -81,15 +84,13 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
 
     func fetchSongsFromFolder() async throws -> [GoogleDriveFile] {
         guard let apiKey = apiKey else {
-            print("❌ ERROR: API Key de Google Drive no configurada")
+            logger.error("API Key de Google Drive no configurada")
             throw CloudStorageError.missingAPIKey
         }
         guard let folderId = folderId else {
-            print("❌ ERROR: Folder ID de Google Drive no configurado")
+            logger.error("Folder ID de Google Drive no configurado")
             throw CloudStorageError.missingFolderId
         }
-
-        print("📂 Iniciando obtención de canciones desde carpeta Google Drive: \(folderId)")
 
         var allFiles: [GoogleDriveFile] = []
         var pageToken: String? = nil
@@ -111,7 +112,7 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
             components.queryItems = queryItems
 
             guard let url = components.url else {
-                print("❌ URL inválida al listar archivos de Google Drive")
+                logger.error("URL inválida al listar archivos de Google Drive")
                 throw URLError(.badURL)
             }
 
@@ -119,31 +120,18 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
                 let (data, response) = try await URLSession.shared.data(from: url)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    print("❌ No se recibió respuesta HTTP válida")
+                    logger.error("No se recibió respuesta HTTP válida")
                     throw URLError(.badServerResponse)
                 }
 
-                print("📡 Google Drive API LIST - Status: \(httpResponse.statusCode) | URL: \(url.absoluteString)")
-
                 if httpResponse.statusCode != 200 {
                     if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let error = errorJson["error"] as? [String: Any],
-                       let code = error["code"] as? Int,
-                       let message = error["message"] as? String {
-
-                        print("❌ Error de Google Drive API:")
-                        print("   Código: \(code)")
-                        print("   Mensaje: \(message)")
-
-                        if let errors = error["errors"] as? [[String: Any]],
-                           let first = errors.first,
-                           let reason = first["reason"] as? String,
-                           let domain = first["domain"] as? String {
-                            print("   Razón: \(reason)")
-                            print("   Dominio: \(domain)")
-                        }
+                       let apiError = errorJson["error"] as? [String: Any],
+                       let code = apiError["code"] as? Int,
+                       let message = apiError["message"] as? String {
+                        logger.error("Google Drive API error \(code): \(message)")
                     } else if let errorString = String(data: data, encoding: .utf8) {
-                        print("❌ Respuesta cruda de error: \(errorString)")
+                        logger.error("Google Drive respuesta de error: \(errorString)")
                     }
 
                     throw URLError(.badServerResponse, userInfo: ["statusCode": httpResponse.statusCode])
@@ -154,15 +142,13 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
                 pageToken = driveResponse.nextPageToken
 
             } catch {
-                print("🚨 Error al obtener lista de canciones:")
-                print("   URL: \(url)")
-                print("   Error: \(error.localizedDescription)")
+                logger.error("Error al obtener lista de canciones: \(error.localizedDescription)")
                 throw error
             }
         } while pageToken != nil
 
         let m4aFiles = allFiles.filter { $0.name.hasSuffix(".m4a") }
-        print("📂 Encontrados \(m4aFiles.count) archivos .m4a en la carpeta")
+        logger.info("Encontrados \(m4aFiles.count) archivos .m4a en la carpeta")
         return m4aFiles
     }
 
@@ -170,22 +156,19 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
 
     func download(fileID: String, songID: UUID) async throws -> URL {
         guard let apiKey = keychainService.googleDriveAPIKey else {
-            print("❌ ERROR: API Key no configurada para descarga")
+            logger.error("API Key no configurada para descarga")
             await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: "API Key no configurada")) }
             throw CloudStorageError.missingAPIKey
         }
 
         let downloadURLString = "https://www.googleapis.com/drive/v3/files/\(fileID)?alt=media&key=\(apiKey)"
         guard let url = URL(string: downloadURLString) else {
-            print("❌ URL de descarga inválida para fileID: \(fileID)")
+            logger.error("URL de descarga inválida para fileID: \(fileID)")
             await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: "URL inválida")) }
             throw NSError(domain: "GoogleDriveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"])
         }
 
-        print("📥 Iniciando descarga de Google Drive:")
-        print("   Song ID: \(songID.uuidString)")
-        print("   File ID: \(fileID)")
-        print("   URL: \(downloadURLString)")
+        logger.info("Iniciando descarga de Google Drive: songID=\(songID.uuidString) fileID=\(fileID)")
 
         await MainActor.run { self.eventBus.emit(.started(songID: songID)) }
 
@@ -195,7 +178,6 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
             let downloadTask = urlSession.downloadTask(with: request)
             let taskID = downloadTask.taskIdentifier
             Task { [self] in await self.downloadState.addDownload(songID: songID, continuation: continuation, for: taskID) }
-            print("   Tarea creada - Task ID: \(taskID)")
             downloadTask.resume()
         }
     }
@@ -211,7 +193,7 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
         do {
             try fileManager.createDirectory(at: musicDirectory, withIntermediateDirectories: true, attributes: nil)
         } catch {
-            print("❌ Error al crear directorio Music: \(error.localizedDescription)")
+            logger.error("Error al crear directorio Music: \(error.localizedDescription)")
             return nil
         }
         return musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
@@ -223,7 +205,7 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
             let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
             return duration
         } catch {
-            print("⚠️ No se pudo obtener duración del audio: \(error.localizedDescription)")
+            logger.warning("No se pudo obtener duración del audio: \(error.localizedDescription)")
             return nil
         }
     }
@@ -274,9 +256,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             guard let downloadInfo = await self.downloadState.getDownload(for: taskID) else { return }
 
             if await self.downloadState.shouldLogProgress(for: taskID, percent: progressPercent) {
-                let totalMB = Double(totalBytesExpectedToWrite) / (1024 * 1024)
-                let downloadedMB = Double(totalBytesWritten) / (1024 * 1024)
-                print("📡 Progreso descarga \(taskID): \(String(format: "%.2f", downloadedMB))MB / \(String(format: "%.2f", totalMB))MB (\(progressPercent)%)")
+                logger.debug("Progreso descarga \(taskID): \(progressPercent)%")
             }
 
             let songID = downloadInfo.songID
@@ -293,7 +273,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
 
             guard let destinationURL = await self.localURL(for: downloadInfo.songID) else {
                 let error = NSError(domain: "GoogleDriveService", code: 0, userInfo: [NSLocalizedDescriptionKey: "No se pudo crear URL de destino"])
-                print("❌ No se pudo obtener URL de destino para songID: \(downloadInfo.songID.uuidString)")
+                logger.error("No se pudo obtener URL de destino para songID: \(downloadInfo.songID.uuidString)")
                 downloadInfo.continuation.resume(throwing: error)
                 return
             }
@@ -301,15 +281,14 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             do {
                 let fileSize = try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? Int64 ?? 0
                 let fileSizeMB = Double(fileSize) / (1024 * 1024)
-                print("📦 Descarga completada - Tamaño: \(String(format: "%.2f", fileSizeMB)) MB")
+                logger.debug("Descarga completada - Tamaño: \(String(format: "%.2f", fileSizeMB)) MB")
 
                 if fileSize < 100_000 {
                     if let content = try? String(contentsOf: location, encoding: .utf8),
                        content.contains("Google Drive") || content.contains("error") || content.contains("403") {
-                        print("❌ Parece una página HTML de error de Google Drive:")
-                        print("   Primeros 300 caracteres:\n\(content.prefix(300))")
+                        logger.error("Respuesta HTML de error de Google Drive: \(content.prefix(300))")
                     } else {
-                        print("⚠️ Archivo muy pequeño (\(String(format: "%.2f", fileSizeMB))MB). Probable error de permisos o archivo no encontrado.")
+                        logger.warning("Archivo muy pequeño (\(String(format: "%.2f", fileSizeMB))MB). Probable error de permisos.")
                     }
                 }
 
@@ -318,9 +297,9 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
 
                 do {
                     _ = try AVAudioFile(forReading: destinationURL)
-                    print("✅ Verificación de audio exitosa: \(destinationURL.lastPathComponent)")
+                    logger.debug("Verificación de audio exitosa: \(destinationURL.lastPathComponent)")
                 } catch {
-                    print("⛔️ ERROR: Archivo descargado no es audio válido: \(error.localizedDescription)")
+                    logger.error("Archivo descargado no es audio válido: \(error.localizedDescription)")
                     try? FileManager.default.removeItem(at: destinationURL)
                     throw SyncError.invalidAudioFile
                 }
@@ -334,8 +313,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
                 await MainActor.run { self.eventBus.emit(.completed(songID: songID)) }
                 downloadInfo.continuation.resume(returning: destinationURL)
             } catch {
-                print("🚨 Error al procesar archivo descargado:")
-                print("   Error: \(error.localizedDescription)")
+                logger.error("Error al procesar archivo descargado: \(error.localizedDescription)")
                 let songID = downloadInfo.songID
                 let errorMessage = error.localizedDescription
                 await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: errorMessage)) }
@@ -352,13 +330,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             guard let self else { return }
             guard let downloadInfo = await self.downloadState.removeDownload(for: taskID) else { return }
 
-            print("❌ Error al completar descarga (task \(taskID)):")
-            print("   Descripción: \(error.localizedDescription)")
-
-            if let urlError = error as? URLError {
-                print("   URLError code: \(urlError.code.rawValue)")
-            }
-
+            logger.error("Error al completar descarga (task \(taskID)): \(error.localizedDescription)")
             let songID = downloadInfo.songID
             let errorMessage = error.localizedDescription
             await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: errorMessage)) }

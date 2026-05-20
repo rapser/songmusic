@@ -65,11 +65,11 @@ struct AuthUser: Codable, Equatable, Sendable {
     }
 
     var hasEmail: Bool {
-        email != nil && !email!.isEmpty
+        email?.isEmpty == false
     }
 
     var hasName: Bool {
-        fullName != nil && !fullName!.isEmpty
+        fullName?.isEmpty == false
     }
 }
 

@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import os
 
 /// ViewModel responsable de la UI de la pantalla principal
 /// Muestra playlists, canciones recientes y recomendaciones
@@ -26,6 +27,8 @@ final class HomeViewModel {
 
     var libraryStats: LibraryStats?
     var isLoading: Bool = false
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Home")
 
     // MARK: - Dependencies
 
@@ -78,7 +81,7 @@ final class HomeViewModel {
             let entities = try await playlistUseCases.getAllPlaylists()
             playlists = entities.map { PlaylistMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar playlists: \(error)")
+            logger.error("Error al cargar playlists: \(error)")
         }
     }
 
@@ -88,7 +91,7 @@ final class HomeViewModel {
             let entities = try await playlistUseCases.getMostPlayedPlaylists(limit: 10)
             mostPlayedPlaylists = entities.map { PlaylistMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar playlists más escuchadas: \(error)")
+            logger.error("Error al cargar playlists más escuchadas: \(error)")
         }
     }
 
@@ -98,7 +101,7 @@ final class HomeViewModel {
             let entities = try await libraryUseCases.getRecentlyPlayedSongs(limit: 10)
             recentSongs = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar canciones recientes: \(error)")
+            logger.error("Error al cargar canciones recientes: \(error)")
         }
     }
 
@@ -108,7 +111,7 @@ final class HomeViewModel {
             let entities = try await libraryUseCases.getMostPlayedSongs(limit: 10)
             mostPlayedSongs = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar canciones más reproducidas: \(error)")
+            logger.error("Error al cargar canciones más reproducidas: \(error)")
         }
     }
 
@@ -118,7 +121,7 @@ final class HomeViewModel {
             let entities = try await libraryUseCases.getDownloadedSongs()
             downloadedSongs = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar canciones descargadas: \(error)")
+            logger.error("Error al cargar canciones descargadas: \(error)")
         }
     }
 

@@ -6,10 +6,13 @@
 //
 
 import Foundation
+import os
 
 /// Factory que crea la estrategia correcta según el proveedor y ambiente
 @MainActor
 enum AuthStrategyFactory {
+
+    private static let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Auth")
 
     // MARK: - Provider
 
@@ -36,22 +39,22 @@ enum AuthStrategyFactory {
         case .apple:
             // Apple no requiere configuración de ambiente
             // El sandbox/production se detecta automáticamente
-            print("🔐 Auth Strategy: Apple Sign In (\(environment.displayName))")
+            logger.info("Auth Strategy: Apple Sign In (\(environment.displayName))")
             return AppleAuthStrategy()
 
         case .firebase:
             let config = FirebaseAuthConfig.forCurrentEnvironment()
-            print("🔐 Auth Strategy: Firebase (\(config.plistName))")
+            logger.info("Auth Strategy: Firebase (\(config.plistName))")
             return makeFirebaseStrategy(config: config)
 
         case .supabase:
             let config = SupabaseAuthConfig.forCurrentEnvironment()
-            print("🔐 Auth Strategy: Supabase (\(config.url.host ?? ""))")
+            logger.info("Auth Strategy: Supabase (\(config.url.host ?? ""))")
             return makeSupabaseStrategy(config: config)
 
         case .restAPI:
             let config = RESTAPIAuthConfig.forCurrentEnvironment()
-            print("🔐 Auth Strategy: REST API (\(config.baseURL.host ?? ""))")
+            logger.info("Auth Strategy: REST API (\(config.baseURL.host ?? ""))")
             return makeRESTAPIStrategy(config: config)
         }
     }
@@ -64,7 +67,7 @@ enum AuthStrategyFactory {
         // return FirebaseGoogleAuthStrategy()
 
         // Fallback a Apple
-        print("⚠️ Firebase strategy not implemented, using Apple fallback")
+        logger.warning("Firebase strategy not implemented, using Apple fallback")
         return AppleAuthStrategy()
     }
 
@@ -73,7 +76,7 @@ enum AuthStrategyFactory {
         // return SupabaseAuthStrategy(url: config.url, key: config.anonKey)
 
         // Fallback a Apple
-        print("⚠️ Supabase strategy not implemented, using Apple fallback")
+        logger.warning("Supabase strategy not implemented, using Apple fallback")
         return AppleAuthStrategy()
     }
 
@@ -82,7 +85,7 @@ enum AuthStrategyFactory {
         // return RESTAPIAuthStrategy(baseURL: config.fullBaseURL, keychain: ...)
 
         // Fallback a Apple
-        print("⚠️ REST API strategy not implemented, using Apple fallback")
+        logger.warning("REST API strategy not implemented, using Apple fallback")
         return AppleAuthStrategy()
     }
 }

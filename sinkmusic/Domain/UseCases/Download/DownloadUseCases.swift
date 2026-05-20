@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Casos de uso agrupados para descarga de canciones
 /// Gestiona descarga, extracción de metadata y almacenamiento
@@ -18,6 +19,8 @@ final class DownloadUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let metadataRepository: MetadataRepositoryProtocol
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
     // MARK: - Initialization
 
@@ -105,7 +108,7 @@ final class DownloadUseCases {
             do {
                 try await downloadSong(songID)
             } catch {
-                print("⚠️ Error al descargar canción \(songID): \(error)")
+                logger.warning("Error al descargar canción \(songID): \(error)")
             }
         }
     }

@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import os
 
 /// ViewModel responsable de la UI de búsqueda
 /// Delega lógica de negocio a SearchUseCases
@@ -29,6 +30,8 @@ final class SearchViewModel {
     var albums: [String] = []
     var mostPlayedSongs: [SongUI] = []
     var recentlyPlayedSongs: [SongUI] = []
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Search")
 
     // MARK: - Dependencies
 
@@ -73,7 +76,7 @@ final class SearchViewModel {
             }
             searchResults = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error en búsqueda: \(error)")
+            logger.error("Error en búsqueda: \(error)")
             searchResults = []
         }
 
@@ -129,7 +132,7 @@ final class SearchViewModel {
             let entities = try await searchUseCases.getDownloadedSongs()
             searchResults = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al obtener descargadas: \(error)")
+            logger.error("Error al obtener descargadas: \(error)")
         }
     }
 
@@ -139,7 +142,7 @@ final class SearchViewModel {
             let entities = try await searchUseCases.getNotDownloadedSongs()
             searchResults = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al obtener no descargadas: \(error)")
+            logger.error("Error al obtener no descargadas: \(error)")
         }
     }
 
@@ -151,7 +154,7 @@ final class SearchViewModel {
             artists = try await searchUseCases.getAllArtists()
             albums = try await searchUseCases.getAllAlbums()
         } catch {
-            print("❌ Error al cargar agregaciones: \(error)")
+            logger.error("Error al cargar agregaciones: \(error)")
         }
     }
 
@@ -166,7 +169,7 @@ final class SearchViewModel {
             mostPlayedSongs = mostPlayed.map { SongMapper.toUI($0) }
             recentlyPlayedSongs = recentlyPlayed.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar recomendaciones: \(error)")
+            logger.error("Error al cargar recomendaciones: \(error)")
         }
     }
 }

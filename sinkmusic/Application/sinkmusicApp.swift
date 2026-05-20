@@ -8,6 +8,9 @@
 
 import SwiftUI
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "App")
 
 @main
 struct sinkmusicApp: App {
@@ -137,10 +140,10 @@ struct sinkmusicApp: App {
             equalizerViewModel = container.makeEqualizerViewModel()
             downloadViewModel = container.makeDownloadViewModel()
 
-            print("✅ DIContainer configurado correctamente")
+            logger.info("DIContainer configurado correctamente")
 
         } catch {
-            print("❌ Error al configurar DIContainer: \(error)")
+            logger.error("Error al configurar DIContainer: \(error)")
         }
     }
 }
