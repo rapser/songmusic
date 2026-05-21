@@ -38,7 +38,7 @@ struct PlaylistListView: View {
                 .padding(.top, 20)
                 .padding(.bottom, 16)
 
-                // Loading State
+                // Loading State (sólo activo durante operaciones de escritura)
                 if viewModel.isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -74,10 +74,10 @@ struct PlaylistListView: View {
             CreatePlaylistView()
         }
         .task {
-            // Cargar playlists al aparecer
             await viewModel.loadPlaylists()
         }
     }
+
 }
 
 #Preview {

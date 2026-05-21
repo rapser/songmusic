@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import os
 
 /// ViewModel responsable de la UI de la biblioteca
 /// Delega lógica de negocio a LibraryUseCases
@@ -23,6 +24,8 @@ final class LibraryViewModel {
     var syncErrorMessage: String?
     var songs: [SongUI] = []
     var libraryStats: LibraryStats?
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Library")
 
     // MARK: - Dependencies
 
@@ -55,7 +58,7 @@ final class LibraryViewModel {
             let entities = try await libraryUseCases.getAllSongs()
             songs = entities.map { SongMapper.toUI($0) }
         } catch {
-            print("❌ Error al cargar canciones: \(error)")
+            logger.error("Error al cargar canciones: \(error)")
         }
     }
 
@@ -76,19 +79,17 @@ final class LibraryViewModel {
                 songs[idx] = songs[idx].with(dominantColor: Color(red: rgb.r, green: rgb.g, blue: rgb.b))
             }
         } catch {
-            print("❌ Error al guardar color dominante: \(error)")
+            logger.error("Error al guardar color dominante: \(error)")
         }
     }
 
     /// Sincroniza con almacenamiento cloud
     func syncLibraryWithCatalog() async {
         // Verificar credenciales
-        print("🔄 LibraryVM: Iniciando sincronización...")
         let hasCredentials = libraryUseCases.hasCredentials()
-        print("🔑 LibraryVM: ¿hasCredentials? = \(hasCredentials)")
 
         guard hasCredentials else {
-            print("⚠️ LibraryVM: Sin credenciales, abortando sync")
+            logger.info("Sin credenciales, abortando sync")
             syncError = nil
             syncErrorMessage = nil
             isLoadingSongs = false
@@ -111,7 +112,7 @@ final class LibraryViewModel {
             syncErrorMessage = nil
             isLoadingSongs = false
 
-            print("✅ Sincronización completada: \(newSongsCount) nuevas canciones. Total canciones: \(songs.count)")
+            logger.info("Sincronización completada: \(newSongsCount) nuevas canciones. Total: \(self.songs.count)")
 
         } catch {
             let errorString = error.localizedDescription.lowercased()
@@ -128,7 +129,7 @@ final class LibraryViewModel {
             }
 
             isLoadingSongs = false
-            print("❌ Error en sincronización: \(syncErrorMessage ?? "Error desconocido")")
+            logger.error("Error en sincronización: \(self.syncErrorMessage ?? "Error desconocido")")
         }
     }
 
@@ -141,17 +142,17 @@ final class LibraryViewModel {
                 do {
                     try await libraryUseCases.deleteSong(song.id)
                 } catch {
-                    print("❌ Error al borrar canción \(song.title): \(error)")
+                    logger.error("Error al borrar canción \(song.title): \(error)")
                 }
             }
 
             await loadSongs()
             await loadStats()
 
-            print("🗑️ Biblioteca local y archivos descargados limpiados.")
+            logger.info("Biblioteca local y archivos descargados limpiados.")
 
         } catch {
-            print("❌ Error al limpiar biblioteca: \(error)")
+            logger.error("Error al limpiar biblioteca: \(error)")
         }
     }
 
@@ -162,7 +163,7 @@ final class LibraryViewModel {
             await loadSongs()
             await loadStats()
         } catch {
-            print("❌ Error al eliminar canción: \(error)")
+            logger.error("Error al eliminar canción: \(error)")
         }
     }
 
@@ -173,7 +174,7 @@ final class LibraryViewModel {
             await loadSongs()
             await loadStats()
         } catch {
-            print("❌ Error al eliminar canciones: \(error)")
+            logger.error("Error al eliminar canciones: \(error)")
         }
     }
 
@@ -184,7 +185,7 @@ final class LibraryViewModel {
         do {
             libraryStats = try await libraryUseCases.getLibraryStats()
         } catch {
-            print("❌ Error al cargar estadísticas: \(error)")
+            logger.error("Error al cargar estadísticas: \(error)")
         }
     }
 

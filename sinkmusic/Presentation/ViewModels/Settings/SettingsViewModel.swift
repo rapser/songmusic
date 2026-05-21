@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import os
 
 /// ViewModel responsable de la UI de configuración
 /// Delega lógica de negocio a SettingsUseCases y DownloadUseCases
@@ -42,6 +43,8 @@ final class SettingsViewModel {
     var showSaveConfirmation: Bool = false
     var showDeleteCredentialsAlert: Bool = false
     var showQRScanner: Bool = false
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Settings")
 
     // MARK: - Dependencies
 
@@ -89,9 +92,9 @@ final class SettingsViewModel {
 
         if success {
             hasCredentials = true
-            print("✅ Credenciales guardadas correctamente")
+            logger.info("Credenciales guardadas correctamente")
         } else {
-            print("❌ Error al guardar credenciales")
+            logger.error("Error al guardar credenciales")
         }
 
         return success
@@ -103,7 +106,7 @@ final class SettingsViewModel {
         apiKey = ""
         folderId = ""
         hasCredentials = false
-        print("🗑️ Credenciales eliminadas")
+        logger.info("Credenciales eliminadas")
     }
 
     /// Prueba la conexión con el almacenamiento cloud
@@ -114,10 +117,10 @@ final class SettingsViewModel {
         do {
             let isValid = try await settingsUseCases.testCloudStorageConnection()
             connectionTestResult = isValid ? .success : .failure("Credenciales inválidas")
-            print("✅ Conexión exitosa con almacenamiento cloud")
+            logger.info("Conexión exitosa con almacenamiento cloud")
         } catch {
             connectionTestResult = .failure(error.localizedDescription)
-            print("❌ Error al probar conexión: \(error)")
+            logger.error("Error al probar conexión: \(error)")
         }
 
         isTestingConnection = false
@@ -130,7 +133,7 @@ final class SettingsViewModel {
         do {
             storageInfo = try await settingsUseCases.getStorageInfo()
         } catch {
-            print("❌ Error al cargar info de almacenamiento: \(error)")
+            logger.error("Error al cargar info de almacenamiento: \(error)")
         }
     }
 
@@ -139,7 +142,7 @@ final class SettingsViewModel {
         do {
             downloadStats = try await downloadUseCases.getDownloadStats()
         } catch {
-            print("❌ Error al cargar estadísticas de descarga: \(error)")
+            logger.error("Error al cargar estadísticas de descarga: \(error)")
         }
     }
 
@@ -160,9 +163,9 @@ final class SettingsViewModel {
         do {
             try await settingsUseCases.clearCache()
             await loadAllInfo()
-            print("🧹 Caché limpiada correctamente")
+            logger.info("Caché limpiada correctamente")
         } catch {
-            print("❌ Error al limpiar caché: \(error)")
+            logger.error("Error al limpiar caché: \(error)")
         }
     }
 
@@ -171,9 +174,9 @@ final class SettingsViewModel {
         do {
             try await settingsUseCases.deleteAllSongs()
             await loadAllInfo()
-            print("🗑️ Todas las canciones eliminadas")
+            logger.info("Todas las canciones eliminadas")
         } catch {
-            print("❌ Error al eliminar canciones: \(error)")
+            logger.error("Error al eliminar canciones: \(error)")
         }
     }
 
@@ -182,9 +185,9 @@ final class SettingsViewModel {
         do {
             try await downloadUseCases.deleteAllDownloads()
             await loadAllInfo()
-            print("🗑️ Todas las descargas eliminadas")
+            logger.info("Todas las descargas eliminadas")
         } catch {
-            print("❌ Error al eliminar descargas: \(error)")
+            logger.error("Error al eliminar descargas: \(error)")
         }
     }
 
@@ -232,9 +235,9 @@ final class SettingsViewModel {
 
         if success {
             hasMegaCredentials = true
-            print("✅ URL de Mega guardada correctamente")
+            logger.info("URL de Mega guardada correctamente")
         } else {
-            print("❌ Error al guardar URL de Mega")
+            logger.error("Error al guardar URL de Mega")
         }
 
         return success
@@ -245,7 +248,7 @@ final class SettingsViewModel {
         settingsUseCases.deleteMegaCredentials()
         megaFolderURL = ""
         hasMegaCredentials = false
-        print("🗑️ Credenciales de Mega eliminadas")
+        logger.info("Credenciales de Mega eliminadas")
     }
 
     /// Valida la URL de Mega
@@ -259,7 +262,7 @@ final class SettingsViewModel {
     func setSelectedProvider(_ provider: CloudStorageProvider) {
         selectedProvider = provider
         settingsUseCases.setSelectedCloudProvider(provider)
-        print("📦 Proveedor seleccionado: \(provider.rawValue)")
+        logger.info("Proveedor seleccionado: \(provider.rawValue)")
     }
 
     /// Verifica si el proveedor actual tiene credenciales configuradas

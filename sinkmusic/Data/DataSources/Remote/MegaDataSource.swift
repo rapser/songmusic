@@ -10,9 +10,12 @@
 
 import Foundation
 import AVFoundation
+import os
 
 @MainActor
 final class MegaDataSource: MegaServiceProtocol {
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Mega")
 
     // MARK: - Dependencies
 
@@ -56,7 +59,7 @@ final class MegaDataSource: MegaServiceProtocol {
         let response = try await apiClient.fetchFolder(nodeId: nodeId)
         let files = MegaFolderMapper.mapToAudioFiles(response: response, folderKey: folderKey, crypto: crypto)
 
-        print("📁 Mega: \(files.count) archivos de audio en carpeta")
+        logger.info("Mega: \(files.count) archivos de audio en carpeta")
         return files
     }
 

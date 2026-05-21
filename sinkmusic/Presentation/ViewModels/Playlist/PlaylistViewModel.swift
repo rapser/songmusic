@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import os
 
 /// ViewModel responsable de la UI de playlists
 /// Delega lógica de negocio a PlaylistUseCases
@@ -24,6 +25,8 @@ final class PlaylistViewModel {
     var playlistStats: PlaylistStats?
     var isLoading = false
     var errorMessage: String?
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Playlist")
 
     // MARK: - Dependencies
 
@@ -258,7 +261,7 @@ final class PlaylistViewModel {
         do {
             playlistStats = try await playlistUseCases.getPlaylistStats(playlistID)
         } catch {
-            print("❌ Error al cargar estadísticas: \(error)")
+            logger.error("Error al cargar estadísticas de playlist: \(error)")
         }
     }
 

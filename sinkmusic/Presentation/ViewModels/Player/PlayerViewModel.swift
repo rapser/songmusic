@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import os
 
 /// ViewModel responsable de la UI del reproductor
 /// Coordina PlayerUseCases y gestiona cola de reproducción, shuffle, repeat
@@ -25,6 +26,8 @@ final class PlayerViewModel {
     var showPlayerView: Bool = false
     var isShuffleEnabled = false
     var repeatMode: RepeatMode = .off
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Player")
 
     // MARK: - Dependencies
 
@@ -91,7 +94,7 @@ final class PlayerViewModel {
             updateLiveActivity()
 
         } catch {
-            print("❌ Error al reproducir canción: \(error)")
+            logger.error("Error al reproducir canción: \(error)")
         }
     }
 
@@ -99,7 +102,7 @@ final class PlayerViewModel {
         do {
             try await playerUseCases.togglePlayPause()
         } catch {
-            print("❌ Error al toggle play/pause: \(error)")
+            logger.error("Error al toggle play/pause: \(error)")
         }
     }
 
@@ -186,36 +189,25 @@ final class PlayerViewModel {
     }
 
     private func playNextAutomatically(finishedSongID: UUID) async {
-        guard !queueSongIDs.isEmpty else {
-            print("⚠️ No hay canciones en la cola")
-            return
-        }
+        guard !queueSongIDs.isEmpty else { return }
 
         switch repeatMode {
         case .repeatOne:
-            print("🔁 Repeat One: Repitiendo canción")
             let queueUIModels = await getQueueUIModels()
             await play(songID: finishedSongID, queue: queueUIModels)
 
         case .repeatAll:
-            print("🔁 Repeat All: Siguiente canción")
             await playNextSong(afterSongID: finishedSongID)
 
         case .off:
-            guard let idx = queueSongIDs.firstIndex(where: { $0 == finishedSongID }) else {
-                print("⚠️ No se encontró el índice de la canción")
-                return
-            }
+            guard let idx = queueSongIDs.firstIndex(where: { $0 == finishedSongID }) else { return }
 
             if isShuffleEnabled {
-                print("🔀 Shuffle: Siguiente canción aleatoria")
                 await playNextSong(afterSongID: finishedSongID)
             } else {
                 if idx < queueSongIDs.count - 1 {
-                    print("▶️ Modo normal: Siguiente canción (\(idx + 1)/\(queueSongIDs.count))")
                     await playNextSong(afterSongID: finishedSongID)
                 } else {
-                    print("⏹️ Última canción alcanzada. Deteniendo reproducción.")
                     isPlaying = false
                 }
             }
@@ -363,7 +355,7 @@ final class PlayerViewModel {
             let entities = try await playerUseCases.getSongsByIDs(queueSongIDs)
             return entities.map { SongMapper.toUI($0) }
         } catch {
-            print("⚠️ Error al obtener canciones de la cola: \(error)")
+            logger.warning("Error al obtener canciones de la cola: \(error)")
             return []
         }
     }

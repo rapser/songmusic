@@ -72,7 +72,6 @@ final class LibraryUseCases {
     func syncWithCloudStorage() async throws -> Int {
         // Verificar credenciales según proveedor seleccionado
         let provider = credentialsRepository.getSelectedCloudProvider()
-        print("🔄 Sync: Proveedor seleccionado = \(provider.rawValue)")
 
         let providerHasCredentials: Bool
         switch provider {
@@ -82,17 +81,12 @@ final class LibraryUseCases {
             providerHasCredentials = credentialsRepository.hasMegaCredentials()
         }
 
-        print("🔑 Sync: ¿Tiene credenciales? = \(providerHasCredentials)")
-
         guard providerHasCredentials else {
-            print("❌ Sync: No hay credenciales configuradas para \(provider.rawValue)")
             throw LibraryError.credentialsNotConfigured
         }
 
         // Obtener archivos remotos (CloudFile - entidad de dominio)
-        print("📡 Sync: Obteniendo archivos remotos...")
         let remoteFiles = try await cloudStorageRepository.fetchSongsFromFolder()
-        print("📁 Sync: Archivos remotos obtenidos = \(remoteFiles.count)")
 
         // Obtener canciones locales
         let localSongs = try await songRepository.getAll()
@@ -100,13 +94,10 @@ final class LibraryUseCases {
 
         // Filtrar nuevas canciones
         let newFiles = remoteFiles.filter { !localFileIDs.contains($0.id) }
-        print("🆕 Sync: Canciones nuevas a agregar = \(newFiles.count) (locales existentes: \(localSongs.count))")
 
         // Crear entidades para nuevas canciones
         var newSongsCount = 0
         for file in newFiles {
-            print("💾 Guardando canción: \(file.title) - FileID: \(file.id)")
-            
             let newSong = Song(
                 id: UUID(),
                 title: file.title,

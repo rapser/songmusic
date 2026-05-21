@@ -8,10 +8,12 @@
 import Foundation
 import ActivityKit
 import UIKit
+import os
 
 /// Servicio para manejar Live Activities (Dynamic Island)
 @MainActor
 class LiveActivityService: LiveActivityServiceProtocol {
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "LiveActivity")
     private var currentActivity: Activity<MusicPlayerActivityAttributes>?
 
     /// Inicia una Live Activity para la canción actual
@@ -24,7 +26,7 @@ class LiveActivityService: LiveActivityServiceProtocol {
 
         // Verificar que las Live Activities estén disponibles
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            print("Live Activities no están habilitadas")
+            logger.info("Live Activities no están habilitadas")
             return
         }
 
@@ -45,9 +47,9 @@ class LiveActivityService: LiveActivityServiceProtocol {
                 pushType: nil
             )
             currentActivity = activity
-            print("✅ Live Activity iniciada: \(songTitle)")
+            logger.info("Live Activity iniciada: \(songTitle)")
         } catch {
-            print("❌ Error al iniciar Live Activity: \(error)")
+            logger.error("Error al iniciar Live Activity: \(error)")
         }
     }
 
@@ -81,7 +83,7 @@ class LiveActivityService: LiveActivityServiceProtocol {
                 dismissalPolicy: .immediate
             )
             currentActivity = nil
-            print("🛑 Live Activity finalizada")
+            logger.info("Live Activity finalizada")
         }
     }
 

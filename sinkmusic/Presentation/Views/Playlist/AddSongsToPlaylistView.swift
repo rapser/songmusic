@@ -22,6 +22,10 @@ struct AddSongsToPlaylistView: View {
     // Búsqueda
     @State private var searchText = ""
 
+    private var hasNoDownloadedSongs: Bool {
+        libraryViewModel.songs.allSatisfy { !$0.isDownloaded }
+    }
+
     private var availableSongs: [SongUI] {
         // Filtrar solo canciones descargadas que NO están en ninguna playlist
         let baseSongs = libraryViewModel.songs.filter { song in
@@ -93,7 +97,7 @@ struct AddSongsToPlaylistView: View {
     @ViewBuilder
     private var emptyStateView: some View {
         if searchText.isEmpty {
-            EmptyAvailableSongsView()
+            EmptyAvailableSongsView(reason: hasNoDownloadedSongs ? .noDownloads : .allInPlaylists)
         } else {
             SearchEmptyView(searchText: searchText)
         }

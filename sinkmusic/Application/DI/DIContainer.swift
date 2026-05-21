@@ -9,17 +9,35 @@
 import Foundation
 import SwiftData
 
-/// Contenedor de Dependency Injection - Centro neurálgico de Clean Architecture
-/// SOLID: Sin singletons internos, todas las dependencias se crean aquí
+/// Contenedor de Dependency Injection — centro neurálgico de Clean Architecture.
+///
+/// **Ciclo de vida:**
+/// `sinkmusicApp.init()` crea la instancia y la registra en `DIContainer.shared` mediante
+/// `createShared()`. `AppDelegate` la consume para el completion handler de sesiones en
+/// segundo plano. Los **tests nunca usan este contenedor**: instancian UseCases directamente
+/// pasando mocks al constructor, sin pasar por aquí.
 @MainActor
 final class DIContainer {
 
-    // MARK: - Singleton (único permitido - punto de entrada)
+    // MARK: - Shared instance
 
-    static let shared = DIContainer()
+    /// Referencia registrada por `sinkmusicApp` al arrancar la app.
+    /// Sólo `createShared()` puede escribir aquí; todos los demás solo leen.
+    private(set) static var shared: DIContainer!
 
-    private init() {
-        // Crear EventBus primero ya que es usado por otros componentes
+    /// Crea la instancia compartida y la registra en `shared`.
+    /// Debe llamarse exactamente una vez, desde `sinkmusicApp.init()`.
+    static func createShared() -> DIContainer {
+        precondition(shared == nil, "DIContainer.shared ya existe — createShared() debe llamarse una sola vez.")
+        let container = DIContainer()
+        shared = container
+        return container
+    }
+
+    // MARK: - Initialization
+
+    init() {
+        // EventBus primero: es consumido por todos los demás componentes
         _eventBus = EventBus()
     }
 
@@ -49,9 +67,6 @@ final class DIContainer {
 
     /// LiveActivityService - Creado una sola vez
     private(set) lazy var liveActivityService: LiveActivityServiceProtocol = LiveActivityService()
-
-    /// CarPlayService - Creado una sola vez
-    private(set) lazy var carPlayService: CarPlayServiceProtocol = CarPlayService()
 
     /// Completion handler de sesiones de descarga en segundo plano (iOS). Sin modelContext.
     private(set) lazy var backgroundSessionCompletionService: BackgroundSessionCompletionServiceProtocol = BackgroundSessionCompletionService()
@@ -106,21 +121,27 @@ final class DIContainer {
 
     private(set) lazy var settingsUseCases: SettingsUseCases = makeSettingsUseCases()
 
-    // MARK: - Repository Factories
+    // MARK: - Shared DataSources
 
-    private func makeSongRepository() -> SongRepositoryProtocol {
+    /// Instancia única de SongLocalDataSource compartida entre todos los repositorios
+    /// que la necesiten. Evita múltiples instancias apuntando al mismo ModelContext.
+    private lazy var songLocalDataSource: SongLocalDataSource = {
         guard let context = modelContext else {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
-        let localDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
-        return SongRepositoryImpl(localDataSource: localDataSource)
+        return SongLocalDataSource(modelContext: context, eventBus: eventBus)
+    }()
+
+    // MARK: - Repository Factories
+
+    private func makeSongRepository() -> SongRepositoryProtocol {
+        SongRepositoryImpl(localDataSource: songLocalDataSource)
     }
 
     private func makePlaylistRepository() -> PlaylistRepositoryProtocol {
         guard let context = modelContext else {
             fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
         }
-        let songLocalDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
         let playlistLocalDataSource = PlaylistLocalDataSource(modelContext: context, eventBus: eventBus)
         return PlaylistRepositoryImpl(
             localDataSource: playlistLocalDataSource,
@@ -134,10 +155,6 @@ final class DIContainer {
     }
 
     private func makeCloudStorageRepository() -> CloudStorageRepositoryProtocol {
-        guard let context = modelContext else {
-            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
-        }
-        let songLocalDataSource = SongLocalDataSource(modelContext: context, eventBus: eventBus)
         let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
         let megaDataSource = MegaDataSource(eventBus: eventBus, backgroundSessionCompletion: backgroundSessionCompletionService)
         return CloudStorageRepositoryImpl(
@@ -193,7 +210,8 @@ final class DIContainer {
         DownloadUseCases(
             songRepository: songRepository,
             cloudStorageRepository: cloudStorageRepository,
-            metadataRepository: metadataRepository
+            metadataRepository: metadataRepository,
+            credentialsRepository: credentialsRepository
         )
     }
 
@@ -253,8 +271,7 @@ final class DIContainer {
     func makeDownloadViewModel() -> DownloadViewModel {
         DownloadViewModel(
             downloadUseCases: downloadUseCases,
-            eventBus: eventBus,
-            credentialsRepository: credentialsRepository
+            eventBus: eventBus
         )
     }
 

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Facade para autenticación
 /// Coordina Strategy, Storage y EventBus
@@ -34,6 +35,8 @@ final class AuthFacade {
         static let user = "auth_user_v2"
         static let didSignOut = "auth_did_sign_out"
     }
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Auth")
 
     // MARK: - Init
 
@@ -68,14 +71,14 @@ final class AuthFacade {
                 name: finalUser.fullName
             ))
 
-            print("✅ Auth: Sign in successful - \(finalUser.displayName)")
+            logger.info("Auth: Sign in successful - \(finalUser.displayName)")
 
         } catch AuthError.cancelled {
-            print("⚠️ Auth: Sign in cancelled by user")
+            logger.info("Auth: Sign in cancelled by user")
             // No cambiar estado, usuario canceló
 
         } catch {
-            print("❌ Auth: Sign in error - \(error.localizedDescription)")
+            logger.error("Auth: Sign in error - \(error.localizedDescription)")
             state = .unauthenticated
             isCheckingAuth = false
         }
@@ -88,7 +91,7 @@ final class AuthFacade {
         state = .unauthenticated
         eventBus.emit(.signedOut)
 
-        print("✅ Auth: Signed out")
+        logger.info("Auth: Signed out")
     }
 
     /// Verificar estado de autenticación al iniciar la app
@@ -101,7 +104,7 @@ final class AuthFacade {
             state = .unauthenticated
             isCheckingAuth = false
             eventBus.emit(.checkCompleted(isAuthenticated: false))
-            print("ℹ️ Auth: User previously signed out")
+            logger.info("Auth: User previously signed out")
             return
         }
 
@@ -110,7 +113,7 @@ final class AuthFacade {
             state = .unauthenticated
             isCheckingAuth = false
             eventBus.emit(.checkCompleted(isAuthenticated: false))
-            print("ℹ️ Auth: No saved user")
+            logger.info("Auth: No saved user")
             return
         }
 
@@ -124,12 +127,12 @@ final class AuthFacade {
                 email: user.email,
                 name: user.fullName
             ))
-            print("✅ Auth: Restored session for \(user.displayName)")
+            logger.info("Auth: Restored session for \(user.displayName)")
         } else {
             clearUser()
             state = .unauthenticated
             eventBus.emit(.checkCompleted(isAuthenticated: false))
-            print("⚠️ Auth: Credentials revoked or expired")
+            logger.warning("Auth: Credentials revoked or expired")
         }
 
         isCheckingAuth = false
@@ -142,7 +145,7 @@ final class AuthFacade {
         state = .unauthenticated
         eventBus.emit(.signedOut)
 
-        print("✅ Auth: All data cleared")
+        logger.info("Auth: All data cleared")
     }
 
     // MARK: - Private Storage

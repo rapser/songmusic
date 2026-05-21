@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Casos de uso agrupados para descarga de canciones
 /// Gestiona descarga, extracción de metadata y almacenamiento
@@ -18,37 +19,48 @@ final class DownloadUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let metadataRepository: MetadataRepositoryProtocol
+    private let credentialsRepository: CredentialsRepositoryProtocol
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
     // MARK: - Initialization
 
     init(
         songRepository: SongRepositoryProtocol,
         cloudStorageRepository: CloudStorageRepositoryProtocol,
-        metadataRepository: MetadataRepositoryProtocol
+        metadataRepository: MetadataRepositoryProtocol,
+        credentialsRepository: CredentialsRepositoryProtocol
     ) {
         self.songRepository = songRepository
         self.cloudStorageRepository = cloudStorageRepository
         self.metadataRepository = metadataRepository
+        self.credentialsRepository = credentialsRepository
     }
+
+    // MARK: - Provider
+
+    /// Proveedor de almacenamiento cloud actualmente seleccionado.
+    /// Los ViewModels consultan esto a través del UseCase, sin acceder al repositorio directamente.
+    func currentCloudProvider() -> CloudStorageProvider {
+        credentialsRepository.getSelectedCloudProvider()
+    }
+
+    // MARK: - Constants
+
+    private static let estimatedFileSizeMB: Double = 5.0
 
     // MARK: - Download Operations
 
     /// Descarga una canción desde el almacenamiento cloud
     /// El progreso se emite via EventBus como DownloadEvent.progress
     func downloadSong(_ songID: UUID) async throws {
-        // Obtener la canción
         guard var song = try await songRepository.getByID(songID) else {
             throw DownloadError.songNotFound
         }
 
-        // Verificar que no esté ya descargada
         if song.isDownloaded {
             throw DownloadError.alreadyDownloaded
         }
-
-        print("📥 Descargando canción: \(song.title)")
-        print("   FileID: \(song.fileID)")
-        print("   SongID: \(songID)")
 
         // Descargar archivo (el progreso se emite via EventBus desde el DataSource)
         let localURL = try await cloudStorageRepository.download(
@@ -107,7 +119,7 @@ final class DownloadUseCases {
             do {
                 try await downloadSong(songID)
             } catch {
-                print("⚠️ Error al descargar canción \(songID): \(error)")
+                logger.warning("Error al descargar canción \(songID): \(error)")
             }
         }
     }
@@ -182,8 +194,7 @@ final class DownloadUseCases {
         let totalSongs = songs.count
         let downloadedDuration = downloadedSongs.compactMap { $0.duration }.reduce(0, +)
 
-        // Calcular tamaño aproximado (estimado en 5MB por canción)
-        let estimatedSize = Double(totalDownloaded) * 5.0
+        let estimatedSize = Double(totalDownloaded) * DownloadUseCases.estimatedFileSizeMB
 
         return DownloadStats(
             totalDownloaded: totalDownloaded,

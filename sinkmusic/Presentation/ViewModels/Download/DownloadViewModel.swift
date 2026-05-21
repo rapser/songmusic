@@ -7,9 +7,10 @@
 //
 
 import Foundation
+import os
 
 /// Gestor de tareas de descarga activas para cancelación
-private final class ActiveTasksManager {
+private final class ActiveTasksManager: @unchecked Sendable {
     var tasks: [UUID: Task<Void, Never>] = [:]
 }
 
@@ -47,7 +48,8 @@ final class DownloadViewModel {
 
     private let downloadUseCases: DownloadUseCases
     private let eventBus: EventBusProtocol
-    private let credentialsRepository: CredentialsRepositoryProtocol
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
     // MARK: - Queue Manager
 
@@ -65,11 +67,15 @@ final class DownloadViewModel {
 
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol, credentialsRepository: CredentialsRepositoryProtocol) {
+    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
-        self.credentialsRepository = credentialsRepository
         startObservingEvents()
+    }
+
+    deinit {
+        downloadEventTask?.cancel()
+        for (_, task) in activeTasksManager.tasks { task.cancel() }
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
@@ -103,7 +109,7 @@ final class DownloadViewModel {
             // Solo actualizar si nosotros iniciamos esta descarga
             if activeTasksManager.tasks[songID] != nil {
                 downloadProgress[songID] = 1.0
-                print("✅ Descarga completada (via EventBus): \(songID)")
+                logger.info("Descarga completada: \(songID)")
 
                 // Mantener barra en 100% por 0.5 segundos para feedback visual
                 try? await Task.sleep(nanoseconds: 500_000_000)
@@ -122,7 +128,7 @@ final class DownloadViewModel {
             if activeTasksManager.tasks[songID] != nil {
                 downloadProgress[songID] = nil
                 downloadError = "Error descargando canción: \(error)"
-                print("❌ Error descarga (via EventBus): \(error)")
+                logger.error("Error descarga (via EventBus): \(error)")
 
                 // Limpiar tarea
                 activeTasksManager.tasks.removeValue(forKey: songID)
@@ -136,17 +142,17 @@ final class DownloadViewModel {
                 downloadProgress[songID] = nil
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
-                print("⏸️ Descarga cancelada (via EventBus): \(songID)")
+                logger.info("Descarga cancelada (via EventBus): \(songID)")
             }
 
         case .queued(let songID, let position):
-            print("📋 Canción en cola (posición \(position)): \(songID)")
+            logger.debug("Canción en cola (posición \(position)): \(songID)")
 
         case .quotaExceeded(let provider, let resetTime):
             quotaExceededProvider = CloudStorageProvider(rawValue: provider)
             quotaResetTime = resetTime
             showQuotaAlert = true
-            print("⚠️ Cuota excedida para \(provider). Reset: \(resetTime)")
+            logger.warning("Cuota excedida para \(provider). Reset: \(resetTime)")
         }
     }
 
@@ -158,20 +164,16 @@ final class DownloadViewModel {
     /// - Parameter songID: ID de la canción a descargar
     func download(songID: UUID) async {
         // Evitar descargas duplicadas
-        guard activeTasksManager.tasks[songID] == nil else {
-            print("⏭️ Descarga ya en progreso para \(songID)")
-            return
-        }
+        guard activeTasksManager.tasks[songID] == nil else { return }
 
         // Obtener proveedor actual
-        let provider = credentialsRepository.getSelectedCloudProvider()
+        let provider = downloadUseCases.currentCloudProvider()
 
         // Verificar si la cuota está excedida
         if let resetTime = await queueManager.getQuotaResetTime(for: provider) {
             quotaExceededProvider = provider
             quotaResetTime = resetTime
             showQuotaAlert = true
-            print("⚠️ Cuota aún excedida para \(provider.rawValue). Esperar hasta \(resetTime)")
             return
         }
 
@@ -184,7 +186,7 @@ final class DownloadViewModel {
             isDownloading = true
             downloadError = nil
 
-            print("📥 Solicitando slot de descarga: \(songID)")
+            logger.debug("Solicitando slot de descarga: \(songID)")
 
             // Solicitar slot de descarga (espera si la cola está llena)
             let gotSlot = await queueManager.requestDownloadSlot(for: songID, provider: provider)
@@ -211,7 +213,7 @@ final class DownloadViewModel {
                 }
             }
 
-            print("📥 Iniciando descarga: \(songID)")
+            logger.info("Iniciando descarga: \(songID)")
 
             do {
                 // Descargar usando UseCases
@@ -238,7 +240,7 @@ final class DownloadViewModel {
 
                 // Borrar todo lo que esté en memoria: cancelar todas las descargas y vaciar progreso
                 clearAllTasksAndProgress()
-                print("⚠️ Límite Mega alcanzado; descargas canceladas y estado limpiado")
+                logger.warning("Límite Mega alcanzado; descargas canceladas y estado limpiado")
 
             } catch {
                 // Nota: El error también se emite via EventBus
@@ -246,7 +248,7 @@ final class DownloadViewModel {
                 // (como songNotFound, alreadyDownloaded)
                 downloadProgress[songID] = nil
                 downloadError = "Error descargando canción: \(error.localizedDescription)"
-                print("❌ \(downloadError!)")
+                logger.error("Error descargando canción: \(error.localizedDescription)")
 
                 // Limpiar tarea
                 activeTasksManager.tasks.removeValue(forKey: songID)
@@ -288,11 +290,11 @@ final class DownloadViewModel {
 
             // Limpiar error si existía
             downloadError = nil
-            print("🗑️ Descarga eliminada: \(songID)")
+            logger.info("Descarga eliminada: \(songID)")
 
         } catch {
             downloadError = "Error eliminando descarga: \(error.localizedDescription)"
-            print("❌ \(downloadError!)")
+            logger.error("Error eliminando descarga: \(error.localizedDescription)")
         }
 
         // Actualizar flag de descarga
@@ -310,8 +312,7 @@ final class DownloadViewModel {
 
         // Actualizar flag de descarga
         isDownloading = !activeTasksManager.tasks.isEmpty
-
-        print("⏸️ Descarga cancelada: \(songID)")
+        logger.info("Descarga cancelada: \(songID)")
     }
 
     /// Cancela todas las descargas en progreso
@@ -319,7 +320,6 @@ final class DownloadViewModel {
         for (songID, task) in activeTasksManager.tasks {
             task.cancel()
             downloadProgress.removeValue(forKey: songID)
-            print("⏸️ Descarga cancelada: \(songID)")
         }
 
         activeTasksManager.tasks.removeAll()
@@ -382,7 +382,7 @@ final class DownloadViewModel {
 
     /// True si el proveedor actual es Mega (permite descarga masiva)
     var isMegaProvider: Bool {
-        credentialsRepository.getSelectedCloudProvider() == .mega
+        downloadUseCases.currentCloudProvider() == .mega
     }
 
     /// True si Mega tiene el límite de cuota alcanzado (informar al usuario)
