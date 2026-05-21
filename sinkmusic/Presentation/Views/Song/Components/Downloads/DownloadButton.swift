@@ -14,7 +14,6 @@ struct DownloadButton: View {
 
     var body: some View {
         Button(action: {
-            print("DownloadButton tapped")
             action()
         }) {
             Image(systemName: "arrow.down.circle")

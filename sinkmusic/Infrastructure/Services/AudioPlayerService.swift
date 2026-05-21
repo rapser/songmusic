@@ -12,14 +12,13 @@ import MediaPlayer
 
 /// SOLID: Dependency Inversion - Depende de EventBusProtocol
 @MainActor
-final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol {
 
     // MARK: - Dependencies
 
     private let eventBus: EventBusProtocol
 
     // State management — aislado a @MainActor, no necesita lock
-    private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
     private var currentlyPlayingID: UUID?
 
@@ -294,18 +293,16 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         }
     }
 
-    // MARK: - AVAudioPlayerDelegate
-    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            guard let finishedSongID = self.currentlyPlayingID else { return }
-            self.currentlyPlayingID = nil
-            self.eventBus.emit(.stateChanged(isPlaying: false, songID: finishedSongID))
-            self.eventBus.emit(.songFinished(finishedSongID))
-        }
+    // MARK: - Interruption Handling
+
+    deinit {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
     }
 
-    // MARK: - Interruption Handling
     private func setupInterruptionHandling() {
         NotificationCenter.default.addObserver(
             self,

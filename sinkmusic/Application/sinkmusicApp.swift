@@ -8,14 +8,18 @@
 
 import SwiftUI
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "App")
 
 @main
 struct sinkmusicApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     // MARK: - DIContainer
-    @MainActor
-    private let container = DIContainer.shared
+    // Creado aquí para que sinkmusicApp sea el dueño explícito del ciclo de vida.
+    // DIContainer.shared queda registrado para que AppDelegate pueda accederlo.
+    private let container: DIContainer
 
     // MARK: - ViewModels creados con DIContainer
     @State private var playerViewModel: PlayerViewModel?
@@ -32,6 +36,10 @@ struct sinkmusicApp: App {
     @State private var metadataViewModel = MetadataCacheViewModel()
 
     init() {
+        // Crear e registrar el contenedor antes de que cualquier AppDelegate
+        // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
+        container = DIContainer.createShared()
+
         // Configurar apariencia del NavigationBar
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
@@ -81,10 +89,6 @@ struct sinkmusicApp: App {
                                 .environment(downloadVM)
                                 .environment(metadataViewModel)
                                 .environment(authVM)
-                                .onAppear {
-                                    // Configurar CarPlay cuando la app aparece
-                                    container.carPlayService.configure(with: playerVM)
-                                }
                         } else {
                             // Fallback mientras se inicializan ViewModels
                             ProgressView("Inicializando...")
@@ -137,10 +141,10 @@ struct sinkmusicApp: App {
             equalizerViewModel = container.makeEqualizerViewModel()
             downloadViewModel = container.makeDownloadViewModel()
 
-            print("✅ DIContainer configurado correctamente")
+            logger.info("DIContainer configurado correctamente")
 
         } catch {
-            print("❌ Error al configurar DIContainer: \(error)")
+            logger.error("Error al configurar DIContainer: \(error)")
         }
     }
 }

@@ -12,11 +12,14 @@
 //
 
 import Foundation
+import os
 
 /// Actor que gestiona la cola de descargas con límites por proveedor (Swift 6 concurrency).
 /// - **Secuencial** cuando se usa "Descargar todo": una canción tras otra.
 /// - **Cola con límite**: Google Drive 1 descarga a la vez; Mega hasta 3 a la vez si se lanzan varias.
 actor DownloadQueueManager: Sendable {
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
     // MARK: - Configuration
 
@@ -105,7 +108,7 @@ actor DownloadQueueManager: Sendable {
             pending.continuation.resume()
         }
 
-        print("⚠️ Cuota excedida para \(provider.rawValue). Reintentar en \(Int(retryAfter / 60)) minutos")
+        logger.warning("Cuota excedida para \(provider.rawValue). Reintentar en \(Int(retryAfter / 60)) minutos")
     }
 
     /// Obtiene el tiempo de reset de cuota para un proveedor

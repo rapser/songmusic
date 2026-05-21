@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Implementación del repositorio de Cloud Storage
 /// Usa patrón Strategy para soportar múltiples proveedores (Google Drive, Mega)
@@ -19,6 +20,8 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     private let megaDataSource: MegaServiceProtocol
     private let songLocalDataSource: SongLocalDataSource
     private let credentialsRepository: CredentialsRepositoryProtocol
+
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "CloudStorage")
 
     // MARK: - State
 
@@ -60,8 +63,7 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
 
             // Cachear archivos para tener acceso a la clave de desencriptación
             megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
-            print("📦 MEGA Cache actualizado con \(megaFilesCache.count) archivos")
-            print("🔑 IDs en cache: \(megaFilesCache.keys.sorted().prefix(3).joined(separator: ", "))...")
+            logger.debug("MEGA Cache actualizado con \(self.megaFilesCache.count) archivos")
 
             return CloudFileMapper.toDomain(from: megaFiles)
         }
@@ -84,7 +86,7 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
         case .mega:
             // Verificar si el cache está vacío y rellenarlo si es necesario
             if megaFilesCache.isEmpty {
-                print("⚠️ Cache de MEGA vacío, rellenando...")
+                logger.debug("Cache de MEGA vacío, rellenando...")
                 let folderURL = credentialsRepository.loadMegaFolderURL()
                 guard !folderURL.isEmpty else {
                     throw CloudStorageError.credentialsNotConfigured
@@ -92,22 +94,14 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
                 
                 let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
                 megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
-                print("📦 MEGA Cache rellenado con \(megaFilesCache.count) archivos")
+                logger.debug("MEGA Cache rellenado con \(self.megaFilesCache.count) archivos")
             }
-            
-            // Obtener archivo del cache para tener la clave de desencriptación
-            print("🔍 Buscando archivo en cache MEGA")
-            print("   FileID solicitado: \(fileID)")
-            print("   Cache size: \(megaFilesCache.count)")
-            print("   IDs en cache: \(megaFilesCache.keys.sorted().prefix(5).joined(separator: ", "))")
             
             guard let megaFile = megaFilesCache[fileID] else {
-                print("❌ Archivo NO encontrado en cache")
-                print("   ¿El fileID existe en cache? \(megaFilesCache.keys.contains(fileID))")
+                logger.error("Archivo no encontrado en cache MEGA: \(fileID)")
                 throw CloudStorageError.fileNotFound
             }
-            
-            print("✅ Archivo encontrado en cache: \(megaFile.name)")
+            logger.debug("Archivo encontrado en cache MEGA: \(megaFile.name)")
 
             return try await megaDataSource.download(
                 file: megaFile,
