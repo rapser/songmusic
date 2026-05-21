@@ -15,11 +15,6 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 - Manejo robusto de interrupciones de audio (llamadas, alarmas, Siri, etc.)
 - Reconexión transparente del engine ante cambios de ruta de hardware (`AVAudioEngineConfigurationChange`) — sin chasquidos al abrir teclado
 
-### CarPlay
-- Integracion nativa con CarPlay
-- Navegacion por biblioteca y playlists desde el auto
-- Controles de reproduccion seguros mientras conduces
-
 ### Live Activities & Dynamic Island
 - Reproductor en vivo con Dynamic Island (iPhone 14 Pro+)
 - Controles de reproduccion desde Lock Screen
@@ -56,7 +51,8 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 ### Búsqueda
 - Búsqueda en tiempo real con debouncing (300 ms)
 - Filtrado por título, artista y álbum
-- Resultados instantáneos
+- Paginación progresiva (50 resultados iniciales, +30 por scroll)
+- Estados vacíos contextuales (sin resultados vs. sin descargas)
 
 ## Arquitectura
 
@@ -130,7 +126,6 @@ sinkmusic/
 |   +-- DI/
 |   |   +-- DIContainer.swift       # Contenedor principal de DI
 |   +-- sinkmusicApp.swift          # Entry point SwiftUI
-|   +-- CarPlaySceneDelegate.swift  # Delegado de CarPlay
 |
 +-- Core/                           # Utilidades compartidas
 |   +-- Errors/                     # Errores de dominio
@@ -211,12 +206,10 @@ sinkmusic/
 +-- Infrastructure/                 # Servicios de infraestructura
 |   +-- Protocols/                  # Abstracciones de servicios
 |   |   +-- AudioPlayerServiceProtocol.swift
-|   |   +-- CarPlayServiceProtocol.swift
 |   |   +-- KeychainServiceProtocol.swift
 |   |   +-- LiveActivityServiceProtocol.swift
 |   +-- Services/                   # Implementaciones
 |       +-- AudioPlayerService.swift
-|       +-- CarPlayService.swift
 |       +-- KeychainService.swift
 |       +-- LiveActivityService.swift
 |       +-- MetadataService.swift
@@ -303,7 +296,6 @@ final class DIContainer {
     var eventBus: EventBusProtocol
     var keychainService: KeychainServiceProtocol
     var audioPlayerService: AudioPlayerServiceProtocol
-    var carPlayService: CarPlayServiceProtocol
 
     // Auth Module (Facade + Strategy)
     var authViewModel: AuthViewModel  // Singleton compartido
@@ -409,13 +401,14 @@ El proyecto compila con cero advertencias en Swift 6 strict concurrency mode. Ca
 ```swift
 // Ejemplo: NSObject + @MainActor + nonisolated delegates
 @MainActor
-final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol {
 
     // ✅ Todos los métodos son @MainActor por defecto
     func play(songID: UUID, url: URL) { ... }
 
     // ✅ nonisolated para callbacks del sistema (llamados desde threads arbitrarios)
-    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully: Bool) {
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                                didFinishDownloadingTo location: URL) {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.eventBus.emit(.songFinished(self.currentlyPlayingID!))
@@ -452,7 +445,6 @@ private actor MegaDownloadState {
 ### Audio & Media
 - **AVFoundation** y **AVAudioEngine** para reproduccion
 - **MediaPlayer** para integracion con sistema
-- **CarPlay Framework** para vehiculos
 - **ActivityKit** para Live Activities
 
 ### Cloud & Storage
@@ -465,14 +457,14 @@ private actor MegaDownloadState {
 - **Task API** para concurrencia estructurada (reemplaza GCD/DispatchQueue)
 - **AsyncStream** para el sistema de eventos reactivo (EventBus)
 - **nonisolated** en callbacks de sistema (AVFoundation, URLSession, NotificationCenter)
-- Sin `@unchecked Sendable` — toda la seguridad de concurrencia es verificada por el compilador
+- `@unchecked Sendable` solo en `ActiveTasksManager` (interno de `DownloadViewModel`, accedido exclusivamente desde `@MainActor`)
 
 ## Requisitos
 
 - **iOS 18.0+**
 - **Xcode 16.0+** (Swift 6)
 - **Proveedor de nube**: Google Drive (API en Cloud Console) **o** MEGA (URL de carpeta pública)
-- **Dispositivo físico** recomendado para CarPlay y Live Activities
+- **Dispositivo físico** recomendado para Live Activities y Dynamic Island
 
 ## Instalación
 
@@ -513,13 +505,13 @@ sinkmusicTests/
 │   ├── MockCredentialsRepository.swift
 │   └── MockMetadataRepository.swift
 └── UseCases/
-    ├── PlayerUseCasesTests.swift   — 11 tests
-    ├── LibraryUseCasesTests.swift  — 12 tests
-    ├── PlaylistUseCasesTests.swift — 14 tests
-    ├── SearchUseCasesTests.swift   — 16 tests
-    ├── DownloadUseCasesTests.swift — 12 tests
+    ├── PlayerUseCasesTests.swift    — 14 tests
+    ├── LibraryUseCasesTests.swift   — 22 tests
+    ├── PlaylistUseCasesTests.swift  — 26 tests
+    ├── SearchUseCasesTests.swift    — 19 tests
+    ├── DownloadUseCasesTests.swift  — 24 tests
     ├── EqualizerUseCasesTests.swift — 10 tests
-    └── SettingsUseCasesTests.swift — 16 tests
+    └── SettingsUseCasesTests.swift  — 34 tests
 ```
 
 ### Patrón de mocks

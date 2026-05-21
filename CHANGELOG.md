@@ -5,6 +5,78 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (22) - 2026-05-20
+
+### 🗑️ Eliminado
+
+#### Integración CarPlay eliminada completamente
+- Eliminados `CarPlaySceneDelegate.swift`, `CarPlayServiceProtocol.swift`, `CarPlayService.swift`
+- Removida escena `CPTemplateApplicationSceneSessionRoleApplication` de `Info.plist`
+- Eliminado `carPlayService` de `DIContainer`
+- Removida configuración `.onAppear` en `sinkmusicApp`
+
+### 🔒 Memory Leaks corregidos (3)
+
+#### GoogleDriveDataSource — URLSession retain cycle
+- `URLSession(configuration:delegate:delegateQueue:)` mantiene referencia fuerte al delegate
+- Reemplazado `lazy var urlSession` por backing property opcional `_urlSession`
+- Añadido `deinit` que llama a `_urlSession?.finishTasksAndInvalidate()`
+
+#### AudioPlayerService — NotificationCenter observer sin remover
+- `addObserver(self, selector:name:object:)` almacenaba referencia fuerte a `self`
+- Añadido `deinit` con `NotificationCenter.default.removeObserver(self, name:object:)`
+- Eliminada conformidad muerta a `AVAudioPlayerDelegate` (la clase usa `AVAudioEngine`, no `AVAudioPlayer`)
+- Eliminada propiedad `audioPlayer: AVAudioPlayer?` y el método `audioPlayerDidFinishPlaying` que nunca se llamaba
+
+#### DownloadViewModel — tareas activas sin cancelar al destruir
+- `downloadEventTask` y las entradas de `activeTasksManager.tasks` no se cancelaban al destruir el ViewModel
+- `ActiveTasksManager` marcado como `@unchecked Sendable` (accesos exclusivamente desde `@MainActor`)
+- Añadido `deinit` que cancela `downloadEventTask` y todas las tareas activas
+
+### 🎨 UX
+
+#### Paginación en búsqueda
+- `SearchResultsList` muestra los primeros 50 resultados; carga +30 al llegar al final de la lista
+- Sentinel item `Color.clear.frame(height:1).onAppear` para infinite scroll sin botones
+- Reset a 50 al cambiar el término de búsqueda (`.onChange(of: songs.first?.id)`)
+
+#### Empty states contextuales en "Agregar canciones a playlist"
+- `EmptyAvailableSongsView` con enum `Reason` — distingue `.noDownloads` vs `.allInPlaylists`
+- `AddSongsToPlaylistView` detecta si la biblioteca no tiene descargas y ajusta el icono y mensaje
+
+### 🧪 Unit Tests — cobertura completa (149 tests)
+
+#### 36 tests nuevos distribuidos en 4 archivos
+- **SettingsUseCasesTests** (+18): `clearCache` (3), `deleteAllSongs` (3), `testCloudStorageConnection` (2), `deleteGoogleDriveCredentials` / `deleteMegaCredentials` (2), validación, storage info, app info
+- **PlaylistUseCasesTests** (+12): `getPlaylistByID` (2), `removeSongFromPlaylist`, `addSongsToPlaylist` (2), `reorderSongs` (3, con verificación de IndexSet move)
+- **LibraryUseCasesTests** (+10): `updateDominantColor` (2), `syncWithCloudStorage` rama Mega (3), `deleteSong` con limpieza cloud (2), `getSongByID` (2)
+- **DownloadUseCasesTests** (+12): `downloadSong` sin metadata (2), `downloadMultipleSongs` (3), `deleteAllDownloads` (2), `getLocalURL` (2), stats (3)
+
+| Archivo | Tests |
+|---------|-------|
+| PlayerUseCasesTests | 14 |
+| LibraryUseCasesTests | 22 |
+| PlaylistUseCasesTests | 26 |
+| SearchUseCasesTests | 19 |
+| DownloadUseCasesTests | 24 |
+| EqualizerUseCasesTests | 10 |
+| SettingsUseCasesTests | 34 |
+| **Total** | **149** |
+
+### 🔧 Archivos Modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `Data/DataSources/Remote/GoogleDriveDataSource.swift` | `_urlSession` backing opcional, `deinit` con `finishTasksAndInvalidate()` |
+| `Infrastructure/Services/AudioPlayerService.swift` | Eliminada conformidad `AVAudioPlayerDelegate`, `deinit` con `removeObserver` |
+| `Presentation/ViewModels/Download/DownloadViewModel.swift` | `ActiveTasksManager: @unchecked Sendable`, `deinit` cancela tareas |
+| `Presentation/Views/Search/Components/SearchResultsList.swift` | Paginación 50+30, sentinel item, reset en nueva búsqueda |
+| `Presentation/Views/Playlist/Components/EmptyStates/EmptyAvailableSongsView.swift` | Enum `Reason`, icono y mensaje dinámico |
+| `Presentation/Views/Playlist/AddSongsToPlaylistView.swift` | `hasNoDownloadedSongs`, pasa `reason` al empty state |
+| `sinkmusicTests/UseCases/*.swift` | 36 tests nuevos en 4 archivos |
+
+---
+
 ## [1.0.0] (21) - 2026-05-19
 
 ### 🧪 Unit Tests — Domain Use Cases
