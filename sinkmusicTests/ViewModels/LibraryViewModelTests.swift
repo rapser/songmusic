@@ -60,13 +60,14 @@ final class LibraryViewModelTests: XCTestCase {
 
     // MARK: - syncLibraryWithCatalog()
 
-    func test_sync_noCredentials_setsInvalidCredentialsError() async {
+    func test_sync_noCredentials_abortsSilentlyWithNoError() async {
         mockCredentials.hasGoogleDriveCredentialsValue = false
         mockCredentials.selectedProvider = .googleDrive
 
         await sut.syncLibraryWithCatalog()
 
-        XCTAssertEqual(sut.syncError, .invalidCredentials)
+        XCTAssertNil(sut.syncError)
+        XCTAssertEqual(mockCloudStorage.fetchCallCount, 0)
     }
 
     func test_sync_success_addsNewSongs() async {

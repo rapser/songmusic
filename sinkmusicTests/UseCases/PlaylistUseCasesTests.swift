@@ -106,14 +106,7 @@ final class PlaylistUseCasesTests: XCTestCase {
     func test_updatePlaylist_callsRepositoryUpdate() async throws {
         var playlist = Playlist.make(name: "Original")
         mockPlaylistRepo.playlists = [playlist]
-        playlist = Playlist(
-            id: playlist.id,
-            name: "Updated",
-            description: "New desc",
-            songs: playlist.songs,
-            coverImageData: nil,
-            placeholderColorIndex: nil
-        )
+        playlist = Playlist.make(id: playlist.id, name: "Updated", description: "New desc")
 
         try await sut.updatePlaylist(playlist)
 

@@ -154,7 +154,7 @@ final class SettingsViewModelTests: XCTestCase {
     // MARK: - saveMegaFolderURL()
 
     func test_saveMegaFolderURL_validURL_setsMegaCredentials() {
-        sut.megaFolderURL = "https://mega.nz/folder/abc123"
+        sut.megaFolderURL = "https://mega.nz/folder/abc123#secretKey"
         mockCredentials.saveMegaResult = true
 
         let result = sut.saveMegaFolderURL()

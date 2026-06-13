@@ -150,7 +150,7 @@ final class HomeViewModelTests: XCTestCase {
         await sut.loadData()
         mockSongRepo.songs = [Song.make(isDownloaded: true), Song.make(isDownloaded: true)]
 
-        mockEventBus.emit(.songDownloaded)
+        mockEventBus.emit(.songDownloaded(UUID()))
         try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(sut.downloadedSongs.count, 2)

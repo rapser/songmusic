@@ -48,8 +48,12 @@ final class PlaylistViewModelTests: XCTestCase {
 
     // MARK: - createPlaylist()
 
-    func test_createPlaylist_emptyName_doesNotCallRepository() async throws {
-        _ = try await sut.createPlaylist(name: "   ", description: nil, coverImageData: nil)
+    func test_createPlaylist_emptyName_doesNotCallRepository() async {
+        do {
+            _ = try await sut.createPlaylist(name: "   ", description: nil, coverImageData: nil)
+        } catch {
+            // PlaylistError.emptyName es el comportamiento esperado
+        }
 
         XCTAssertEqual(mockPlaylistRepo.createCallCount, 0)
     }
