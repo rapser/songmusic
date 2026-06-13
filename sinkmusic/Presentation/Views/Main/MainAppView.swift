@@ -4,12 +4,9 @@ struct MainAppView: View {
     // MARK: - ViewModels (Clean Architecture)
     @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
-    @Environment(MetadataCacheViewModel.self) private var metadataViewModel
+    @Environment(PlayerCoordinator.self) private var playerCoordinator
 
     @Namespace private var animation
-
-    @State private var currentSong: SongUI? = nil
-    @State private var songsLookup: [UUID: SongUI] = [:]
 
     init() {
         let tabBarAppearance = UITabBarAppearance()
@@ -36,13 +33,13 @@ struct MainAppView: View {
             miniPlayerView
         }
         .task {
-            updateSongsLookup()
+            playerCoordinator.onLibrarySongsChanged(libraryViewModel.songs, currentlyPlayingID: playerViewModel.currentlyPlayingID)
         }
-        .onChange(of: playerViewModel.currentlyPlayingID) { oldValue, newValue in
-            handlePlayingIDChange(newValue)
+        .onChange(of: playerViewModel.currentlyPlayingID) { _, newValue in
+            Task { await playerCoordinator.onPlayingIDChanged(newValue, libraryViewModel: libraryViewModel) }
         }
-        .onChange(of: libraryViewModel.songs) { oldValue, newValue in
-            handleLibrarySongsChange(newValue)
+        .onChange(of: libraryViewModel.songs) { _, newValue in
+            playerCoordinator.onLibrarySongsChanged(newValue, currentlyPlayingID: playerViewModel.currentlyPlayingID)
         }
     }
 
@@ -64,16 +61,16 @@ struct MainAppView: View {
 
     @ViewBuilder
     private var fullPlayerView: some View {
-        if let currentSong = currentSong, playerViewModel.showPlayerView {
+        if let song = playerCoordinator.currentSong, playerViewModel.showPlayerView {
             PlayerView(
                 songs: libraryViewModel.songs,
-                currentSong: currentSong,
+                currentSong: song,
                 namespace: animation
             )
             .zIndex(2)
-            .task(id: currentSong.id) {
-                if currentSong.dominantColor == nil, currentSong.artworkThumbnail != nil {
-                    await libraryViewModel.persistDominantColorIfNeeded(songID: currentSong.id, artworkData: currentSong.artworkThumbnail)
+            .task(id: song.id) {
+                if song.dominantColor == nil, song.artworkThumbnail != nil {
+                    await libraryViewModel.persistDominantColorIfNeeded(songID: song.id, artworkData: song.artworkThumbnail)
                 }
             }
         }
@@ -81,15 +78,15 @@ struct MainAppView: View {
 
     @ViewBuilder
     private var miniPlayerView: some View {
-        if let currentSong = currentSong,
+        if let song = playerCoordinator.currentSong,
            playerViewModel.currentlyPlayingID != nil,
            !playerViewModel.showPlayerView {
 
             PlayerControlsView(
-                songID: currentSong.id,
-                title: currentSong.title,
-                artist: currentSong.artist,
-                dominantColor: currentSong.backgroundColor,
+                songID: song.id,
+                title: song.title,
+                artist: song.artist,
+                dominantColor: song.backgroundColor,
                 namespace: animation
             )
             .padding(.horizontal, 8)
@@ -98,47 +95,12 @@ struct MainAppView: View {
             .onTapGesture {
                 playerViewModel.showPlayerView = true
             }
-            .task(id: currentSong.id) {
-                if currentSong.dominantColor == nil, currentSong.artworkThumbnail != nil {
-                    await libraryViewModel.persistDominantColorIfNeeded(songID: currentSong.id, artworkData: currentSong.artworkThumbnail)
+            .task(id: song.id) {
+                if song.dominantColor == nil, song.artworkThumbnail != nil {
+                    await libraryViewModel.persistDominantColorIfNeeded(songID: song.id, artworkData: song.artworkThumbnail)
                 }
             }
         }
-    }
-
-    private func handlePlayingIDChange(_ newValue: UUID?) {
-        if let playingID = newValue {
-            guard let song = libraryViewModel.songs.first(where: { $0.id == playingID }) else { return }
-            currentSong = song
-            // Mini player: thumbnail pequeño (32x32) es suficiente.
-            metadataViewModel.cacheArtwork(from: nil, thumbnail: song.artworkSmallThumbnail ?? song.artworkThumbnail)
-            // Player grande: cargar artwork en resolución completa en segundo plano.
-            Task {
-                let fullArtwork = await libraryViewModel.getArtworkData(songID: playingID)
-                await MainActor.run {
-                    metadataViewModel.cacheArtwork(
-                        from: fullArtwork,
-                        thumbnail: song.artworkSmallThumbnail ?? song.artworkThumbnail
-                    )
-                }
-            }
-        } else {
-            metadataViewModel.clearCache()
-            currentSong = nil
-        }
-    }
-
-    private func handleLibrarySongsChange(_ newValue: [SongUI]) {
-        updateSongsLookup()
-
-        if let playingID = playerViewModel.currentlyPlayingID,
-           let updatedSong = newValue.first(where: { $0.id == playingID }) {
-            currentSong = updatedSong
-        }
-    }
-
-    private func updateSongsLookup() {
-        songsLookup = Dictionary(uniqueKeysWithValues: libraryViewModel.songs.map { ($0.id, $0) })
     }
 }
 

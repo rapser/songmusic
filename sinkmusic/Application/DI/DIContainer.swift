@@ -280,4 +280,9 @@ final class DIContainer {
     func makeAuthViewModel() -> AuthViewModel {
         authViewModel
     }
+
+    /// Factory para PlayerCoordinator — recibe MetadataCacheViewModel que vive en la capa de UI
+    func makePlayerCoordinator(metadataViewModel: MetadataCacheViewModel) -> PlayerCoordinator {
+        PlayerCoordinator(metadataViewModel: metadataViewModel)
+    }
 }

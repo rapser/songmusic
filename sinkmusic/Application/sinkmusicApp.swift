@@ -35,6 +35,9 @@ struct sinkmusicApp: App {
     // MARK: - UI Cache
     @State private var metadataViewModel = MetadataCacheViewModel()
 
+    // MARK: - Coordinator
+    @State private var playerCoordinator: PlayerCoordinator?
+
     init() {
         // Crear e registrar el contenedor antes de que cualquier AppDelegate
         // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
@@ -76,7 +79,8 @@ struct sinkmusicApp: App {
                            let playlistVM = playlistViewModel,
                            let settingsVM = settingsViewModel,
                            let equalizerVM = equalizerViewModel,
-                           let downloadVM = downloadViewModel {
+                           let downloadVM = downloadViewModel,
+                           let coordinator = playerCoordinator {
 
                             MainAppView()
                                 .environment(playerVM)
@@ -89,6 +93,7 @@ struct sinkmusicApp: App {
                                 .environment(downloadVM)
                                 .environment(metadataViewModel)
                                 .environment(authVM)
+                                .environment(coordinator)
                         } else {
                             // Fallback mientras se inicializan ViewModels
                             ProgressView("Inicializando...")
@@ -140,6 +145,7 @@ struct sinkmusicApp: App {
             settingsViewModel = container.makeSettingsViewModel()
             equalizerViewModel = container.makeEqualizerViewModel()
             downloadViewModel = container.makeDownloadViewModel()
+            playerCoordinator = container.makePlayerCoordinator(metadataViewModel: metadataViewModel)
 
             logger.info("DIContainer configurado correctamente")
 
