@@ -55,12 +55,12 @@ final class LibraryViewModel: EventBusObservable {
 
     /// Carga todas las canciones
     func loadSongs() async {
-        do {
-            let entities = try await libraryUseCases.getAllSongs()
-            songs = entities.map { SongMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar canciones: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await libraryUseCases.getAllSongs() },
+            map: { $0.map(SongMapper.toUI) },
+            assign: { songs = $0 },
+            onError: { [self] in logger.error("Error al cargar canciones: \($0)") }
+        )
     }
 
     /// Devuelve el artwork en resolución completa de una canción (para player grande).

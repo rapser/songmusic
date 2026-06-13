@@ -55,12 +55,12 @@ final class PlaylistViewModel: EventBusObservable {
 
     /// Carga todas las playlists
     func loadPlaylists() async {
-        do {
-            let entities = try await playlistUseCases.getAllPlaylists()
-            playlists = entities.map { PlaylistMapper.toUI($0) }
-        } catch {
-            errorMessage = "Error al cargar playlists: \(error.localizedDescription)"
-        }
+        await loadAndAssign(
+            fetch: { try await playlistUseCases.getAllPlaylists() },
+            map: { $0.map(PlaylistMapper.toUI) },
+            assign: { playlists = $0 },
+            onError: { [self] in errorMessage = "Error al cargar playlists: \($0.localizedDescription)" }
+        )
     }
 
     /// Crea una nueva playlist
