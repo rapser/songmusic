@@ -33,7 +33,7 @@ final class PlayerViewModel {
 
     private let playerUseCases: PlayerUseCases
     private let eventBus: EventBusProtocol
-    private let liveActivityService = LiveActivityService()
+    private let liveActivityService: LiveActivityServiceProtocol
 
     // MARK: - Private State
 
@@ -50,9 +50,14 @@ final class PlayerViewModel {
 
     // MARK: - Initialization
 
-    init(playerUseCases: PlayerUseCases, eventBus: EventBusProtocol) {
+    init(
+        playerUseCases: PlayerUseCases,
+        eventBus: EventBusProtocol,
+        liveActivityService: LiveActivityServiceProtocol = LiveActivityService()
+    ) {
         self.playerUseCases = playerUseCases
         self.eventBus = eventBus
+        self.liveActivityService = liveActivityService
         startObservingEvents()
         setupLiveActivityHandlers()
     }

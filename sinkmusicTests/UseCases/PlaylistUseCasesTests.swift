@@ -101,6 +101,25 @@ final class PlaylistUseCasesTests: XCTestCase {
         XCTAssertEqual(mockPlaylistRepo.playlists.first?.name, "New Name")
     }
 
+    // MARK: - updatePlaylist()
+
+    func test_updatePlaylist_callsRepositoryUpdate() async throws {
+        var playlist = Playlist.make(name: "Original")
+        mockPlaylistRepo.playlists = [playlist]
+        playlist = Playlist(
+            id: playlist.id,
+            name: "Updated",
+            description: "New desc",
+            songs: playlist.songs,
+            coverImageData: nil,
+            placeholderColorIndex: nil
+        )
+
+        try await sut.updatePlaylist(playlist)
+
+        XCTAssertEqual(mockPlaylistRepo.updateCallCount, 1)
+    }
+
     // MARK: - deletePlaylist()
 
     func test_deletePlaylist_callsRepository() async throws {

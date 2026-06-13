@@ -107,6 +107,63 @@ final class SettingsUseCasesTests: XCTestCase {
 
     // MARK: - hasCurrentProviderCredentials()
 
+    // MARK: - loadGoogleDriveCredentials()
+
+    func test_loadGoogleDriveCredentials_returnsStoredValues() {
+        mockCredentials.googleDriveAPIKey = "myAPIKey"
+        mockCredentials.googleDriveFolderID = "myFolderID"
+        mockCredentials.hasGoogleDriveCredentialsValue = true
+
+        let result = sut.loadGoogleDriveCredentials()
+
+        XCTAssertEqual(result.apiKey, "myAPIKey")
+        XCTAssertEqual(result.folderId, "myFolderID")
+        XCTAssertTrue(result.hasCredentials)
+    }
+
+    func test_hasGoogleDriveCredentials_delegatesToRepository() {
+        mockCredentials.hasGoogleDriveCredentialsValue = true
+        XCTAssertTrue(sut.hasGoogleDriveCredentials())
+
+        mockCredentials.hasGoogleDriveCredentialsValue = false
+        XCTAssertFalse(sut.hasGoogleDriveCredentials())
+    }
+
+    // MARK: - loadMegaFolderURL()
+
+    func test_loadMegaFolderURL_returnsStoredValue() {
+        mockCredentials.megaFolderURL = "https://mega.nz/folder/abc#key"
+
+        let result = sut.loadMegaFolderURL()
+
+        XCTAssertEqual(result, "https://mega.nz/folder/abc#key")
+    }
+
+    func test_hasMegaCredentials_delegatesToRepository() {
+        mockCredentials.hasMegaCredentialsValue = true
+        XCTAssertTrue(sut.hasMegaCredentials())
+
+        mockCredentials.hasMegaCredentialsValue = false
+        XCTAssertFalse(sut.hasMegaCredentials())
+    }
+
+    // MARK: - getSelectedCloudProvider()
+
+    func test_getSelectedCloudProvider_delegatesToRepository() {
+        mockCredentials.selectedProvider = .mega
+        XCTAssertEqual(sut.getSelectedCloudProvider(), .mega)
+
+        mockCredentials.selectedProvider = .googleDrive
+        XCTAssertEqual(sut.getSelectedCloudProvider(), .googleDrive)
+    }
+
+    // MARK: - getAppInfo()
+
+    func test_getAppInfo_returnsDisplayName() {
+        let info = sut.getAppInfo(bundle: Bundle(for: type(of: self)))
+        XCTAssertEqual(info.displayName, "SinkMusic")
+    }
+
     func test_hasCurrentProviderCredentials_googleDrive_checksGoogleCredentials() {
         mockCredentials.selectedProvider = .googleDrive
         mockCredentials.hasGoogleDriveCredentialsValue = true

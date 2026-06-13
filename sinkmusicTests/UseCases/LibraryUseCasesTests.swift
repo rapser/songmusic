@@ -272,6 +272,20 @@ final class LibraryUseCasesTests: XCTestCase {
         XCTAssertEqual(mockSongRepo.deleteCallCount, 1)
     }
 
+    // MARK: - getDownloadedSongs()
+
+    func test_getDownloadedSongs_returnsOnlyDownloaded() async throws {
+        mockSongRepo.songs = [
+            Song.make(title: "Downloaded", isDownloaded: true),
+            Song.make(title: "Pending", isDownloaded: false)
+        ]
+
+        let result = try await sut.getDownloadedSongs()
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.title, "Downloaded")
+    }
+
     // MARK: - updateDominantColor()
 
     func test_updateDominantColor_persistsColorToRepository() async throws {

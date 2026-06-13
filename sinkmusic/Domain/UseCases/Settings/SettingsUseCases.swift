@@ -188,9 +188,9 @@ final class SettingsUseCases {
     // MARK: - App Info
 
     /// Obtiene información de la app
-    func getAppInfo() -> AppInfo {
-        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    func getAppInfo(bundle: Bundle = .main) -> AppInfo {
+        let appVersion = bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let buildNumber = bundle.infoDictionary?["CFBundleVersion"] as? String ?? "1"
 
         return AppInfo(
             version: appVersion,
