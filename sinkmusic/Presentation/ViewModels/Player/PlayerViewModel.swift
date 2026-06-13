@@ -15,7 +15,7 @@ import os
 /// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
-final class PlayerViewModel {
+final class PlayerViewModel: EventBusObservable {
 
     // MARK: - Published State
 
@@ -32,7 +32,7 @@ final class PlayerViewModel {
     // MARK: - Dependencies
 
     private let playerUseCases: PlayerUseCases
-    private let eventBus: EventBusProtocol
+    private(set) var eventBus: EventBusProtocol
     private let liveActivityService: LiveActivityServiceProtocol
 
     // MARK: - Private State
@@ -58,7 +58,8 @@ final class PlayerViewModel {
         self.playerUseCases = playerUseCases
         self.eventBus = eventBus
         self.liveActivityService = liveActivityService
-        startObservingEvents()
+        playbackEventTask = makeEventTask(stream: { $0.playbackEvents() },
+                                          handler: { [weak self] in await self?.handlePlaybackEvent($0) })
         setupLiveActivityHandlers()
     }
 
@@ -220,17 +221,6 @@ final class PlayerViewModel {
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        playbackEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.playbackEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handlePlaybackEvent(event)
-            }
-        }
-    }
 
     private func handlePlaybackEvent(_ event: PlaybackEvent) async {
         switch event {

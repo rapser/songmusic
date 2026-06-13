@@ -136,13 +136,27 @@ final class LibraryUseCasesTests: XCTestCase {
         XCTAssertEqual(mockSongRepo.lastDeletedID, song.id)
     }
 
-    func test_deleteSongs_deletesAll() async throws {
+    func test_deleteSongs_deletesAll() async {
         let songs = [Song.make(), Song.make()]
         mockSongRepo.songs = songs
 
-        try await sut.deleteSongs(songs.map { $0.id })
+        let result = await sut.deleteSongs(songs.map { $0.id })
 
         XCTAssertEqual(mockSongRepo.deleteCallCount, 2)
+        XCTAssertTrue(result.allSucceeded)
+    }
+
+    func test_deleteSongs_whenAllFail_continuesAndReportsAll() async {
+        let songs = [Song.make(), Song.make()]
+        mockSongRepo.songs = songs
+        mockSongRepo.shouldThrowOnDelete = true
+
+        let result = await sut.deleteSongs(songs.map { $0.id })
+
+        // Ambas canciones fallaron — BatchResult captura ambos fallos (antes se abortaba en el primero)
+        XCTAssertTrue(result.hasFailures)
+        XCTAssertEqual(result.failureCount, 2)
+        XCTAssertEqual(result.successCount, 0)
     }
 
     // MARK: - getLibraryStats()

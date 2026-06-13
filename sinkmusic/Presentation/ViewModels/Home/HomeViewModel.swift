@@ -15,7 +15,7 @@ import os
 /// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
-final class HomeViewModel {
+final class HomeViewModel: EventBusObservable {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
@@ -34,7 +34,7 @@ final class HomeViewModel {
 
     private let playlistUseCases: PlaylistUseCases
     private let libraryUseCases: LibraryUseCases
-    private let eventBus: EventBusProtocol
+    private(set) var eventBus: EventBusProtocol
 
     // MARK: - Tasks
 
@@ -52,7 +52,8 @@ final class HomeViewModel {
         self.playlistUseCases = playlistUseCases
         self.libraryUseCases = libraryUseCases
         self.eventBus = eventBus
-        startObservingEvents()
+        dataEventTask = makeEventTask(stream: { $0.dataEvents() },
+                                      handler: { [weak self] in await self?.handleDataEvent($0) })
         Task {
             await loadData()
         }
@@ -133,17 +134,6 @@ final class HomeViewModel {
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        dataEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.dataEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handleDataEvent(event)
-            }
-        }
-    }
 
     private func handleDataEvent(_ event: DataChangeEvent) async {
         switch event {
