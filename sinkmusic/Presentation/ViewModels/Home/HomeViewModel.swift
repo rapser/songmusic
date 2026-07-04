@@ -15,7 +15,7 @@ import os
 /// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
-final class HomeViewModel {
+final class HomeViewModel: EventBusObservable {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
@@ -34,7 +34,7 @@ final class HomeViewModel {
 
     private let playlistUseCases: PlaylistUseCases
     private let libraryUseCases: LibraryUseCases
-    private let eventBus: EventBusProtocol
+    private(set) var eventBus: EventBusProtocol
 
     // MARK: - Tasks
 
@@ -52,7 +52,8 @@ final class HomeViewModel {
         self.playlistUseCases = playlistUseCases
         self.libraryUseCases = libraryUseCases
         self.eventBus = eventBus
-        startObservingEvents()
+        dataEventTask = makeEventTask(stream: { $0.dataEvents() },
+                                      handler: { [weak self] in await self?.handleDataEvent($0) })
         Task {
             await loadData()
         }
@@ -77,52 +78,52 @@ final class HomeViewModel {
 
     /// Carga playlists
     private func loadPlaylists() async {
-        do {
-            let entities = try await playlistUseCases.getAllPlaylists()
-            playlists = entities.map { PlaylistMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar playlists: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await playlistUseCases.getAllPlaylists() },
+            map: { $0.map(PlaylistMapper.toUI) },
+            assign: { playlists = $0 },
+            onError: { [self] in logger.error("Error al cargar playlists: \($0)") }
+        )
     }
 
     /// Carga playlists más escuchadas (ordenadas por reproducciones totales), máximo 10.
     private func loadMostPlayedPlaylists() async {
-        do {
-            let entities = try await playlistUseCases.getMostPlayedPlaylists(limit: 10)
-            mostPlayedPlaylists = entities.map { PlaylistMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar playlists más escuchadas: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await playlistUseCases.getMostPlayedPlaylists(limit: 10) },
+            map: { $0.map(PlaylistMapper.toUI) },
+            assign: { mostPlayedPlaylists = $0 },
+            onError: { [self] in logger.error("Error al cargar playlists más escuchadas: \($0)") }
+        )
     }
 
     /// Carga canciones recientes (via UseCase)
     private func loadRecentSongs() async {
-        do {
-            let entities = try await libraryUseCases.getRecentlyPlayedSongs(limit: 10)
-            recentSongs = entities.map { SongMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar canciones recientes: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await libraryUseCases.getRecentlyPlayedSongs(limit: 10) },
+            map: { $0.map(SongMapper.toUI) },
+            assign: { recentSongs = $0 },
+            onError: { [self] in logger.error("Error al cargar canciones recientes: \($0)") }
+        )
     }
 
     /// Carga canciones más reproducidas (via UseCase)
     private func loadMostPlayedSongs() async {
-        do {
-            let entities = try await libraryUseCases.getMostPlayedSongs(limit: 10)
-            mostPlayedSongs = entities.map { SongMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar canciones más reproducidas: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await libraryUseCases.getMostPlayedSongs(limit: 10) },
+            map: { $0.map(SongMapper.toUI) },
+            assign: { mostPlayedSongs = $0 },
+            onError: { [self] in logger.error("Error al cargar canciones más reproducidas: \($0)") }
+        )
     }
 
     /// Carga canciones descargadas (via UseCase)
     private func loadDownloadedSongs() async {
-        do {
-            let entities = try await libraryUseCases.getDownloadedSongs()
-            downloadedSongs = entities.map { SongMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar canciones descargadas: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await libraryUseCases.getDownloadedSongs() },
+            map: { $0.map(SongMapper.toUI) },
+            assign: { downloadedSongs = $0 },
+            onError: { [self] in logger.error("Error al cargar canciones descargadas: \($0)") }
+        )
     }
 
     // MARK: - Quick Actions
@@ -133,17 +134,6 @@ final class HomeViewModel {
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        dataEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.dataEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handleDataEvent(event)
-            }
-        }
-    }
 
     private func handleDataEvent(_ event: DataChangeEvent) async {
         switch event {

@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum SyncError: Error {
+enum SyncError: Error, Equatable {
     case invalidCredentials
     case emptyFolder
     case networkError(String)

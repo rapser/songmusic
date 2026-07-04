@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Casos de uso agrupados para la biblioteca de música
 /// Gestiona sincronización con almacenamiento cloud y acceso a canciones
@@ -18,6 +19,7 @@ final class LibraryUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Library")
 
     // MARK: - Initialization
 
@@ -168,11 +170,22 @@ final class LibraryUseCases {
         try await songRepository.delete(id)
     }
 
-    /// Elimina múltiples canciones
-    func deleteSongs(_ ids: [UUID]) async throws {
+    /// Elimina múltiples canciones en modo best-effort.
+    /// Si una falla, continúa con las demás y reporta todos los fallos en el `BatchResult`.
+    func deleteSongs(_ ids: [UUID]) async -> BatchResult<UUID> {
+        var succeeded: [UUID] = []
+        var failed: [(id: UUID, error: Error)] = []
+
         for id in ids {
-            try await deleteSong(id)
+            do {
+                try await deleteSong(id)
+                succeeded.append(id)
+            } catch {
+                logger.error("Error al eliminar canción \(id): \(error)")
+                failed.append((id: id, error: error))
+            }
         }
+        return BatchResult(succeeded: succeeded, failed: failed)
     }
 
     // MARK: - Statistics

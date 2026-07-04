@@ -15,7 +15,7 @@ import os
 /// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
-final class PlaylistViewModel {
+final class PlaylistViewModel: EventBusObservable {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
@@ -31,7 +31,7 @@ final class PlaylistViewModel {
     // MARK: - Dependencies
 
     private let playlistUseCases: PlaylistUseCases
-    private let eventBus: EventBusProtocol
+    private(set) var eventBus: EventBusProtocol
 
     // MARK: - Tasks
 
@@ -44,7 +44,8 @@ final class PlaylistViewModel {
     init(playlistUseCases: PlaylistUseCases, eventBus: EventBusProtocol) {
         self.playlistUseCases = playlistUseCases
         self.eventBus = eventBus
-        startObservingEvents()
+        dataEventTask = makeEventTask(stream: { $0.dataEvents() },
+                                      handler: { [weak self] in await self?.handleDataEvent($0) })
         Task {
             await loadPlaylists()
         }
@@ -54,12 +55,12 @@ final class PlaylistViewModel {
 
     /// Carga todas las playlists
     func loadPlaylists() async {
-        do {
-            let entities = try await playlistUseCases.getAllPlaylists()
-            playlists = entities.map { PlaylistMapper.toUI($0) }
-        } catch {
-            errorMessage = "Error al cargar playlists: \(error.localizedDescription)"
-        }
+        await loadAndAssign(
+            fetch: { try await playlistUseCases.getAllPlaylists() },
+            map: { $0.map(PlaylistMapper.toUI) },
+            assign: { playlists = $0 },
+            onError: { [self] in errorMessage = "Error al cargar playlists: \($0.localizedDescription)" }
+        )
     }
 
     /// Crea una nueva playlist
@@ -275,17 +276,6 @@ final class PlaylistViewModel {
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        dataEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.dataEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handleDataEvent(event)
-            }
-        }
-    }
 
     private func handleDataEvent(_ event: DataChangeEvent) async {
         switch event {

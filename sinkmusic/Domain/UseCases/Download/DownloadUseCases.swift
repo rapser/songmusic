@@ -45,6 +45,27 @@ final class DownloadUseCases {
         credentialsRepository.getSelectedCloudProvider()
     }
 
+    /// Capacidades del proveedor activo.
+    /// Permite a ViewModels adaptarse sin acoplarse al enum `CloudStorageProvider`.
+    func currentProviderCapabilities() -> CloudProviderCapabilities {
+        switch credentialsRepository.getSelectedCloudProvider() {
+        case .googleDrive:
+            return CloudProviderCapabilities(
+                displayName: "Google Drive",
+                supportsQuotaTracking: false,
+                quotaAlertMessage: "",
+                maxConcurrentDownloads: 1
+            )
+        case .mega:
+            return CloudProviderCapabilities(
+                displayName: "Mega",
+                supportsQuotaTracking: true,
+                quotaAlertMessage: "Has alcanzado el límite de transferencia diario de Mega.",
+                maxConcurrentDownloads: 3
+            )
+        }
+    }
+
     // MARK: - Constants
 
     private static let estimatedFileSizeMB: Double = 5.0
@@ -112,16 +133,23 @@ final class DownloadUseCases {
         try await songRepository.update(song)
     }
 
-    /// Descarga múltiples canciones
-    /// El progreso y completado de cada canción se emite via EventBus
-    func downloadMultipleSongs(_ songIDs: [UUID]) async {
+    /// Descarga múltiples canciones y reporta éxitos y fallos individualmente.
+    /// A diferencia de la versión anterior, no silencia los errores —
+    /// el llamador recibe un `BatchResult` con la lista exacta de fallos.
+    func downloadMultipleSongs(_ songIDs: [UUID]) async -> BatchResult<UUID> {
+        var succeeded: [UUID] = []
+        var failed: [(id: UUID, error: Error)] = []
+
         for songID in songIDs {
             do {
                 try await downloadSong(songID)
+                succeeded.append(songID)
             } catch {
                 logger.warning("Error al descargar canción \(songID): \(error)")
+                failed.append((id: songID, error: error))
             }
         }
+        return BatchResult(succeeded: succeeded, failed: failed)
     }
 
     /// Elimina una descarga

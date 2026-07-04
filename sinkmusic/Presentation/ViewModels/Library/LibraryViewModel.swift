@@ -15,7 +15,7 @@ import os
 /// Usa EventBus con AsyncStream para reactividad moderna
 @MainActor
 @Observable
-final class LibraryViewModel {
+final class LibraryViewModel: EventBusObservable {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
@@ -30,7 +30,7 @@ final class LibraryViewModel {
     // MARK: - Dependencies
 
     private let libraryUseCases: LibraryUseCases
-    private let eventBus: EventBusProtocol
+    private(set) var eventBus: EventBusProtocol
 
     // MARK: - Tasks
 
@@ -43,7 +43,8 @@ final class LibraryViewModel {
     init(libraryUseCases: LibraryUseCases, eventBus: EventBusProtocol) {
         self.libraryUseCases = libraryUseCases
         self.eventBus = eventBus
-        startObservingEvents()
+        dataEventTask = makeEventTask(stream: { $0.dataEvents() },
+                                      handler: { [weak self] in await self?.handleDataEvent($0) })
         Task {
             await loadSongs()
             await loadStats()
@@ -54,12 +55,12 @@ final class LibraryViewModel {
 
     /// Carga todas las canciones
     func loadSongs() async {
-        do {
-            let entities = try await libraryUseCases.getAllSongs()
-            songs = entities.map { SongMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar canciones: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await libraryUseCases.getAllSongs() },
+            map: { $0.map(SongMapper.toUI) },
+            assign: { songs = $0 },
+            onError: { [self] in logger.error("Error al cargar canciones: \($0)") }
+        )
     }
 
     /// Devuelve el artwork en resolución completa de una canción (para player grande).
@@ -167,14 +168,13 @@ final class LibraryViewModel {
         }
     }
 
-    /// Elimina múltiples canciones
+    /// Elimina múltiples canciones en modo best-effort — continúa aunque alguna falle.
     func deleteSongs(_ songIDs: [UUID]) async {
-        do {
-            try await libraryUseCases.deleteSongs(songIDs)
-            await loadSongs()
-            await loadStats()
-        } catch {
-            logger.error("Error al eliminar canciones: \(error)")
+        let result = await libraryUseCases.deleteSongs(songIDs)
+        await loadSongs()
+        await loadStats()
+        if result.hasFailures {
+            logger.error("\(result.failureCount) canciones no pudieron eliminarse")
         }
     }
 
@@ -190,17 +190,6 @@ final class LibraryViewModel {
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        dataEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.dataEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handleDataEvent(event)
-            }
-        }
-    }
 
     private func handleDataEvent(_ event: DataChangeEvent) async {
         switch event {
