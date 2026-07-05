@@ -10,14 +10,11 @@ import SwiftUI
 
 struct DownloadMusicView: View {
     // MARK: - ViewModels (Clean Architecture)
-    @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
-    @Environment(PlaylistViewModel.self) private var playlistViewModel
-    @Environment(SettingsViewModel.self) private var settingsViewModel
     @Environment(DownloadViewModel.self) private var downloadViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var songForPlaylistSheet: SongUI?
+    @State private var showErrorAlert = false
 
     var pendingSongs: [SongUI] {
         libraryViewModel.songs.filter { !$0.isDownloaded }
@@ -28,9 +25,6 @@ struct DownloadMusicView: View {
         ZStack {
             Color.appDark.ignoresSafeArea()
             contentView
-        }
-        .sheet(item: $songForPlaylistSheet) { song in
-            AddToPlaylistView(song: song)
         }
         .navigationTitle("Descargar música")
         .navigationBarTitleDisplayMode(.large)
@@ -43,6 +37,18 @@ struct DownloadMusicView: View {
                 Text("Has alcanzado el límite de descarga de Mega (5GB/día). Podrás continuar descargando \(timeFormatted).")
             } else {
                 Text("Has alcanzado el límite de descarga de Mega (5GB/día). Por favor espera antes de continuar.")
+            }
+        }
+        .onChange(of: downloadViewModel.downloadError) { _, newValue in
+            showErrorAlert = newValue != nil
+        }
+        .alert("Error de descarga", isPresented: $showErrorAlert) {
+            Button("OK") {
+                downloadViewModel.clearDownloadError()
+            }
+        } message: {
+            if let error = downloadViewModel.downloadError {
+                Text(error)
             }
         }
     }
@@ -66,11 +72,7 @@ struct DownloadMusicView: View {
                 if downloadViewModel.isMegaProvider {
                     bulkDownloadSection
                 }
-                PendingSongsListView(
-                    pendingSongs: pendingSongs,
-                    playerViewModel: playerViewModel,
-                    songForPlaylistSheet: $songForPlaylistSheet
-                )
+                PendingSongsListView(pendingSongs: pendingSongs)
             }
         }
     }
