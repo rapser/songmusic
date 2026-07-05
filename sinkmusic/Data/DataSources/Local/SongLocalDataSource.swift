@@ -132,6 +132,17 @@ final class SongLocalDataSource {
         try modelContext.save()
     }
 
+    /// Crea varias canciones y persiste todo en un solo `save()`.
+    func create(_ songs: [SongDTO]) throws {
+        guard !songs.isEmpty else { return }
+
+        for song in songs {
+            modelContext.insert(song)
+        }
+
+        try modelContext.save()
+    }
+
     /// Actualiza una canción existente
     func update(_ song: SongDTO) throws {
         guard let existing = try getByID(song.id) else { return }

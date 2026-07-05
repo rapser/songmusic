@@ -110,10 +110,6 @@ final class LibraryViewModel {
             // Sincronizar con almacenamiento cloud
             let newSongsCount = try await libraryUseCases.syncWithCloudStorage()
 
-            // Recargar canciones
-            await loadSongs()
-            await loadStats()
-
             syncError = nil
             syncErrorMessage = nil
             isLoadingSongs = false

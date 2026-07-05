@@ -92,10 +92,8 @@ final class LibraryUseCases {
         // Filtrar nuevas canciones
         let newFiles = remoteFiles.filter { !localFileIDs.contains($0.id) }
 
-        // Crear entidades para nuevas canciones
-        var newSongsCount = 0
-        for file in newFiles {
-            let newSong = Song(
+        let newSongs = newFiles.map { file in
+            Song(
                 id: UUID(),
                 title: file.title,
                 artist: file.artist,
@@ -111,12 +109,12 @@ final class LibraryUseCases {
                 lastPlayedAt: nil,
                 dominantColor: nil
             )
-
-            try await songRepository.create(newSong)
-            newSongsCount += 1
         }
 
-        return newSongsCount
+        guard !newSongs.isEmpty else { return 0 }
+
+        try await songRepository.create(newSongs)
+        return newSongs.count
     }
 
     /// Verifica si hay credenciales configuradas para el proveedor seleccionado

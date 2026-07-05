@@ -76,6 +76,11 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         try localDataSource.create(dto)
     }
 
+    func create(_ songs: [Song]) async throws {
+        let dtos = songs.map(SongMapper.toDTO)
+        try localDataSource.create(dtos)
+    }
+
     func update(_ song: Song) async throws {
         let dto = SongMapper.toDTO(song)
         try localDataSource.update(dto)

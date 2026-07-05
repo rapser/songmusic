@@ -34,23 +34,6 @@ final class MetadataService: MetadataServiceProtocol {
             return nil
         }
 
-        // DEBUG: Imprimir TODOS los metadatos disponibles
-        logger.info("🔍 TODOS LOS METADATOS DISPONIBLES:")
-        for item in metadata {
-            let commonKey = item.commonKey?.rawValue
-            let key = item.key
-            let stringValue = try? await item.load(.stringValue)
-            let dataValue = try? await item.load(.dataValue)
-
-            if let commonKey = commonKey {
-                let value = stringValue ?? (dataValue != nil ? "<Data: \(dataValue!.count) bytes>" : "nil")
-                logger.info("   [\(commonKey)] = \(value)")
-            } else if let key = key {
-                let value = stringValue ?? (dataValue != nil ? "<Data: \(dataValue!.count) bytes>" : "nil")
-                logger.info("   [custom: \(String(describing: key))] = \(value)")
-            }
-        }
-
         var title: String?
         var artist: String?
         var album: String?
@@ -113,17 +96,7 @@ final class MetadataService: MetadataServiceProtocol {
         if let artworkData = artwork {
             thumbnail = ImageCompressionService.createThumbnail(from: artworkData)
             mediumThumbnail = ImageCompressionService.createMediumThumbnail(from: artworkData)
-            logger.info("   Thumbnail pequeño generado: \(thumbnail != nil ? "Sí (\(thumbnail!.count) bytes)" : "No")")
-            logger.info("   Thumbnail medio generado: \(mediumThumbnail != nil ? "Sí (\(mediumThumbnail!.count) bytes)" : "No")")
         }
-
-        logger.info("🎵 Metadatos extraídos:")
-        logger.info("   Título: \(finalTitle)")
-        logger.info("   Artista: \(finalArtist)")
-        logger.info("   Álbum: \(finalAlbum)")
-        logger.info("   Autor: \(author ?? "N/A")")
-        logger.info("   Duración: \(durationSeconds)s")
-        logger.info("   Artwork: \(artwork != nil ? "Sí (\(artwork!.count) bytes)" : "No")")
 
         return SongMetadata(
             title: finalTitle,

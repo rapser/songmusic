@@ -12,12 +12,14 @@ final class MockSongRepository: SongRepositoryProtocol {
     var songs: [Song] = []
 
     var createCallCount = 0
+    var createManyCallCount = 0
     var updateCallCount = 0
     var deleteCallCount = 0
     var incrementPlayCountCallCount = 0
     var lastDeletedID: UUID?
     var lastUpdatedSong: Song?
     var lastCreatedSong: Song?
+    var lastCreatedSongs: [Song] = []
 
     var shouldThrowOnCreate = false
     var shouldThrowOnUpdate = false
@@ -72,6 +74,13 @@ final class MockSongRepository: SongRepositoryProtocol {
         createCallCount += 1
         lastCreatedSong = song
         songs.append(song)
+    }
+
+    func create(_ songs: [Song]) async throws {
+        if shouldThrowOnCreate { throw SongError.fileNotFound }
+        createManyCallCount += 1
+        lastCreatedSongs = songs
+        self.songs.append(contentsOf: songs)
     }
 
     func update(_ song: Song) async throws {

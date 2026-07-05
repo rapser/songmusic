@@ -45,6 +45,9 @@ protocol SongRepositoryProtocol: Sendable {
     /// Crea una nueva canción
     func create(_ song: Song) async throws
 
+    /// Crea múltiples canciones en una sola transacción lógica
+    func create(_ songs: [Song]) async throws
+
     /// Actualiza una canción existente
     func update(_ song: Song) async throws
 
