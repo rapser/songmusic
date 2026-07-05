@@ -236,7 +236,8 @@ final class DIContainer {
             songRepository: songRepository,
             cloudStorageRepository: cloudStorageRepository,
             metadataRepository: metadataRepository,
-            credentialsRepository: credentialsRepository
+            credentialsRepository: credentialsRepository,
+            eventBus: eventBus
         )
     }
 

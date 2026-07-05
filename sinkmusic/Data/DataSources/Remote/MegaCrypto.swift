@@ -334,18 +334,31 @@ struct MegaCrypto {
 
     // MARK: - Key String Parsing
 
-    /// Parsea la clave de un nodo desde el formato de Mega
-    /// Formato: "userHandle:encryptedKey" o solo "encryptedKey"
+    /// Parsea la clave de un nodo desde el formato de Mega.
+    ///
+    /// Formato simple: "userHandle:encryptedKey" o solo "encryptedKey".
+    /// Formato múltiple: "handle1:key1/handle2:key2/..." — ocurre en archivos que llegaron
+    /// a la carpeta desde más de un contexto de compartido (p.ej. movidos o re-compartidos).
+    /// Sin el handle propio de la sesión no podemos saber cuál par corresponde a esta carpeta,
+    /// así que se prueban todos con la clave de la carpeta y se toma el primero cuyo resultado
+    /// tenga un tamaño de clave AES válido (16 o 32 bytes) — si el par es incorrecto, el
+    /// desencriptado de atributos que sigue fallará su propio chequeo y se descartará igual.
     func parseNodeKey(_ keyString: String, folderKey: Data) -> Data? {
-        // El formato puede ser "handle:base64key" o solo "base64key"
-        let parts = keyString.components(separatedBy: ":")
-        let keyPart = parts.count > 1 ? parts[1] : parts[0]
+        let candidates = keyString.components(separatedBy: "/")
 
-        guard let encryptedKey = decodeBase64URL(keyPart) else {
-            return nil
+        for candidate in candidates {
+            let parts = candidate.components(separatedBy: ":")
+            let keyPart = parts.count > 1 ? parts[1] : parts[0]
+
+            guard let encryptedKey = decodeBase64URL(keyPart),
+                  let decrypted = decryptFileKey(encryptedKey: encryptedKey, folderKey: folderKey),
+                  decrypted.count == 16 || decrypted.count == 32 else {
+                continue
+            }
+
+            return decrypted
         }
 
-        // Desencriptar la clave del archivo usando la clave de la carpeta
-        return decryptFileKey(encryptedKey: encryptedKey, folderKey: folderKey)
+        return nil
     }
 }

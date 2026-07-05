@@ -88,7 +88,9 @@ final class MegaDataSource: MegaServiceProtocol {
         }
     }
 
-    /// Desencripta los datos y los guarda en musicDirectory; emite .completed
+    /// Desencripta los datos y los guarda en musicDirectory.
+    /// No emite .completed: el pipeline sigue (metadata + guardado en SwiftData) y ese
+    /// evento lo emite DownloadUseCases cuando la canción está realmente disponible.
     private func decryptAndSave(encryptedData: Data, file: MegaFile, songID: UUID) async throws -> URL {
         guard let keyData = Data(base64Encoded: file.decryptionKey),
               let decrypted = crypto.decryptFile(encryptedData: encryptedData, fileKey: keyData) else {
@@ -97,7 +99,6 @@ final class MegaDataSource: MegaServiceProtocol {
         let localURL = musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
         // Escritura atómica: evita que se lea el archivo antes de que esté completo en disco
         try decrypted.write(to: localURL, options: [.atomic])
-        eventBus.emit(.completed(songID: songID))
         return localURL
     }
 
