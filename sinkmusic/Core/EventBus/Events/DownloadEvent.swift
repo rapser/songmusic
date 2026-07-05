@@ -21,7 +21,7 @@ enum DownloadEvent: Sendable {
     case completed(songID: UUID)
 
     /// Descarga falló
-    case failed(songID: UUID, error: String)
+    case failed(songID: UUID, failure: DownloadFailure)
 
     /// Descarga cancelada
     case cancelled(songID: UUID)

@@ -180,7 +180,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
             case .success(let data):
                 encryptedData = data
             case .failure(let error):
-                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
                 info.continuation.resume(throwing: error)
                 return
             }
@@ -193,7 +193,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
                 await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.95)) }
                 info.continuation.resume(returning: localURL)
             } catch {
-                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
                 info.continuation.resume(throwing: error)
             }
         }
@@ -206,7 +206,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
         Task { [weak self] in
             guard let self else { return }
             guard let info = await self.state.removeTask(for: key) else { return }
-            await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+            await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
             info.continuation.resume(throwing: error)
         }
     }

@@ -109,21 +109,18 @@ final class DownloadViewModel: EventBusObservable {
                 downloadProgress[songID] = nil
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
-                // Cuando no quede ninguna tarea, dejar estado limpio
-                if !isDownloading { downloadError = nil }
             }
 
         case .failed(let songID, let error):
             // Solo actualizar si nosotros iniciamos esta descarga
             if activeTasksManager.tasks[songID] != nil {
                 downloadProgress[songID] = nil
-                downloadError = "Error descargando canción: \(error)"
-                logger.error("Error descarga (via EventBus): \(error)")
+                downloadError = error.kind.userMessage + (error.message.isEmpty || error.message == error.kind.userMessage ? "" : " (\(error.message))")
+                logger.error("Error descarga (via EventBus): \(error.kind.rawValue) - \(error.message)")
 
                 // Limpiar tarea
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
-                if !isDownloading { downloadError = nil }
             }
 
         case .cancelled(let songID):
@@ -221,7 +218,8 @@ final class DownloadViewModel: EventBusObservable {
                 quotaExceededProvider = provider
                 quotaResetTime = Date().addingTimeInterval(retryAfter)
                 showQuotaAlert = true
-                downloadError = megaError.localizedDescription
+                let failure = DownloadFailure(error: megaError)
+                downloadError = failure.kind.userMessage + (failure.message.isEmpty || failure.message == failure.kind.userMessage ? "" : " (\(failure.message))")
 
                 eventBus.emit(DownloadEvent.quotaExceeded(
                     provider: provider.rawValue,
@@ -232,17 +230,18 @@ final class DownloadViewModel: EventBusObservable {
                 clearAllTasksAndProgress()
                 logger.warning("Límite Mega alcanzado; descargas canceladas y estado limpiado")
 
-            } catch {
-                // Nota: El error también se emite via EventBus
-                // Este catch es para errores que ocurren ANTES de iniciar la descarga
-                // (como songNotFound, alreadyDownloaded)
-                downloadProgress[songID] = nil
-                downloadError = "Error descargando canción: \(error.localizedDescription)"
-                logger.error("Error descargando canción: \(error.localizedDescription)")
+        } catch {
+            // Nota: El error también se emite via EventBus
+            // Este catch es para errores que ocurren ANTES de iniciar la descarga
+            // (como songNotFound, alreadyDownloaded)
+            downloadProgress[songID] = nil
+            let failure = DownloadFailure(error: error)
+            downloadError = failure.kind.userMessage + (failure.message.isEmpty || failure.message == failure.kind.userMessage ? "" : " (\(failure.message))")
+            logger.error("Error descargando canción: \(error.localizedDescription)")
 
-                // Limpiar tarea
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+            // Limpiar tarea
+            activeTasksManager.tasks.removeValue(forKey: songID)
+            isDownloading = !activeTasksManager.tasks.isEmpty
             }
         }
 
@@ -328,7 +327,6 @@ final class DownloadViewModel: EventBusObservable {
     private func cleanupWhenIdle() {
         guard activeTasksManager.tasks.isEmpty else { return }
         isDownloading = false
-        downloadError = nil
         // downloadProgress ya está vacío por cada .completed/.failed; por si acaso no quedar claves huérfanas
         downloadProgress.removeAll()
     }

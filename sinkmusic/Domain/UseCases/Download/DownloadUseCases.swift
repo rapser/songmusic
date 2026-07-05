@@ -145,7 +145,7 @@ final class DownloadUseCases {
         do {
             try await songRepository.update(song)
         } catch {
-            eventBus.emit(DownloadEvent.failed(songID: songID, error: error.localizedDescription))
+            eventBus.emit(DownloadEvent.failed(songID: songID, failure: DownloadFailure(error: error)))
             throw error
         }
 

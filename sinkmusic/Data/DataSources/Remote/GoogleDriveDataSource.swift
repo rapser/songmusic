@@ -161,14 +161,14 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
     func download(fileID: String, songID: UUID) async throws -> URL {
         guard let apiKey = keychainService.googleDriveAPIKey else {
             logger.error("API Key no configurada para descarga")
-            await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: "API Key no configurada")) }
+            await MainActor.run { self.eventBus.emit(.failed(songID: songID, failure: DownloadFailure(kind: .invalidCredentials, message: "API Key no configurada"))) }
             throw CloudStorageError.missingAPIKey
         }
 
         let downloadURLString = "https://www.googleapis.com/drive/v3/files/\(fileID)?alt=media&key=\(apiKey)"
         guard let url = URL(string: downloadURLString) else {
             logger.error("URL de descarga inválida para fileID: \(fileID)")
-            await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: "URL inválida")) }
+            await MainActor.run { self.eventBus.emit(.failed(songID: songID, failure: DownloadFailure(kind: .processingFailed, message: "URL inválida"))) }
             throw NSError(domain: "GoogleDriveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"])
         }
 
@@ -322,8 +322,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
             } catch {
                 logger.error("Error al procesar archivo descargado: \(error.localizedDescription)")
                 let songID = downloadInfo.songID
-                let errorMessage = error.localizedDescription
-                await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: errorMessage)) }
+                await MainActor.run { self.eventBus.emit(.failed(songID: songID, failure: DownloadFailure(error: error))) }
                 downloadInfo.continuation.resume(throwing: error)
             }
         }
@@ -339,8 +338,7 @@ extension GoogleDriveDataSource: URLSessionDownloadDelegate {
 
             logger.error("Error al completar descarga (task \(taskID)): \(error.localizedDescription)")
             let songID = downloadInfo.songID
-            let errorMessage = error.localizedDescription
-            await MainActor.run { self.eventBus.emit(.failed(songID: songID, error: errorMessage)) }
+            await MainActor.run { self.eventBus.emit(.failed(songID: songID, failure: DownloadFailure(error: error))) }
             downloadInfo.continuation.resume(throwing: error)
         }
     }

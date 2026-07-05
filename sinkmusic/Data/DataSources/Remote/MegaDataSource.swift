@@ -83,7 +83,7 @@ final class MegaDataSource: MegaServiceProtocol {
                 }
             }
         } catch {
-            eventBus.emit(.failed(songID: songID, error: error.localizedDescription))
+            eventBus.emit(.failed(songID: songID, failure: DownloadFailure(error: error)))
             throw error
         }
     }
