@@ -64,7 +64,11 @@ struct DownloadMusicView: View {
                 }
             })
         } else if pendingSongs.isEmpty && !libraryViewModel.isLoadingSongs {
-            AllDownloadedView()
+            AllDownloadedView(onSync: {
+                Task {
+                    await libraryViewModel.syncLibraryWithCatalog()
+                }
+            })
         } else if libraryViewModel.isLoadingSongs {
             LoadingStateView()
         } else {
