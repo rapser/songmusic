@@ -56,11 +56,6 @@ struct DownloadMusicView: View {
                 Text(error)
             }
         }
-        .task {
-            if downloadViewModel.isMegaProvider {
-                await libraryViewModel.syncLibraryWithCatalog()
-            }
-        }
     }
 
     @ViewBuilder
