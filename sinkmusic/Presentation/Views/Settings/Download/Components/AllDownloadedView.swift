@@ -9,6 +9,7 @@ import SwiftUI
 
 struct AllDownloadedView: View {
     let onSync: () -> Void
+    let showsSyncAction: Bool
 
     var body: some View {
         VStack(spacing: 20) {
@@ -29,17 +30,19 @@ struct AllDownloadedView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: onSync) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Sincronizar carpeta")
+            if showsSyncAction {
+                Button(action: onSync) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Sincronizar carpeta")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.appDark)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.appPurple)
+                    .cornerRadius(24)
                 }
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.appDark)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.appPurple)
-                .cornerRadius(24)
             }
 
             Spacer()

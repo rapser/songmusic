@@ -68,7 +68,7 @@ struct DownloadMusicView: View {
                 Task {
                     await libraryViewModel.syncLibraryWithCatalog()
                 }
-            })
+            }, showsSyncAction: downloadViewModel.isMegaProvider)
         } else if libraryViewModel.isLoadingSongs {
             LoadingStateView()
         } else {
