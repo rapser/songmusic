@@ -28,6 +28,11 @@ struct DownloadMusicView: View {
         }
         .navigationTitle("Descargar música")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                syncToolbarButton
+            }
+        }
         .alert("Límite de Descarga Alcanzado", isPresented: $download.showQuotaAlert) {
             Button("Entendido", role: .cancel) {
                 downloadViewModel.dismissQuotaAlert()
@@ -69,11 +74,7 @@ struct DownloadMusicView: View {
                 }
             })
         } else if pendingSongs.isEmpty && !libraryViewModel.isLoadingSongs {
-            AllDownloadedView(onSync: {
-                Task {
-                    await libraryViewModel.syncLibraryWithCatalog()
-                }
-            }, showsSyncAction: downloadViewModel.isMegaProvider)
+            AllDownloadedView()
         } else if libraryViewModel.isLoadingSongs {
             LoadingStateView()
         } else {
@@ -129,6 +130,26 @@ struct DownloadMusicView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.appGray.opacity(0.5))
+    }
+
+    @ViewBuilder
+    private var syncToolbarButton: some View {
+        if downloadViewModel.isMegaProvider {
+            Button {
+                Task {
+                    await libraryViewModel.syncLibraryWithCatalog()
+                }
+            } label: {
+                if libraryViewModel.isLoadingSongs {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .disabled(libraryViewModel.isLoadingSongs)
+            .accessibilityLabel("Sincronizar carpeta")
+        }
     }
 }
 
