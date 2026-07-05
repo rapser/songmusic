@@ -20,11 +20,15 @@ struct PlaylistDetailView: View {
     @State private var showAddSongsSheet = false
     @State private var songForPlaylistSheet: SongUI?
     @State private var editMode: EditMode = .inactive
+    @State private var allowsSongInteractions = false
 
     var body: some View {
         baseView
             .task {
                 await viewModel.loadSongsInPlaylist(playlist.id)
+                await MainActor.run { allowsSongInteractions = false }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                await MainActor.run { allowsSongInteractions = true }
             }
             .sheet(isPresented: $showAddSongsSheet) {
                 AddSongsToPlaylistView(playlist: playlist)
@@ -150,6 +154,7 @@ struct PlaylistDetailView: View {
             }
         } else {
             songsList
+                .allowsHitTesting(allowsSongInteractions)
         }
     }
 
@@ -333,6 +338,7 @@ struct PlaylistDetailView: View {
     }
 }
 
+
 #Preview {
     NavigationStack {
         PreviewWrapper(
@@ -343,4 +349,3 @@ struct PlaylistDetailView: View {
         }
     }
 }
-
