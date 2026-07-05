@@ -52,8 +52,11 @@ final class SearchViewModel {
             guard let self else { return }
             for await _ in readStore.changes() {
                 guard !Task.isCancelled else { break }
-                // Re-ejecuta la última búsqueda activa para reflejar cambios hechos en otra pantalla.
-                await self.search()
+                // Re-ejecuta la última búsqueda activa para reflejar cambios hechos en otra
+                // pantalla, sin isSearching: esto se dispara con cambios menores como
+                // incrementar playCount al reproducir una canción, y no debe reemplazar los
+                // resultados visibles por un spinner (ver performSearch()).
+                await self.performSearch()
                 await self.loadAggregations()
                 await self.loadRecommendations()
             }
@@ -66,10 +69,17 @@ final class SearchViewModel {
 
     // MARK: - Search Operations
 
-    /// Realiza búsqueda con el query actual
+    /// Realiza búsqueda con el query actual (con spinner — acción explícita del usuario)
     func search() async {
         isSearching = true
+        await performSearch()
+        isSearching = false
+    }
 
+    /// Ejecuta la búsqueda actual sin tocar `isSearching`.
+    /// Usado por la reactividad del ReadStore: los resultados ya están en pantalla, así que
+    /// reemplazarlos por un spinner en cada cambio se sentiría como una recarga completa.
+    private func performSearch() async {
         do {
             let entities = try await readStore.search(
                 query: searchQuery.isEmpty ? nil : searchQuery,
@@ -83,8 +93,6 @@ final class SearchViewModel {
             logger.error("Error en búsqueda: \(error)")
             searchResults = []
         }
-
-        isSearching = false
     }
 
     /// Busca canciones por texto simple

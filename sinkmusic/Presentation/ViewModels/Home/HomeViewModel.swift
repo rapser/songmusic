@@ -49,7 +49,10 @@ final class HomeViewModel {
             guard let self else { return }
             for await _ in readStore.changes() {
                 guard !Task.isCancelled else { break }
-                await self.loadData()
+                // Recarga en segundo plano, sin isLoading: esto se dispara con cambios
+                // menores como incrementar playCount al reproducir una canción, y no debe
+                // reemplazar el contenido visible por un spinner (ver reloadAllSections()).
+                await self.reloadAllSections()
             }
         }
         Task {
@@ -59,10 +62,17 @@ final class HomeViewModel {
 
     // MARK: - Data Loading
 
-    /// Carga todos los datos de la pantalla principal
+    /// Carga todos los datos de la pantalla principal (con spinner — carga inicial / refresh explícito)
     func loadData() async {
         isLoading = true
+        await reloadAllSections()
+        isLoading = false
+    }
 
+    /// Recarga las secciones de Home sin tocar `isLoading`.
+    /// Usado por la reactividad del ReadStore: los datos ya están en pantalla, así que
+    /// reemplazarlos por un spinner en cada cambio se sentiría como una recarga completa.
+    private func reloadAllSections() async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadPlaylists() }
             group.addTask { await self.loadMostPlayedPlaylists() }
@@ -70,8 +80,6 @@ final class HomeViewModel {
             group.addTask { await self.loadMostPlayedSongs() }
             group.addTask { await self.loadDownloadedSongs() }
         }
-
-        isLoading = false
     }
 
     /// Carga playlists
