@@ -54,6 +54,21 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         return SongMapper.toDomain(dtos)
     }
 
+    func getRecentlyPlayed(limit: Int = 10) async throws -> [Song] {
+        let dtos = try localDataSource.getRecentlyPlayed(limit: limit)
+        return SongMapper.toDomain(dtos)
+    }
+
+    func search(query: String) async throws -> [Song] {
+        let dtos = try localDataSource.search(query: query)
+        return SongMapper.toDomain(dtos)
+    }
+
+    func searchByAlbum(query: String) async throws -> [Song] {
+        let dtos = try localDataSource.searchByAlbum(query: query)
+        return SongMapper.toDomain(dtos)
+    }
+
     // MARK: - Mutation Operations
 
     func create(_ song: Song) async throws {

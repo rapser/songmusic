@@ -11,7 +11,6 @@ final class MockEventBus: EventBusProtocol {
 
     // MARK: - Observable State
 
-    var lastDataEvent: DataChangeEvent?
     var authUserID: String?
     var isAuthenticated: Bool = false
     var playbackState: PlaybackState = .idle
@@ -19,23 +18,15 @@ final class MockEventBus: EventBusProtocol {
 
     // MARK: - Emit tracking
 
-    private(set) var emittedDataEvents: [DataChangeEvent] = []
     private(set) var emittedPlaybackEvents: [PlaybackEvent] = []
     private(set) var emittedDownloadEvents: [DownloadEvent] = []
     private(set) var emittedAuthEvents: [AuthEvent] = []
 
     // MARK: - Streams (controlables desde tests)
 
-    private var dataContinuation: AsyncStream<DataChangeEvent>.Continuation?
     private var playbackContinuation: AsyncStream<PlaybackEvent>.Continuation?
     private var downloadContinuation: AsyncStream<DownloadEvent>.Continuation?
     private var authContinuation: AsyncStream<AuthEvent>.Continuation?
-
-    private lazy var dataStream: AsyncStream<DataChangeEvent> = {
-        AsyncStream { [weak self] continuation in
-            self?.dataContinuation = continuation
-        }
-    }()
 
     private lazy var playbackStream: AsyncStream<PlaybackEvent> = {
         AsyncStream { [weak self] continuation in
@@ -58,19 +49,12 @@ final class MockEventBus: EventBusProtocol {
     // MARK: - Init (pre-inicializa streams para que las continuations estén disponibles)
 
     init() {
-        _ = dataStream
         _ = playbackStream
         _ = downloadStream
         _ = authStream
     }
 
     // MARK: - Emit
-
-    func emit(_ event: DataChangeEvent) {
-        emittedDataEvents.append(event)
-        lastDataEvent = event
-        dataContinuation?.yield(event)
-    }
 
     func emit(_ event: PlaybackEvent) {
         emittedPlaybackEvents.append(event)
@@ -89,7 +73,6 @@ final class MockEventBus: EventBusProtocol {
 
     // MARK: - Streams
 
-    func dataEvents() -> AsyncStream<DataChangeEvent> { dataStream }
     func playbackEvents() -> AsyncStream<PlaybackEvent> { playbackStream }
     func downloadEvents() -> AsyncStream<DownloadEvent> { downloadStream }
     func authEvents() -> AsyncStream<AuthEvent> { authStream }

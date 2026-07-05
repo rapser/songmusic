@@ -13,7 +13,7 @@ final class LibraryViewModelTests: XCTestCase {
     private var mockSongRepo: MockSongRepository!
     private var mockCloudStorage: MockCloudStorageRepository!
     private var mockCredentials: MockCredentialsRepository!
-    private var mockEventBus: MockEventBus!
+    private var mockReadStore: MockLibraryReadStore!
     private var libraryUseCases: LibraryUseCases!
 
     override func setUp() {
@@ -21,13 +21,13 @@ final class LibraryViewModelTests: XCTestCase {
         mockSongRepo = MockSongRepository()
         mockCloudStorage = MockCloudStorageRepository()
         mockCredentials = MockCredentialsRepository()
-        mockEventBus = MockEventBus()
+        mockReadStore = MockLibraryReadStore()
         libraryUseCases = LibraryUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
             credentialsRepository: mockCredentials
         )
-        sut = LibraryViewModel(libraryUseCases: libraryUseCases, eventBus: mockEventBus)
+        sut = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: mockReadStore)
     }
 
     override func tearDown() {
@@ -36,14 +36,14 @@ final class LibraryViewModelTests: XCTestCase {
         mockSongRepo = nil
         mockCloudStorage = nil
         mockCredentials = nil
-        mockEventBus = nil
+        mockReadStore = nil
         super.tearDown()
     }
 
     // MARK: - loadSongs()
 
     func test_loadSongs_populatesSongsArray() async {
-        mockSongRepo.songs = [Song.make(title: "A"), Song.make(title: "B")]
+        mockReadStore.songsValue = [Song.make(title: "A"), Song.make(title: "B")]
 
         await sut.loadSongs()
 
@@ -51,7 +51,7 @@ final class LibraryViewModelTests: XCTestCase {
     }
 
     func test_loadSongs_emptyLibrary_producesEmptySongs() async {
-        mockSongRepo.songs = []
+        mockReadStore.songsValue = []
 
         await sut.loadSongs()
 
@@ -95,6 +95,7 @@ final class LibraryViewModelTests: XCTestCase {
     func test_deleteSong_removesFromLocalList() async {
         let song = Song.make()
         mockSongRepo.songs = [song]
+        mockReadStore.songsValue = [song]
         await sut.loadSongs()
 
         await sut.deleteSong(song.id)
@@ -118,17 +119,34 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertFalse(sut.hasCredentials())
     }
 
-    // MARK: - EventBus reaction
+    // MARK: - ReadStore reactivity
 
-    func test_eventBus_songsUpdated_reloadsLibrary() async {
-        mockSongRepo.songs = [Song.make(title: "Z")]
+    func test_readStoreChanges_reloadsLibrary() async {
+        mockReadStore.songsValue = [Song.make(title: "Z")]
         await sut.loadSongs()
-        mockSongRepo.songs = [Song.make(title: "A"), Song.make(title: "B")]
+        mockReadStore.songsValue = [Song.make(title: "A"), Song.make(title: "B")]
 
-        mockEventBus.emit(.songsUpdated)
-        // Dar tiempo al Task interno de procesar el evento
+        mockReadStore.simulateChange()
+        // Dar tiempo al Task interno de procesar la señal
         try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(sut.songs.count, 2)
+    }
+
+    func test_readStoreChanges_alsoReloadsStats() async {
+        mockReadStore.songsValue = [Song.make(title: "Old")]
+        mockReadStore.statsValue = LibraryStats(
+            totalSongs: 1, downloadedSongs: 0, totalDuration: 0, totalPlays: 1, uniqueArtists: 1, uniqueAlbums: 0
+        )
+        await sut.loadSongs()
+        await sut.loadStats()
+
+        mockReadStore.statsValue = LibraryStats(
+            totalSongs: 2, downloadedSongs: 0, totalDuration: 0, totalPlays: 99, uniqueArtists: 1, uniqueAlbums: 0
+        )
+        mockReadStore.simulateChange()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(sut.libraryStats?.totalPlays, 99)
     }
 }

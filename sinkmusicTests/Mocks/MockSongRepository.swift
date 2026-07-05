@@ -42,7 +42,29 @@ final class MockSongRepository: SongRepositoryProtocol {
     }
 
     func getTopSongs(limit: Int) async throws -> [Song] {
-        Array(songs.sorted { $0.playCount > $1.playCount }.prefix(limit))
+        Array(songs.filter { $0.playCount > 0 }.sorted { $0.playCount > $1.playCount }.prefix(limit))
+    }
+
+    func getRecentlyPlayed(limit: Int) async throws -> [Song] {
+        Array(
+            songs
+                .filter { $0.lastPlayedAt != nil }
+                .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
+                .prefix(limit)
+        )
+    }
+
+    func search(query: String) async throws -> [Song] {
+        guard !query.isEmpty else { return songs }
+        return songs.filter {
+            $0.title.localizedCaseInsensitiveContains(query) ||
+            $0.artist.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    func searchByAlbum(query: String) async throws -> [Song] {
+        guard !query.isEmpty else { return [] }
+        return songs.filter { $0.album?.localizedCaseInsensitiveContains(query) ?? false }
     }
 
     func create(_ song: Song) async throws {

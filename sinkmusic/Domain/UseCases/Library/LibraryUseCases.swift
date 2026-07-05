@@ -45,15 +45,10 @@ final class LibraryUseCases {
         return try await songRepository.getByID(id)
     }
 
-    /// Obtiene canciones reproducidas recientemente
+    /// Obtiene canciones reproducidas recientemente (query targeted, no getAll()+filter)
     /// - Parameter limit: Número máximo de canciones a retornar
     func getRecentlyPlayedSongs(limit: Int = 10) async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs
-            .filter { $0.lastPlayedAt != nil }
-            .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
-            .prefix(limit)
-            .map { $0 }
+        return try await songRepository.getRecentlyPlayed(limit: limit)
     }
 
     /// Obtiene las canciones más reproducidas
@@ -190,7 +185,9 @@ final class LibraryUseCases {
 
     // MARK: - Statistics
 
-    /// Obtiene estadísticas de la biblioteca
+    /// Obtiene estadísticas de la biblioteca.
+    /// Excepción aceptada: usa `getAll()` porque son agregaciones (conteos/sumas) sobre
+    /// *todas* las canciones — SwiftData no soporta agregación a nivel de `FetchDescriptor`.
     func getLibraryStats() async throws -> LibraryStats {
         let songs = try await songRepository.getAll()
 

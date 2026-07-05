@@ -2,7 +2,7 @@
 //  HomeViewModel.swift
 //  sinkmusic
 //
-//  Refactorizado con Clean Architecture + EventBus
+//  Refactorizado con Clean Architecture + read-side reactivo (HomeReadStore)
 //  SOLID: Single Responsibility - Maneja UI de la pantalla principal
 //
 
@@ -12,10 +12,11 @@ import os
 
 /// ViewModel responsable de la UI de la pantalla principal
 /// Muestra playlists, canciones recientes y recomendaciones
-/// Usa EventBus con AsyncStream para reactividad moderna
+/// Es puramente de lectura: la reactividad viene de `HomeReadStoreProtocol`,
+/// que reacciona a cambios de SwiftData sin pasar por el EventBus global.
 @MainActor
 @Observable
-final class HomeViewModel: EventBusObservable {
+final class HomeViewModel {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
@@ -32,28 +33,25 @@ final class HomeViewModel: EventBusObservable {
 
     // MARK: - Dependencies
 
-    private let playlistUseCases: PlaylistUseCases
-    private let libraryUseCases: LibraryUseCases
-    private(set) var eventBus: EventBusProtocol
+    private let readStore: HomeReadStoreProtocol
 
     // MARK: - Tasks
 
-    /// Task para observación de eventos
+    /// Task para observar cambios reactivos del ReadStore
     @ObservationIgnored
-    private var dataEventTask: Task<Void, Never>?
+    private var changesTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
-    init(
-        playlistUseCases: PlaylistUseCases,
-        libraryUseCases: LibraryUseCases,
-        eventBus: EventBusProtocol
-    ) {
-        self.playlistUseCases = playlistUseCases
-        self.libraryUseCases = libraryUseCases
-        self.eventBus = eventBus
-        dataEventTask = makeEventTask(stream: { $0.dataEvents() },
-                                      handler: { [weak self] in await self?.handleDataEvent($0) })
+    init(readStore: HomeReadStoreProtocol) {
+        self.readStore = readStore
+        changesTask = Task { [weak self] in
+            guard let self else { return }
+            for await _ in readStore.changes() {
+                guard !Task.isCancelled else { break }
+                await self.loadData()
+            }
+        }
         Task {
             await loadData()
         }
@@ -79,7 +77,7 @@ final class HomeViewModel: EventBusObservable {
     /// Carga playlists
     private func loadPlaylists() async {
         await loadAndAssign(
-            fetch: { try await playlistUseCases.getAllPlaylists() },
+            fetch: { try await readStore.playlists() },
             map: { $0.map(PlaylistMapper.toUI) },
             assign: { playlists = $0 },
             onError: { [self] in logger.error("Error al cargar playlists: \($0)") }
@@ -89,37 +87,37 @@ final class HomeViewModel: EventBusObservable {
     /// Carga playlists más escuchadas (ordenadas por reproducciones totales), máximo 10.
     private func loadMostPlayedPlaylists() async {
         await loadAndAssign(
-            fetch: { try await playlistUseCases.getMostPlayedPlaylists(limit: 10) },
+            fetch: { try await readStore.mostPlayedPlaylists(limit: 10) },
             map: { $0.map(PlaylistMapper.toUI) },
             assign: { mostPlayedPlaylists = $0 },
             onError: { [self] in logger.error("Error al cargar playlists más escuchadas: \($0)") }
         )
     }
 
-    /// Carga canciones recientes (via UseCase)
+    /// Carga canciones recientes (via ReadStore)
     private func loadRecentSongs() async {
         await loadAndAssign(
-            fetch: { try await libraryUseCases.getRecentlyPlayedSongs(limit: 10) },
+            fetch: { try await readStore.recentlyPlayedSongs(limit: 10) },
             map: { $0.map(SongMapper.toUI) },
             assign: { recentSongs = $0 },
             onError: { [self] in logger.error("Error al cargar canciones recientes: \($0)") }
         )
     }
 
-    /// Carga canciones más reproducidas (via UseCase)
+    /// Carga canciones más reproducidas (via ReadStore)
     private func loadMostPlayedSongs() async {
         await loadAndAssign(
-            fetch: { try await libraryUseCases.getMostPlayedSongs(limit: 10) },
+            fetch: { try await readStore.mostPlayedSongs(limit: 10) },
             map: { $0.map(SongMapper.toUI) },
             assign: { mostPlayedSongs = $0 },
             onError: { [self] in logger.error("Error al cargar canciones más reproducidas: \($0)") }
         )
     }
 
-    /// Carga canciones descargadas (via UseCase)
+    /// Carga canciones descargadas (via ReadStore)
     private func loadDownloadedSongs() async {
         await loadAndAssign(
-            fetch: { try await libraryUseCases.getDownloadedSongs() },
+            fetch: { try await readStore.downloadedSongs() },
             map: { $0.map(SongMapper.toUI) },
             assign: { downloadedSongs = $0 },
             onError: { [self] in logger.error("Error al cargar canciones descargadas: \($0)") }
@@ -131,38 +129,6 @@ final class HomeViewModel: EventBusObservable {
     /// Recarga todos los datos
     func refresh() async {
         await loadData()
-    }
-
-    // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func handleDataEvent(_ event: DataChangeEvent) async {
-        switch event {
-        case .songsUpdated:
-            await loadRecentSongs()
-            await loadMostPlayedSongs()
-            await loadMostPlayedPlaylists() // El orden depende del playCount de las canciones
-            await loadDownloadedSongs()
-
-        case .playlistsUpdated:
-            await loadPlaylists()
-            await loadMostPlayedPlaylists()
-
-        case .songDownloaded:
-            await loadDownloadedSongs()
-
-        case .songDeleted:
-            await loadRecentSongs()
-            await loadMostPlayedSongs()
-            await loadDownloadedSongs()
-
-        case .credentialsChanged:
-            // Recargar todo cuando cambian las credenciales
-            await loadData()
-
-        case .error:
-            // Handle error if needed
-            break
-        }
     }
 
     // MARK: - Helpers
@@ -180,6 +146,6 @@ final class HomeViewModel: EventBusObservable {
     // MARK: - Cleanup
 
     deinit {
-        dataEventTask?.cancel()
+        changesTask?.cancel()
     }
 }

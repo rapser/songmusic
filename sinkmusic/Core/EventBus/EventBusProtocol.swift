@@ -29,9 +29,6 @@ protocol EventBusProtocol: AnyObject, Sendable {
 
     // MARK: - Observable State (read-only)
 
-    /// Último evento de datos emitido
-    var lastDataEvent: DataChangeEvent? { get }
-
     /// ID del usuario autenticado (nil si no hay sesión)
     var authUserID: String? { get }
 
@@ -46,9 +43,6 @@ protocol EventBusProtocol: AnyObject, Sendable {
 
     // MARK: - Emit Events
 
-    /// Emitir evento de cambio de datos
-    func emit(_ event: DataChangeEvent)
-
     /// Emitir evento de autenticación
     func emit(_ event: AuthEvent)
 
@@ -59,9 +53,6 @@ protocol EventBusProtocol: AnyObject, Sendable {
     func emit(_ event: DownloadEvent)
 
     // MARK: - AsyncStream Factories
-
-    /// Stream de eventos de datos
-    func dataEvents() -> AsyncStream<DataChangeEvent>
 
     /// Stream de eventos de autenticación
     func authEvents() -> AsyncStream<AuthEvent>

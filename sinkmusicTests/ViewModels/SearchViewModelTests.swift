@@ -10,27 +10,24 @@ import XCTest
 final class SearchViewModelTests: XCTestCase {
 
     private var sut: SearchViewModel!
-    private var mockSongRepo: MockSongRepository!
-    private var searchUseCases: SearchUseCases!
+    private var mockReadStore: MockSearchReadStore!
 
     override func setUp() {
         super.setUp()
-        mockSongRepo = MockSongRepository()
-        searchUseCases = SearchUseCases(songRepository: mockSongRepo)
-        sut = SearchViewModel(searchUseCases: searchUseCases)
+        mockReadStore = MockSearchReadStore()
+        sut = SearchViewModel(readStore: mockReadStore)
     }
 
     override func tearDown() {
         sut = nil
-        searchUseCases = nil
-        mockSongRepo = nil
+        mockReadStore = nil
         super.tearDown()
     }
 
     // MARK: - search()
 
     func test_search_emptyQuery_returnsAllSongs() async {
-        mockSongRepo.songs = [Song.make(title: "A"), Song.make(title: "B")]
+        mockReadStore.songs = [Song.make(title: "A"), Song.make(title: "B")]
         sut.searchQuery = ""
 
         await sut.search()
@@ -39,7 +36,7 @@ final class SearchViewModelTests: XCTestCase {
     }
 
     func test_search_withQuery_filtersResults() async {
-        mockSongRepo.songs = [
+        mockReadStore.songs = [
             Song.make(title: "Bohemian Rhapsody"),
             Song.make(title: "Let It Be")
         ]
@@ -52,7 +49,7 @@ final class SearchViewModelTests: XCTestCase {
     }
 
     func test_search_noMatch_returnsEmpty() async {
-        mockSongRepo.songs = [Song.make(title: "Rock Song")]
+        mockReadStore.songs = [Song.make(title: "Rock Song")]
         sut.searchQuery = "xyz_no_match"
 
         await sut.search()
@@ -63,7 +60,7 @@ final class SearchViewModelTests: XCTestCase {
     // MARK: - filterByArtist()
 
     func test_filterByArtist_updatesArtistFilter() async {
-        mockSongRepo.songs = [
+        mockReadStore.songs = [
             Song.make(artist: "Queen"),
             Song.make(artist: "ABBA")
         ]
@@ -77,7 +74,7 @@ final class SearchViewModelTests: XCTestCase {
     // MARK: - filterByAlbum()
 
     func test_filterByAlbum_updatesAlbumFilter() async {
-        mockSongRepo.songs = [
+        mockReadStore.songs = [
             Song.make(album: "Abbey Road"),
             Song.make(album: "Let It Be")
         ]
@@ -104,7 +101,7 @@ final class SearchViewModelTests: XCTestCase {
     // MARK: - toggleDownloadedOnly()
 
     func test_toggleDownloadedOnly_filtersToDownloaded() async {
-        mockSongRepo.songs = [
+        mockReadStore.songs = [
             Song.make(isDownloaded: true),
             Song.make(isDownloaded: false)
         ]
@@ -117,10 +114,25 @@ final class SearchViewModelTests: XCTestCase {
     // MARK: - changeSortOption()
 
     func test_changeSortOption_updatesOption() async {
-        mockSongRepo.songs = [Song.make()]
+        mockReadStore.songs = [Song.make()]
 
         await sut.changeSortOption(.playCount)
 
         XCTAssertEqual(sut.sortOption, .playCount)
+    }
+
+    // MARK: - ReadStore reactivity
+
+    func test_readStoreChanges_reRunsLastSearch() async {
+        mockReadStore.songs = [Song.make(title: "A")]
+        sut.searchQuery = "a"
+        await sut.search()
+        XCTAssertEqual(sut.searchResults.count, 1)
+
+        mockReadStore.songs = [Song.make(title: "A"), Song.make(title: "Aa")]
+        mockReadStore.simulateChange()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(sut.searchResults.count, 2)
     }
 }

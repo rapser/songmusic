@@ -11,11 +11,11 @@ import SwiftUI
 import os
 
 /// ViewModel responsable de la UI de playlists
-/// Delega lógica de negocio a PlaylistUseCases
-/// Usa EventBus con AsyncStream para reactividad moderna
+/// Delega mutaciones a PlaylistUseCases y lectura reactiva a PlaylistReadStoreProtocol
+/// (que reacciona a cambios de SwiftData sin pasar por el EventBus global).
 @MainActor
 @Observable
-final class PlaylistViewModel: EventBusObservable {
+final class PlaylistViewModel {
 
     // MARK: - Published State (Clean Architecture - UIModels only)
 
@@ -31,21 +31,30 @@ final class PlaylistViewModel: EventBusObservable {
     // MARK: - Dependencies
 
     private let playlistUseCases: PlaylistUseCases
-    private(set) var eventBus: EventBusProtocol
+    private let readStore: PlaylistReadStoreProtocol
 
     // MARK: - Tasks
 
-    /// Task para observación de eventos
+    /// Task para observar cambios reactivos del ReadStore
     @ObservationIgnored
-    private var dataEventTask: Task<Void, Never>?
+    private var changesTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
-    init(playlistUseCases: PlaylistUseCases, eventBus: EventBusProtocol) {
+    init(playlistUseCases: PlaylistUseCases, readStore: PlaylistReadStoreProtocol) {
         self.playlistUseCases = playlistUseCases
-        self.eventBus = eventBus
-        dataEventTask = makeEventTask(stream: { $0.dataEvents() },
-                                      handler: { [weak self] in await self?.handleDataEvent($0) })
+        self.readStore = readStore
+        changesTask = Task { [weak self] in
+            guard let self else { return }
+            for await _ in readStore.changes() {
+                guard !Task.isCancelled else { break }
+                await self.loadPlaylists()
+                if let selectedID = self.selectedPlaylist?.id {
+                    await self.loadSongsInPlaylist(selectedID)
+                    await self.loadPlaylistStats(selectedID)
+                }
+            }
+        }
         Task {
             await loadPlaylists()
         }
@@ -56,7 +65,7 @@ final class PlaylistViewModel: EventBusObservable {
     /// Carga todas las playlists
     func loadPlaylists() async {
         await loadAndAssign(
-            fetch: { try await playlistUseCases.getAllPlaylists() },
+            fetch: { try await readStore.allPlaylists() },
             map: { $0.map(PlaylistMapper.toUI) },
             assign: { playlists = $0 },
             onError: { [self] in errorMessage = "Error al cargar playlists: \($0.localizedDescription)" }
@@ -241,7 +250,7 @@ final class PlaylistViewModel: EventBusObservable {
     /// Carga las canciones de una playlist
     func loadSongsInPlaylist(_ playlistID: UUID) async {
         do {
-            let entities = try await playlistUseCases.getSongsInPlaylist(playlistID)
+            let entities = try await readStore.songs(inPlaylist: playlistID)
             songsInPlaylist = entities.map { SongMapper.toUI($0) }
         } catch {
             errorMessage = "Error al cargar canciones: \(error.localizedDescription)"
@@ -260,7 +269,7 @@ final class PlaylistViewModel: EventBusObservable {
     /// Carga estadísticas de una playlist
     func loadPlaylistStats(_ playlistID: UUID) async {
         do {
-            playlistStats = try await playlistUseCases.getPlaylistStats(playlistID)
+            playlistStats = try await readStore.stats(forPlaylist: playlistID)
         } catch {
             logger.error("Error al cargar estadísticas de playlist: \(error)")
         }
@@ -275,34 +284,9 @@ final class PlaylistViewModel: EventBusObservable {
         }
     }
 
-    // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func handleDataEvent(_ event: DataChangeEvent) async {
-        switch event {
-        case .playlistsUpdated:
-            await loadPlaylists()
-
-            // Si hay una playlist seleccionada, actualizarla
-            if let selectedID = selectedPlaylist?.id {
-                await loadSongsInPlaylist(selectedID)
-                await loadPlaylistStats(selectedID)
-            }
-
-        case .songsUpdated, .songDownloaded, .songDeleted:
-            // Las canciones cambiaron, recargar canciones en playlist seleccionada
-            if let selectedID = selectedPlaylist?.id {
-                await loadSongsInPlaylist(selectedID)
-                await loadPlaylistStats(selectedID)
-            }
-
-        case .credentialsChanged, .error:
-            break
-        }
-    }
-
     // MARK: - Cleanup
 
     deinit {
-        dataEventTask?.cancel()
+        changesTask?.cancel()
     }
 }
