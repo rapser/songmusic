@@ -52,12 +52,25 @@ enum MegaFolderMapper {
                 decryptionFailureReasons.append("\(node.h): sin clave (k == nil)")
                 continue
             }
-            guard let fileKey = crypto.parseNodeKey(keyString, folderKey: folderKey) else {
+            let candidateKeys = crypto.parseNodeKeyCandidates(keyString, folderKey: folderKey)
+            guard !candidateKeys.isEmpty else {
                 decryptionFailureReasons.append("\(node.h): no se pudo desencriptar la clave (k=\(keyString.prefix(20))...)")
                 continue
             }
-            guard let attrs = crypto.decryptAttributes(encryptedAttrs, key: fileKey) else {
-                decryptionFailureReasons.append("\(node.h): no se pudieron desencriptar los atributos (clave incorrecta o formato inesperado)")
+
+            var attrs: [String: Any]?
+            var matchedKey: Data?
+            for candidateKey in candidateKeys {
+                if let decryptedAttrs = crypto.decryptAttributes(encryptedAttrs, key: candidateKey),
+                   decryptedAttrs["n"] as? String != nil {
+                    attrs = decryptedAttrs
+                    matchedKey = candidateKey
+                    break
+                }
+            }
+
+            guard let attrs, let fileKey = matchedKey else {
+                decryptionFailureReasons.append("\(node.h): no se pudieron desencriptar los atributos con ninguna clave candidata")
                 continue
             }
             guard let fileName = attrs["n"] as? String else {

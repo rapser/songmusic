@@ -334,17 +334,16 @@ struct MegaCrypto {
 
     // MARK: - Key String Parsing
 
-    /// Parsea la clave de un nodo desde el formato de Mega.
+    /// Parsea una o varias claves candidatas de un nodo desde el formato de Mega.
     ///
     /// Formato simple: "userHandle:encryptedKey" o solo "encryptedKey".
     /// Formato múltiple: "handle1:key1/handle2:key2/..." — ocurre en archivos que llegaron
     /// a la carpeta desde más de un contexto de compartido (p.ej. movidos o re-compartidos).
-    /// Sin el handle propio de la sesión no podemos saber cuál par corresponde a esta carpeta,
-    /// así que se prueban todos con la clave de la carpeta y se toma el primero cuyo resultado
-    /// tenga un tamaño de clave AES válido (16 o 32 bytes) — si el par es incorrecto, el
-    /// desencriptado de atributos que sigue fallará su propio chequeo y se descartará igual.
-    func parseNodeKey(_ keyString: String, folderKey: Data) -> Data? {
+    /// En vez de quedarnos con una sola candidata, devolvemos todas las claves que parecen
+    /// válidas para que el mapper pruebe cuál desencripta realmente los atributos.
+    func parseNodeKeyCandidates(_ keyString: String, folderKey: Data) -> [Data] {
         let candidates = keyString.components(separatedBy: "/")
+        var parsedKeys: [Data] = []
 
         for candidate in candidates {
             let parts = candidate.components(separatedBy: ":")
@@ -356,9 +355,14 @@ struct MegaCrypto {
                 continue
             }
 
-            return decrypted
+            parsedKeys.append(decrypted)
         }
 
-        return nil
+        return parsedKeys
+    }
+
+    /// Compatibilidad: conserva el comportamiento antiguo devolviendo la primera clave válida.
+    func parseNodeKey(_ keyString: String, folderKey: Data) -> Data? {
+        parseNodeKeyCandidates(keyString, folderKey: folderKey).first
     }
 }
