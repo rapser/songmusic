@@ -11,6 +11,7 @@ private let pageSize = 20
 
 struct PendingSongsListView: View {
     let pendingSongs: [SongUI]
+    let onRefresh: () async -> Void
 
     @State private var displayedCount = pageSize
 
@@ -60,6 +61,9 @@ struct PendingSongsListView: View {
                 }
             }
             .padding(.bottom, 16)
+        }
+        .refreshable {
+            await onRefresh()
         }
     }
 

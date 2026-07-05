@@ -51,6 +51,11 @@ struct DownloadMusicView: View {
                 Text(error)
             }
         }
+        .task {
+            if downloadViewModel.isMegaProvider {
+                await libraryViewModel.syncLibraryWithCatalog()
+            }
+        }
     }
 
     @ViewBuilder
@@ -76,7 +81,12 @@ struct DownloadMusicView: View {
                 if downloadViewModel.isMegaProvider {
                     bulkDownloadSection
                 }
-                PendingSongsListView(pendingSongs: pendingSongs)
+                PendingSongsListView(
+                    pendingSongs: pendingSongs,
+                    onRefresh: {
+                        await libraryViewModel.syncLibraryWithCatalog()
+                    }
+                )
             }
         }
     }

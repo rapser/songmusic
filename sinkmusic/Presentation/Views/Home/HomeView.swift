@@ -4,6 +4,7 @@ struct HomeView: View {
     // MARK: - ViewModels (Clean Architecture)
     @Environment(HomeViewModel.self) private var viewModel
     @Environment(PlayerViewModel.self) private var playerViewModel
+    @Environment(LibraryViewModel.self) private var libraryViewModel
 
     var topSongs: [SongUI] {
         // Ya viene ordenado por playCount desde el ViewModel
@@ -49,6 +50,7 @@ struct HomeView: View {
                     }
                 }
                 .refreshable {
+                    await libraryViewModel.syncLibraryWithCatalog()
                     await viewModel.refresh()
                 }
             }
