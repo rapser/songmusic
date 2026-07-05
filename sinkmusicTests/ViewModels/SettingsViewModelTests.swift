@@ -32,7 +32,8 @@ final class SettingsViewModelTests: XCTestCase {
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
             metadataRepository: mockMetadata,
-            credentialsRepository: mockCredentials
+            credentialsRepository: mockCredentials,
+            eventBus: MockEventBus()
         )
         sut = SettingsViewModel(
             settingsUseCases: settingsUseCases,
