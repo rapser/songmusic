@@ -5,6 +5,34 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (24) - 2026-07-05
+
+### ⚡ Performance — sincronización por lotes y menos refrescos
+
+- `LibraryUseCases.syncWithCloudStorage()` ahora crea las canciones nuevas en un solo lote
+  en lugar de persistir una por una
+- `SongRepositoryProtocol` y `SongLocalDataSource` agregan creación por lotes para evitar
+  múltiples `save()` seguidos y reducir notificaciones innecesarias de SwiftData
+- `LibraryViewModel` deja de recargar manualmente la biblioteca después del sync y confía
+  en la reactividad del `ReadStore`, evitando doble trabajo justo después de insertar
+  canciones nuevas
+- Se limpiaron los logs más verbosos de `MetadataService` para que la app quede más silenciosa
+  en operación normal
+
+### 🎵 UX — reproducción y navegación más consistentes
+
+- Corregido un caso donde un doble tap sobre un playlist del carrusel de Home podía terminar
+  disparando un play accidental en la pantalla destino
+- `PlaylistDetailView` bloquea los toques de canciones por un instante al entrar, evitando
+  que el gesto de navegación se traduzca en reproducción involuntaria
+- `AudioPlayerService` y `PlayerUseCases` quedaron ajustados para reducir la latencia al
+  cambiar de canción y mostrar Now Playing sin retrasar el arranque del audio
+
+### 🧪 Tests
+
+- `LibraryUseCasesTests` actualizados para validar la creación por lotes
+- `MockSongRepository` ampliado para soportar inserción múltiple en un solo llamado
+
 ## [1.0.0] (23) - 2026-07-04
 
 ### 🏗️ Arquitectura — Adelgaza EventBus, mueve la reactividad de listas a ReadStores

@@ -22,9 +22,10 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 
 ### Almacenamiento en la nube (Google Drive / MEGA)
 - **Dos proveedores**: Google Drive o MEGA (selección en Configuración)
-- Sincronización automática con la carpeta configurada
+- Sincronización a demanda con la carpeta configurada
 - **Descarga individual** por canción y **Descargar todo** (solo con MEGA)
 - Cola de descargas secuencial con límites por proveedor (Swift 6: actor + async/await)
+- Sincronización por lotes para reducir `save()` repetidos y hacer más fluida la actualización de la biblioteca
 - Aviso al usuario cuando se alcanza el límite de MEGA (5 GB/día) y limpieza de estado
 - Extracción automática de metadatos (ID3, artwork); escritura atómica del archivo para evitar errores de formato
 - Gestión de caché de imágenes (3 tamaños: 32×32, 64×64, full)
@@ -47,6 +48,12 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 - Color de fondo del mini player según la **carátula** de la canción (estilo Spotify)
 - Color dominante calculado la primera vez y guardado para siguientes reproducciones
 - Progreso de descarga fluido (throttle por tiempo) hasta 100%
+- Cambio de canción optimizado para reducir latencia entre pistas
+
+### Reactividad
+- UI reactiva con `@Observable` + `@MainActor` en los ViewModels
+- Read-stores reactivos basados en `ModelContext.didSave` para refrescar solo lo que cambió
+- Evita polling innecesario en Home, Library, Playlist y Search
 
 ### Búsqueda
 - Búsqueda en tiempo real con debouncing (300 ms)
@@ -56,7 +63,9 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 
 ## Arquitectura
 
-Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con **strict concurrency** verificada por el compilador (cero `@unchecked Sendable`, cero `NSLock`, cero `DispatchQueue`).
+Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con **strict concurrency** verificada por el compilador.
+
+La capa de lectura usa `ReadStore` reactivos para conectar SwiftData con la UI sin acoplar la presentación al EventBus global. El EventBus queda reservado para eventos verdaderamente transversales como reproducción, descargas y autenticación.
 
 ### Diagrama de Arquitectura
 
