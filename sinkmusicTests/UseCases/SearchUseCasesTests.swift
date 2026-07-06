@@ -238,6 +238,37 @@ final class SearchUseCasesTests: XCTestCase {
         XCTAssertEqual(result, ["Abbey Road", "Let It Be"])
     }
 
+    // MARK: - getRecentlyPlayedSongs()
+
+    func test_getRecentlyPlayedSongs_sortsByDateDescending() async throws {
+        let older = Song.make(title: "Old", lastPlayedAt: Date(timeIntervalSinceNow: -300))
+        let newer = Song.make(title: "New", lastPlayedAt: Date(timeIntervalSinceNow: -10))
+        let never = Song.make(title: "Never", lastPlayedAt: nil)
+        mockSongRepo.songs = [older, newer, never]
+
+        let result = try await sut.getRecentlyPlayedSongs(limit: 10)
+
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result.first?.title, "New")
+    }
+
+    // MARK: - getSongCountByAlbum()
+
+    func test_getSongCountByAlbum_countsCorrectly() async throws {
+        mockSongRepo.songs = [
+            Song.make(album: "Abbey Road"),
+            Song.make(album: "Abbey Road"),
+            Song.make(album: "Let It Be"),
+            Song.make(album: nil)
+        ]
+
+        let result = try await sut.getSongCountByAlbum()
+
+        XCTAssertEqual(result["Abbey Road"], 2)
+        XCTAssertEqual(result["Let It Be"], 1)
+        XCTAssertNil(result[""]) // nil albums no se cuentan como clave vacía
+    }
+
     // MARK: - getSongCountByArtist()
 
     func test_getSongCountByArtist_countsCorrectly() async throws {

@@ -5,6 +5,131 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (24) - 2026-07-05
+
+### ⚡ Performance — sincronización por lotes y menos refrescos
+
+- `LibraryUseCases.syncWithCloudStorage()` ahora crea las canciones nuevas en un solo lote
+  en lugar de persistir una por una
+- `SongRepositoryProtocol` y `SongLocalDataSource` agregan creación por lotes para evitar
+  múltiples `save()` seguidos y reducir notificaciones innecesarias de SwiftData
+- `LibraryViewModel` deja de recargar manualmente la biblioteca después del sync y confía
+  en la reactividad del `ReadStore`, evitando doble trabajo justo después de insertar
+  canciones nuevas
+- Se limpiaron los logs más verbosos de `MetadataService` para que la app quede más silenciosa
+  en operación normal
+
+### 🎵 UX — reproducción y navegación más consistentes
+
+- Corregido un caso donde un doble tap sobre un playlist del carrusel de Home podía terminar
+  disparando un play accidental en la pantalla destino
+- `PlaylistDetailView` bloquea los toques de canciones por un instante al entrar, evitando
+  que el gesto de navegación se traduzca en reproducción involuntaria
+- `AudioPlayerService` y `PlayerUseCases` quedaron ajustados para reducir la latencia al
+  cambiar de canción y mostrar Now Playing sin retrasar el arranque del audio
+
+### 🧪 Tests
+
+- `LibraryUseCasesTests` actualizados para validar la creación por lotes
+- `MockSongRepository` ampliado para soportar inserción múltiple en un solo llamado
+
+## [1.0.0] (23) - 2026-07-04
+
+### 🏗️ Arquitectura — Adelgaza EventBus, mueve la reactividad de listas a ReadStores
+
+`DataChangeEvent` era el único puente entre SwiftData y la UI para Home/Library/Playlist
+(Search ni siquiera estaba suscrito). Se reemplaza por una capa de lectura reactiva que
+observa `ModelContext.didSave` directamente, y el EventBus vuelve a ser pub/sub puro para
+lo genuinamente global.
+
+#### Nueva capa ReadStore (SOLID: Interface Segregation real)
+- 4 protocolos, uno por dominio — no un `ReadStoreProtocol` genérico:
+  `HomeReadStoreProtocol`, `LibraryReadStoreProtocol`, `PlaylistReadStoreProtocol`,
+  `SearchReadStoreProtocol` (`Domain/ReadStores/`)
+- Implementaciones (`Data/ReadStores/`) delegan los reads a los UseCases existentes — sin
+  duplicar lógica de negocio — y añaden `changes() -> AsyncStream<Void>`
+- `ModelContextChangeObserver` (`Data/ReadStores/Support/`) observa `ModelContext.didSave`
+  filtrando por nombre de entidad (`SongDTO`, `PlaylistDTO`), sin acoplar el observer a qué
+  hacer con el cambio
+- `SearchViewModel` gana reactividad por primera vez: antes no se enteraba de cambios hechos
+  en otras pantallas mientras el usuario buscaba
+
+#### EventBus recortado a lo global
+- Eliminados `DataChangeEvent.swift` y `SwiftDataNotificationService.swift` — su único
+  propósito era puentear SwiftData → EventBus, rol que ahora cumple el ReadStore
+- `EventBus`/`EventBusProtocol` pierden `lastDataEvent`, `emit(_ event: DataChangeEvent)` y
+  `dataEvents()`. Queda solo para `AuthEvent`, `PlaybackEvent`, `DownloadEvent`
+- `SongLocalDataSource`/`PlaylistLocalDataSource` dejan de recibir `EventBus` por constructor
+  y de notificar nada explícito tras `save()` — la reactividad ocurre "gratis" vía
+  `ModelContext.didSave`
+- `HomeViewModel`, `LibraryViewModel`, `PlaylistViewModel` dejan de conformar
+  `EventBusObservable`; ahora dependen solo de su ReadStore
+
+#### ModelContainer unificado
+- `sinkmusicApp` creaba un `ModelContainer` implícito (`.modelContainer(for:)`) y otro
+  explícito en `configureDIContainer()`. Ahora se crea una sola vez en `init()` y se comparte
+
+### ⚡ Performance — queries targeted en vez de `getAll()` + filtro en memoria
+
+- `SongLocalDataSource.getTopSongs` usa `fetchLimit` en vez de traer todo y truncar con
+  `.prefix()` en memoria
+- Nuevos métodos targeted con `FetchDescriptor`/`#Predicate`: `getRecentlyPlayed(limit:)`,
+  `search(query:)` (título/artista), `searchByAlbum(query:)`
+- `LibraryUseCases.getRecentlyPlayedSongs` y la mayoría de `SearchUseCases`
+  (`getMostPlayedSongs`, `getRecentlyPlayedSongs`, `getDownloadedSongs`,
+  `getNotDownloadedSongs`, `advancedSearch` con query) delegan a las queries targeted en vez
+  de `getAll()+filter+sort+prefix`
+- Excepciones documentadas explícitamente en código (SwiftData no soporta agregación/`GROUP BY`
+  a nivel de `FetchDescriptor`, ni ordenar por suma sobre una relación): `getLibraryStats`,
+  `getAllArtists`/`getAllAlbums`/`getSongCountByArtist`/`getSongCountByAlbum`,
+  `PlaylistUseCases.getMostPlayedPlaylists`
+
+### 🧪 Tests — nueva suite reactiva con `ModelContainer` real (`sinkmusicTests/ReadStores/`)
+
+- `ModelContextChangeObserverTests`: confirma que `ModelContext.didSave` dispara la señal
+  correcta y que un observer filtrado por entidad ignora cambios irrelevantes
+- `HomeReadStoreTests`, `LibraryReadStoreTests`, `PlaylistReadStoreTests`,
+  `SearchReadStoreTests`: reads + reactividad contra un `ModelContainer` real, sin mocks
+- `ReactiveFlowTests`: 4 flujos end-to-end (descarga marca `isDownloaded` → UI se entera;
+  borrado de canción → lista se actualiza; alta de canción en playlist → detalle se
+  actualiza; cambio hecho "en otra pantalla" es visto por Search sin polling)
+- Mocks nuevos por ReadStore (`MockHomeReadStore`, `MockLibraryReadStore`,
+  `MockPlaylistReadStore`, `MockSearchReadStore`) reemplazan a `MockEventBus` en los tests
+  de `HomeViewModel`/`LibraryViewModel`/`PlaylistViewModel`/`SearchViewModel`
+
+#### 🐛 Bug de lifetime de `ModelContainer` en tests (EXC_BAD_INSTRUCTION)
+- **Síntoma**: crash intermitente (`EXC_BAD_INSTRUCTION`) en distintas líneas de los tests de
+  ReadStore, sin relación aparente con el código que fallaba
+- **Causa real**: el helper de test creaba el `ModelContainer` como variable local y devolvía
+  solo `container.mainContext` — `ModelContext` no retiene fuerte a su `ModelContainer`, así
+  que ARC lo liberaba al salir de la función mientras el context devuelto seguía dependiendo
+  de él (use-after-free)
+- **Diagnóstico**: reproducido de forma aislada con un script de Swift standalone en macOS
+  (mismos modelos, misma lógica, sin Xcode/Simulator de por medio) — confirmó que retener el
+  container elimina el crash
+- **Fix**: `ReadStoreTestSupport.makeInMemoryContainer()` ahora devuelve el `ModelContainer`;
+  cada test hace `let container = ...; let context = container.mainContext` para que el
+  container viva durante toda su ejecución
+
+### 🔧 Archivos Modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `Application/sinkmusicApp.swift` | `ModelContainer` único creado en `init()` |
+| `Application/DI/DIContainer.swift` | 4 `ReadStore` wireados, `requireModelContext()`, factories actualizados |
+| `Core/EventBus/EventBus.swift`, `EventBusProtocol.swift`, `EventBusObservable.swift` | Recortados a Auth/Playback/Download |
+| `Core/EventBus/Events/DataChangeEvent.swift` | Eliminado |
+| `Data/DataSources/Local/SongLocalDataSource.swift` | Sin `EventBus`; `getRecentlyPlayed`, `search`, `searchByAlbum`, `fetchLimit` |
+| `Data/DataSources/Local/PlaylistLocalDataSource.swift` | Sin `EventBus` |
+| `Data/DataSources/Local/SwiftDataNotificationService.swift` | Eliminado |
+| `Domain/ReadStores/*.swift`, `Data/ReadStores/*.swift` | Nuevos — capa de lectura reactiva |
+| `Domain/UseCases/Library/LibraryUseCases.swift`, `Search/SearchUseCases.swift`, `Playlist/PlaylistUseCases.swift` | Queries targeted + excepciones documentadas |
+| `Presentation/ViewModels/Home/*.swift`, `Library/*.swift`, `Playlist/*.swift`, `Search/*.swift` | Migrados de EventBus a ReadStore |
+| `sinkmusicTests/ReadStores/*.swift` | Nuevo — suite reactiva con `ModelContainer` real |
+| `sinkmusicTests/Mocks/*.swift`, `ViewModels/*.swift` | Migrados a mocks de ReadStore |
+
+---
+
 ## [1.0.0] (22) - 2026-05-20
 
 ### 🗑️ Eliminado

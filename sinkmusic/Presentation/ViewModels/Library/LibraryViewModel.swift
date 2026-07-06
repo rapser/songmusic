@@ -11,8 +11,8 @@ import SwiftUI
 import os
 
 /// ViewModel responsable de la UI de la biblioteca
-/// Delega lógica de negocio a LibraryUseCases
-/// Usa EventBus con AsyncStream para reactividad moderna
+/// Delega mutaciones a LibraryUseCases y lectura reactiva a LibraryReadStoreProtocol
+/// (que reacciona a cambios de SwiftData sin pasar por el EventBus global).
 @MainActor
 @Observable
 final class LibraryViewModel {
@@ -30,20 +30,26 @@ final class LibraryViewModel {
     // MARK: - Dependencies
 
     private let libraryUseCases: LibraryUseCases
-    private let eventBus: EventBusProtocol
+    private let readStore: LibraryReadStoreProtocol
 
     // MARK: - Tasks
 
-    /// Task para observación de eventos
+    /// Task para observar cambios reactivos del ReadStore
     @ObservationIgnored
-    private var dataEventTask: Task<Void, Never>?
+    private var changesTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
-    init(libraryUseCases: LibraryUseCases, eventBus: EventBusProtocol) {
+    init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
         self.libraryUseCases = libraryUseCases
-        self.eventBus = eventBus
-        startObservingEvents()
+        self.readStore = readStore
+        changesTask = Task { [weak self] in
+            guard let self else { return }
+            for await _ in readStore.changes() {
+                guard !Task.isCancelled else { break }
+                await self.reloadLibrary()
+            }
+        }
         Task {
             await loadSongs()
             await loadStats()
@@ -54,12 +60,12 @@ final class LibraryViewModel {
 
     /// Carga todas las canciones
     func loadSongs() async {
-        do {
-            let entities = try await libraryUseCases.getAllSongs()
-            songs = entities.map { SongMapper.toUI($0) }
-        } catch {
-            logger.error("Error al cargar canciones: \(error)")
-        }
+        await loadAndAssign(
+            fetch: { try await readStore.allSongs() },
+            map: { $0.map(SongMapper.toUI) },
+            assign: { songs = $0 },
+            onError: { [self] in logger.error("Error al cargar canciones: \($0)") }
+        )
     }
 
     /// Devuelve el artwork en resolución completa de una canción (para player grande).
@@ -103,10 +109,6 @@ final class LibraryViewModel {
         do {
             // Sincronizar con almacenamiento cloud
             let newSongsCount = try await libraryUseCases.syncWithCloudStorage()
-
-            // Recargar canciones
-            await loadSongs()
-            await loadStats()
 
             syncError = nil
             syncErrorMessage = nil
@@ -167,14 +169,13 @@ final class LibraryViewModel {
         }
     }
 
-    /// Elimina múltiples canciones
+    /// Elimina múltiples canciones en modo best-effort — continúa aunque alguna falle.
     func deleteSongs(_ songIDs: [UUID]) async {
-        do {
-            try await libraryUseCases.deleteSongs(songIDs)
-            await loadSongs()
-            await loadStats()
-        } catch {
-            logger.error("Error al eliminar canciones: \(error)")
+        let result = await libraryUseCases.deleteSongs(songIDs)
+        await loadSongs()
+        await loadStats()
+        if result.hasFailures {
+            logger.error("\(result.failureCount) canciones no pudieron eliminarse")
         }
     }
 
@@ -183,51 +184,15 @@ final class LibraryViewModel {
     /// Carga estadísticas de la biblioteca
     func loadStats() async {
         do {
-            libraryStats = try await libraryUseCases.getLibraryStats()
+            libraryStats = try await readStore.stats()
         } catch {
             logger.error("Error al cargar estadísticas: \(error)")
         }
     }
 
-    // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        dataEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.dataEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handleDataEvent(event)
-            }
-        }
-    }
-
-    private func handleDataEvent(_ event: DataChangeEvent) async {
-        switch event {
-        case .songsUpdated:
-            await loadSongs()
-            await loadStats()
-
-        case .songDownloaded:
-            await loadSongs()
-            await loadStats()
-
-        case .songDeleted:
-            await loadSongs()
-            await loadStats()
-
-        case .playlistsUpdated:
-            // No action needed for playlists in library
-            break
-
-        case .credentialsChanged:
-            // Reload when credentials change
-            await loadSongs()
-
-        case .error:
-            // Handle error if needed
-            break
-        }
+    private func reloadLibrary() async {
+        await loadSongs()
+        await loadStats()
     }
 
     // MARK: - Helpers
@@ -239,7 +204,7 @@ final class LibraryViewModel {
     // MARK: - Cleanup
 
     deinit {
-        dataEventTask?.cancel()
+        changesTask?.cancel()
     }
 }
 

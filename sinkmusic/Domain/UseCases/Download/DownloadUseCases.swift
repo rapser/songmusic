@@ -20,6 +20,7 @@ final class DownloadUseCases {
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let metadataRepository: MetadataRepositoryProtocol
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let eventBus: EventBusProtocol
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
@@ -29,12 +30,14 @@ final class DownloadUseCases {
         songRepository: SongRepositoryProtocol,
         cloudStorageRepository: CloudStorageRepositoryProtocol,
         metadataRepository: MetadataRepositoryProtocol,
-        credentialsRepository: CredentialsRepositoryProtocol
+        credentialsRepository: CredentialsRepositoryProtocol,
+        eventBus: EventBusProtocol
     ) {
         self.songRepository = songRepository
         self.cloudStorageRepository = cloudStorageRepository
         self.metadataRepository = metadataRepository
         self.credentialsRepository = credentialsRepository
+        self.eventBus = eventBus
     }
 
     // MARK: - Provider
@@ -45,14 +48,40 @@ final class DownloadUseCases {
         credentialsRepository.getSelectedCloudProvider()
     }
 
+    /// Capacidades del proveedor activo.
+    /// Permite a ViewModels adaptarse sin acoplarse al enum `CloudStorageProvider`.
+    func currentProviderCapabilities() -> CloudProviderCapabilities {
+        switch credentialsRepository.getSelectedCloudProvider() {
+        case .googleDrive:
+            return CloudProviderCapabilities(
+                displayName: "Google Drive",
+                supportsQuotaTracking: false,
+                quotaAlertMessage: "",
+                maxConcurrentDownloads: 1
+            )
+        case .mega:
+            return CloudProviderCapabilities(
+                displayName: "Mega",
+                supportsQuotaTracking: true,
+                quotaAlertMessage: "Has alcanzado el límite de transferencia diario de Mega.",
+                maxConcurrentDownloads: 3
+            )
+        }
+    }
+
     // MARK: - Constants
 
     private static let estimatedFileSizeMB: Double = 5.0
 
     // MARK: - Download Operations
 
-    /// Descarga una canción desde el almacenamiento cloud
-    /// El progreso se emite via EventBus como DownloadEvent.progress
+    /// Descarga una canción desde el almacenamiento cloud.
+    ///
+    /// El progreso cubre TODO el pipeline, no solo la transferencia de red:
+    /// - 0.00–0.90  descarga de red (emitido por el DataSource)
+    /// - 0.90–0.95  desencriptado/verificación + escritura del archivo (DataSource)
+    /// - 0.97       extracción de metadata (emitido aquí)
+    /// - .completed recién cuando la canción quedó guardada en SwiftData y disponible
     func downloadSong(_ songID: UUID) async throws {
         guard var song = try await songRepository.getByID(songID) else {
             throw DownloadError.songNotFound
@@ -62,11 +91,14 @@ final class DownloadUseCases {
             throw DownloadError.alreadyDownloaded
         }
 
-        // Descargar archivo (el progreso se emite via EventBus desde el DataSource)
+        // Descargar archivo (el progreso 0–95% se emite via EventBus desde el DataSource)
         let localURL = try await cloudStorageRepository.download(
             fileID: song.fileID,
             songID: songID
         )
+
+        // Fase de metadata: el archivo ya está en disco pero la canción aún no está lista
+        eventBus.emit(DownloadEvent.progress(songID: songID, progress: 0.97))
 
         // Extraer metadata
         if let metadata = await metadataRepository.extractMetadata(from: localURL) {
@@ -108,20 +140,35 @@ final class DownloadUseCases {
             )
         }
 
-        // Actualizar en la base de datos
-        try await songRepository.update(song)
+        // Actualizar en la base de datos — solo después de esto la canción está
+        // realmente disponible (SwiftData con isDownloaded = true)
+        do {
+            try await songRepository.update(song)
+        } catch {
+            eventBus.emit(DownloadEvent.failed(songID: songID, failure: DownloadFailure(error: error)))
+            throw error
+        }
+
+        eventBus.emit(DownloadEvent.completed(songID: songID))
     }
 
-    /// Descarga múltiples canciones
-    /// El progreso y completado de cada canción se emite via EventBus
-    func downloadMultipleSongs(_ songIDs: [UUID]) async {
+    /// Descarga múltiples canciones y reporta éxitos y fallos individualmente.
+    /// A diferencia de la versión anterior, no silencia los errores —
+    /// el llamador recibe un `BatchResult` con la lista exacta de fallos.
+    func downloadMultipleSongs(_ songIDs: [UUID]) async -> BatchResult<UUID> {
+        var succeeded: [UUID] = []
+        var failed: [(id: UUID, error: Error)] = []
+
         for songID in songIDs {
             do {
                 try await downloadSong(songID)
+                succeeded.append(songID)
             } catch {
                 logger.warning("Error al descargar canción \(songID): \(error)")
+                failed.append((id: songID, error: error))
             }
         }
+        return BatchResult(succeeded: succeeded, failed: failed)
     }
 
     /// Elimina una descarga

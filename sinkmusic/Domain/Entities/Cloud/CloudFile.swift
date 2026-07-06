@@ -11,6 +11,7 @@ import Foundation
 /// Entidad de dominio que representa un archivo de almacenamiento en la nube
 /// Es agnóstico al proveedor específico (Google Drive, OneDrive, Mega, etc.)
 struct CloudFile: Identifiable, Sendable {
+    private static let supportedAudioExtensions = [".m4a", ".mp3", ".mp4", ".aac", ".flac", ".wav", ".ogg"]
 
     /// ID único del archivo
     let id: String
@@ -53,28 +54,21 @@ struct CloudFile: Identifiable, Sendable {
     /// Verifica si el archivo es un formato de audio soportado
     var isAudioFile: Bool {
         mimeType.hasPrefix("audio/") && (
-            name.hasSuffix(".m4a") ||
-            name.hasSuffix(".mp3") ||
-            name.hasSuffix(".mp4") ||
-            name.hasSuffix(".aac")
+            CloudFile.supportedAudioExtensions.contains { name.lowercased().hasSuffix($0) }
         )
     }
 
     /// Extrae el título del nombre del archivo
-    /// Asume formato: "Artista - Título.m4a" o solo "Título.m4a"
+    /// Asume formato: "Artista - Título.ext" o solo "Título.ext"
     var title: String {
-        let nameWithoutExtension = name
-            .replacingOccurrences(of: ".m4a", with: "")
-            .replacingOccurrences(of: ".mp3", with: "")
-            .replacingOccurrences(of: ".mp4", with: "")
-            .replacingOccurrences(of: ".aac", with: "")
+        let nameWithoutExtension = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
 
         let components = nameWithoutExtension.components(separatedBy: " - ")
         return components.count > 1 ? components[1] : nameWithoutExtension
     }
 
     /// Extrae el artista del nombre del archivo
-    /// Asume formato: "Artista - Título.m4a"
+    /// Asume formato: "Artista - Título.ext"
     var artist: String {
         let components = name.components(separatedBy: " - ")
         return components.count > 1 ? components[0] : "Desconocido"

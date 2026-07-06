@@ -12,12 +12,14 @@ final class MockSongRepository: SongRepositoryProtocol {
     var songs: [Song] = []
 
     var createCallCount = 0
+    var createManyCallCount = 0
     var updateCallCount = 0
     var deleteCallCount = 0
     var incrementPlayCountCallCount = 0
     var lastDeletedID: UUID?
     var lastUpdatedSong: Song?
     var lastCreatedSong: Song?
+    var lastCreatedSongs: [Song] = []
 
     var shouldThrowOnCreate = false
     var shouldThrowOnUpdate = false
@@ -42,7 +44,29 @@ final class MockSongRepository: SongRepositoryProtocol {
     }
 
     func getTopSongs(limit: Int) async throws -> [Song] {
-        Array(songs.sorted { $0.playCount > $1.playCount }.prefix(limit))
+        Array(songs.filter { $0.playCount > 0 }.sorted { $0.playCount > $1.playCount }.prefix(limit))
+    }
+
+    func getRecentlyPlayed(limit: Int) async throws -> [Song] {
+        Array(
+            songs
+                .filter { $0.lastPlayedAt != nil }
+                .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
+                .prefix(limit)
+        )
+    }
+
+    func search(query: String) async throws -> [Song] {
+        guard !query.isEmpty else { return songs }
+        return songs.filter {
+            $0.title.localizedCaseInsensitiveContains(query) ||
+            $0.artist.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    func searchByAlbum(query: String) async throws -> [Song] {
+        guard !query.isEmpty else { return [] }
+        return songs.filter { $0.album?.localizedCaseInsensitiveContains(query) ?? false }
     }
 
     func create(_ song: Song) async throws {
@@ -50,6 +74,13 @@ final class MockSongRepository: SongRepositoryProtocol {
         createCallCount += 1
         lastCreatedSong = song
         songs.append(song)
+    }
+
+    func create(_ songs: [Song]) async throws {
+        if shouldThrowOnCreate { throw SongError.fileNotFound }
+        createManyCallCount += 1
+        lastCreatedSongs = songs
+        self.songs.append(contentsOf: songs)
     }
 
     func update(_ song: Song) async throws {

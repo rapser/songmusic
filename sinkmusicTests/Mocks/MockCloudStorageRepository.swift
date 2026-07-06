@@ -15,12 +15,17 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
 
     var downloadCallCount = 0
     var deleteDownloadCallCount = 0
+    var fetchCallCount = 0
+
+    var lastDownloadedSongID: UUID?
+    var lastDeletedSongID: UUID?
 
     var shouldThrowOnFetch = false
     var shouldThrowOnDownload = false
     var shouldThrowOnDelete = false
 
     func fetchSongsFromFolder() async throws -> [CloudFile] {
+        fetchCallCount += 1
         if shouldThrowOnFetch { throw CloudStorageError.credentialsNotConfigured }
         return remoteFiles
     }
@@ -28,6 +33,7 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
     func download(fileID: String, songID: UUID) async throws -> URL {
         if shouldThrowOnDownload { throw CloudStorageError.downloadFailed(SongError.fileNotFound) }
         downloadCallCount += 1
+        lastDownloadedSongID = songID
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("\(songID.uuidString).m4a")
         downloadedURLs[songID] = url
@@ -41,6 +47,7 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
     func deleteDownload(for songID: UUID) throws {
         if shouldThrowOnDelete { throw SongError.fileNotFound }
         deleteDownloadCallCount += 1
+        lastDeletedSongID = songID
         downloadedURLs.removeValue(forKey: songID)
     }
 

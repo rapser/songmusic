@@ -103,7 +103,7 @@ struct PreviewViewModels {
 
     static func libraryVM() -> LibraryViewModel {
         setupDI()
-        return LibraryViewModel(libraryUseCases: DIContainer.shared.libraryUseCases, eventBus: DIContainer.shared.eventBus)
+        return DIContainer.shared.makeLibraryViewModel()
     }
 
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
@@ -120,12 +120,12 @@ struct PreviewViewModels {
 
     static func playlistVM() -> PlaylistViewModel {
         setupDI()
-        return PlaylistViewModel(playlistUseCases: DIContainer.shared.playlistUseCases, eventBus: DIContainer.shared.eventBus)
+        return DIContainer.shared.makePlaylistViewModel()
     }
 
     static func searchVM() -> SearchViewModel {
         setupDI()
-        return SearchViewModel(searchUseCases: DIContainer.shared.searchUseCases)
+        return DIContainer.shared.makeSearchViewModel()
     }
 
     static func equalizerVM() -> EqualizerViewModel {
@@ -135,6 +135,10 @@ struct PreviewViewModels {
 
     static func metadataVM() -> MetadataCacheViewModel {
         return MetadataCacheViewModel()
+    }
+
+    static func playerCoordinatorVM(metadataVM: MetadataCacheViewModel? = nil) -> PlayerCoordinator {
+        PlayerCoordinator(metadataViewModel: metadataVM ?? MetadataCacheViewModel())
     }
 
     static func downloadVM() -> DownloadViewModel {
@@ -167,6 +171,7 @@ extension PreviewData {
     static func downloadVM() -> DownloadViewModel { PreviewViewModels.downloadVM() }
     static func settingsVM() -> SettingsViewModel { PreviewViewModels.settingsVM() }
     static func metadataVM() -> MetadataCacheViewModel { PreviewViewModels.metadataVM() }
+    static func playerCoordinatorVM() -> PlayerCoordinator { PreviewViewModels.playerCoordinatorVM() }
     static func authVM() -> AuthViewModel { PreviewViewModels.authVM() }
 }
 
@@ -181,6 +186,7 @@ struct PreviewWrapper<Content: View>: View {
     private let downloadVM: DownloadViewModel?
     private let settingsVM: SettingsViewModel?
     private let metadataVM: MetadataCacheViewModel?
+    private let playerCoordinatorVM: PlayerCoordinator?
     private let modelContainer: ModelContainer?
 
     init(
@@ -192,6 +198,7 @@ struct PreviewWrapper<Content: View>: View {
         downloadVM: DownloadViewModel? = nil,
         settingsVM: SettingsViewModel? = nil,
         metadataVM: MetadataCacheViewModel? = nil,
+        playerCoordinatorVM: PlayerCoordinator? = nil,
         modelContainer: ModelContainer? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -203,6 +210,7 @@ struct PreviewWrapper<Content: View>: View {
         self.downloadVM = downloadVM
         self.settingsVM = settingsVM
         self.metadataVM = metadataVM
+        self.playerCoordinatorVM = playerCoordinatorVM
         self.modelContainer = modelContainer
         self.content = content
     }
@@ -217,6 +225,7 @@ struct PreviewWrapper<Content: View>: View {
             .environment(downloadVM ?? PreviewViewModels.downloadVM())
             .environment(settingsVM ?? PreviewViewModels.settingsVM())
             .environment(metadataVM ?? PreviewViewModels.metadataVM())
+            .environment(playerCoordinatorVM ?? PreviewViewModels.playerCoordinatorVM())
             .ifLet(modelContainer) { view, container in
                 view.modelContainer(container)
             }

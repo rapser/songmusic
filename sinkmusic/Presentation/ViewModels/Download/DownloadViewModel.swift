@@ -20,7 +20,7 @@ private final class ActiveTasksManager: @unchecked Sendable {
 /// Soporta descargas paralelas limitadas por proveedor
 @MainActor
 @Observable
-final class DownloadViewModel {
+final class DownloadViewModel: EventBusObservable {
 
     // MARK: - Published State
 
@@ -47,7 +47,7 @@ final class DownloadViewModel {
     // MARK: - Dependencies
 
     private let downloadUseCases: DownloadUseCases
-    private let eventBus: EventBusProtocol
+    private(set) var eventBus: EventBusProtocol
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
@@ -70,7 +70,8 @@ final class DownloadViewModel {
     init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
-        startObservingEvents()
+        downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
+                                          handler: { [weak self] in await self?.handleDownloadEvent($0) })
     }
 
     deinit {
@@ -79,17 +80,6 @@ final class DownloadViewModel {
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
-
-    private func startObservingEvents() {
-        downloadEventTask = Task { [weak self] in
-            guard let self else { return }
-
-            for await event in self.eventBus.downloadEvents() {
-                guard !Task.isCancelled else { break }
-                await self.handleDownloadEvent(event)
-            }
-        }
-    }
 
     private func handleDownloadEvent(_ event: DownloadEvent) async {
         switch event {
@@ -119,21 +109,18 @@ final class DownloadViewModel {
                 downloadProgress[songID] = nil
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
-                // Cuando no quede ninguna tarea, dejar estado limpio
-                if !isDownloading { downloadError = nil }
             }
 
         case .failed(let songID, let error):
             // Solo actualizar si nosotros iniciamos esta descarga
             if activeTasksManager.tasks[songID] != nil {
                 downloadProgress[songID] = nil
-                downloadError = "Error descargando canción: \(error)"
-                logger.error("Error descarga (via EventBus): \(error)")
+                downloadError = error.kind.userMessage + (error.message.isEmpty || error.message == error.kind.userMessage ? "" : " (\(error.message))")
+                logger.error("Error descarga (via EventBus): \(error.kind.rawValue) - \(error.message)")
 
                 // Limpiar tarea
                 activeTasksManager.tasks.removeValue(forKey: songID)
                 isDownloading = !activeTasksManager.tasks.isEmpty
-                if !isDownloading { downloadError = nil }
             }
 
         case .cancelled(let songID):
@@ -231,7 +218,8 @@ final class DownloadViewModel {
                 quotaExceededProvider = provider
                 quotaResetTime = Date().addingTimeInterval(retryAfter)
                 showQuotaAlert = true
-                downloadError = megaError.localizedDescription
+                let failure = DownloadFailure(error: megaError)
+                downloadError = failure.kind.userMessage + (failure.message.isEmpty || failure.message == failure.kind.userMessage ? "" : " (\(failure.message))")
 
                 eventBus.emit(DownloadEvent.quotaExceeded(
                     provider: provider.rawValue,
@@ -242,17 +230,18 @@ final class DownloadViewModel {
                 clearAllTasksAndProgress()
                 logger.warning("Límite Mega alcanzado; descargas canceladas y estado limpiado")
 
-            } catch {
-                // Nota: El error también se emite via EventBus
-                // Este catch es para errores que ocurren ANTES de iniciar la descarga
-                // (como songNotFound, alreadyDownloaded)
-                downloadProgress[songID] = nil
-                downloadError = "Error descargando canción: \(error.localizedDescription)"
-                logger.error("Error descargando canción: \(error.localizedDescription)")
+        } catch {
+            // Nota: El error también se emite via EventBus
+            // Este catch es para errores que ocurren ANTES de iniciar la descarga
+            // (como songNotFound, alreadyDownloaded)
+            downloadProgress[songID] = nil
+            let failure = DownloadFailure(error: error)
+            downloadError = failure.kind.userMessage + (failure.message.isEmpty || failure.message == failure.kind.userMessage ? "" : " (\(failure.message))")
+            logger.error("Error descargando canción: \(error.localizedDescription)")
 
-                // Limpiar tarea
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+            // Limpiar tarea
+            activeTasksManager.tasks.removeValue(forKey: songID)
+            isDownloading = !activeTasksManager.tasks.isEmpty
             }
         }
 
@@ -338,7 +327,6 @@ final class DownloadViewModel {
     private func cleanupWhenIdle() {
         guard activeTasksManager.tasks.isEmpty else { return }
         isDownloading = false
-        downloadError = nil
         // downloadProgress ya está vacío por cada .completed/.failed; por si acaso no quedar claves huérfanas
         downloadProgress.removeAll()
     }
@@ -380,15 +368,24 @@ final class DownloadViewModel {
 
     // MARK: - Utilities
 
-    /// True si el proveedor actual es Mega (permite descarga masiva)
-    var isMegaProvider: Bool {
-        downloadUseCases.currentCloudProvider() == .mega
+    /// Capacidades del proveedor activo — sin acoplamiento directo al enum.
+    var currentProviderCapabilities: CloudProviderCapabilities {
+        downloadUseCases.currentProviderCapabilities()
     }
 
-    /// True si Mega tiene el límite de cuota alcanzado (informar al usuario)
-    var isMegaQuotaExceeded: Bool {
-        quotaExceededProvider == .mega
+    /// True si el proveedor activo soporta cuota de transferencia (e.g. Mega).
+    var supportsQuotaTracking: Bool {
+        currentProviderCapabilities.supportsQuotaTracking
     }
+
+    /// True si el proveedor activo tiene el límite de cuota excedido.
+    var isQuotaExceeded: Bool {
+        quotaExceededProvider != nil
+    }
+
+    // Mantenidos por compatibilidad con vistas existentes
+    var isMegaProvider: Bool { supportsQuotaTracking }
+    var isMegaQuotaExceeded: Bool { isQuotaExceeded }
 
     /// Verifica si una canción está siendo descargada
     /// - Parameter songID: ID de la canción

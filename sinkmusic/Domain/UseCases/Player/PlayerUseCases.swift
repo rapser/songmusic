@@ -47,13 +47,13 @@ final class PlayerUseCases {
             throw PlayerError.fileNotDownloaded
         }
 
-        // Enviar Now Playing ANTES de iniciar el audio para que Lock Screen tenga los datos
-        await updateNowPlayingInfo(for: songEntity)
-
         try await audioPlayerRepository.play(songID: songID, url: localURL)
         currentSongID = songID
         currentSong = songEntity
         isPlaying = true
+
+        // Actualizar Now Playing después de arrancar el audio para no retrasar el primer sonido
+        await updateNowPlayingInfo(for: songEntity)
 
         // Marcar como reproduciendo en Lock Screen (rate 1.0)
         let duration = songEntity.duration ?? 0

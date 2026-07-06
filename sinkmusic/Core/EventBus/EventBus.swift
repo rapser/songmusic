@@ -8,7 +8,12 @@
 
 import Foundation
 
-/// Bus de eventos centralizado para comunicación entre capas
+/// Bus de eventos centralizado para comunicación de eventos verdaderamente globales/cross-cutting:
+/// autenticación, reproducción (Live Activity, remote control) y descargas.
+///
+/// La reactividad local de listas (Home/Library/Playlist/Search) NO pasa por aquí — vive en los
+/// `ReadStoreProtocol` de cada dominio (`Domain/ReadStores/`), que reaccionan directamente a
+/// `ModelContext.didSave` de SwiftData. Ver `ModelContextChangeObserver`.
 ///
 /// Usa @Observable para estado observable + AsyncStream para eventos
 /// Reactividad moderna iOS 18+ / Swift 6
@@ -23,14 +28,13 @@ import Foundation
 ///
 /// ### Publicar evento (desde Service/DataSource)
 /// ```swift
-/// eventBus.emit(.songsUpdated)
 /// eventBus.emit(.stateChanged(isPlaying: true, songID: id))
 /// ```
 ///
 /// ### Suscribirse (desde ViewModel)
 /// ```swift
 /// Task { [weak self] in
-///     for await event in eventBus.dataEvents() {
+///     for await event in eventBus.playbackEvents() {
 ///         self?.handleEvent(event)
 ///     }
 /// }
@@ -43,9 +47,6 @@ import Foundation
 final class EventBus: EventBusProtocol {
 
     // MARK: - Observable State
-
-    /// Último evento de datos (para observación directa en SwiftUI)
-    private(set) var lastDataEvent: DataChangeEvent?
 
     /// ID del usuario autenticado (nil si no hay sesión)
     private(set) var authUserID: String?
@@ -61,20 +62,9 @@ final class EventBus: EventBusProtocol {
 
     // MARK: - Stream Continuations
 
-    private var dataEventContinuations: [UUID: AsyncStream<DataChangeEvent>.Continuation] = [:]
     private var authEventContinuations: [UUID: AsyncStream<AuthEvent>.Continuation] = [:]
     private var playbackEventContinuations: [UUID: AsyncStream<PlaybackEvent>.Continuation] = [:]
     private var downloadEventContinuations: [UUID: AsyncStream<DownloadEvent>.Continuation] = [:]
-
-    // MARK: - Emit Data Events
-
-    /// Emitir evento de cambio de datos
-    func emit(_ event: DataChangeEvent) {
-        lastDataEvent = event
-        for (_, continuation) in dataEventContinuations {
-            continuation.yield(event)
-        }
-    }
 
     // MARK: - Emit Auth Events
 
@@ -139,22 +129,6 @@ final class EventBus: EventBusProtocol {
 
     // MARK: - AsyncStream Factories
 
-    /// Stream de eventos de datos
-    /// - Returns: AsyncStream que emite DataChangeEvent
-    func dataEvents() -> AsyncStream<DataChangeEvent> {
-        let id = UUID()
-        return AsyncStream { [weak self] continuation in
-            Task { @MainActor [weak self] in
-                self?.dataEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.dataEventContinuations.removeValue(forKey: id)
-                }
-            }
-        }
-    }
-
     /// Stream de eventos de autenticación
     /// - Returns: AsyncStream que emite AuthEvent
     func authEvents() -> AsyncStream<AuthEvent> {
@@ -214,15 +188,11 @@ final class EventBus: EventBusProtocol {
     #if DEBUG
     /// Reset all state (for testing only)
     func reset() {
-        lastDataEvent = nil
         authUserID = nil
         playbackState = .idle
         playbackTimeInfo = .zero
 
         // Finish all streams
-        for (_, continuation) in dataEventContinuations {
-            continuation.finish()
-        }
         for (_, continuation) in authEventContinuations {
             continuation.finish()
         }
@@ -233,7 +203,6 @@ final class EventBus: EventBusProtocol {
             continuation.finish()
         }
 
-        dataEventContinuations.removeAll()
         authEventContinuations.removeAll()
         playbackEventContinuations.removeAll()
         downloadEventContinuations.removeAll()

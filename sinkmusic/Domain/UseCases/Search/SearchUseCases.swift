@@ -54,41 +54,31 @@ final class SearchUseCases {
         return allSongs.filter { $0.album == album }
     }
 
-    /// Filtra canciones descargadas
+    /// Filtra canciones descargadas (query targeted, no getAll()+filter)
     func getDownloadedSongs() async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs.filter { $0.isDownloaded }
+        return try await songRepository.getDownloaded()
     }
 
-    /// Filtra canciones no descargadas
+    /// Filtra canciones no descargadas (query targeted, no getAll()+filter)
     func getNotDownloadedSongs() async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs.filter { !$0.isDownloaded }
+        return try await songRepository.getPending()
     }
 
-    /// Obtiene canciones más reproducidas
+    /// Obtiene canciones más reproducidas (query targeted, no getAll()+filter)
     func getMostPlayedSongs(limit: Int = 20) async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs
-            .filter { $0.playCount > 0 }
-            .sorted { $0.playCount > $1.playCount }
-            .prefix(limit)
-            .map { $0 }
+        return try await songRepository.getTopSongs(limit: limit)
     }
 
-    /// Obtiene canciones reproducidas recientemente
+    /// Obtiene canciones reproducidas recientemente (query targeted, no getAll()+filter)
     func getRecentlyPlayedSongs(limit: Int = 20) async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs
-            .filter { $0.lastPlayedAt != nil }
-            .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
-            .prefix(limit)
-            .map { $0 }
+        return try await songRepository.getRecentlyPlayed(limit: limit)
     }
 
     // MARK: - Advanced Search
 
-    /// Búsqueda avanzada con múltiples filtros
+    /// Búsqueda avanzada con múltiples filtros.
+    /// Si hay `query`, combina dos consultas targeted (título/artista y álbum) en vez de `getAll()`.
+    /// Sin `query` (modo "ver todo"), sigue usando `getAll()`: no hay predicate que angostar.
     func advancedSearch(
         query: String?,
         artist: String?,
@@ -96,16 +86,14 @@ final class SearchUseCases {
         downloadedOnly: Bool = false,
         sortBy: SortOption = .title
     ) async throws -> [Song] {
-        var results = try await songRepository.getAll()
-
-        // Aplicar filtro de texto
+        var results: [Song]
         if let query = query, !query.isEmpty {
-            let lowercaseQuery = query.lowercased()
-            results = results.filter { song in
-                song.title.lowercased().contains(lowercaseQuery) ||
-                song.artist.lowercased().contains(lowercaseQuery) ||
-                song.album?.lowercased().contains(lowercaseQuery) ?? false
-            }
+            let byTitleOrArtist = try await songRepository.search(query: query)
+            let byAlbum = try await songRepository.searchByAlbum(query: query)
+            var seenIDs = Set<UUID>()
+            results = (byTitleOrArtist + byAlbum).filter { seenIDs.insert($0.id).inserted }
+        } else {
+            results = try await songRepository.getAll()
         }
 
         // Aplicar filtro de artista
@@ -154,6 +142,11 @@ final class SearchUseCases {
     }
 
     // MARK: - Aggregations
+    //
+    // Excepción aceptada: los 4 métodos de esta sección usan `getAll()` porque son
+    // agregaciones (distinct/conteo) sobre *todas* las canciones — SwiftData no soporta
+    // GROUP BY/DISTINCT a nivel de FetchDescriptor, así que no hay query targeted posible
+    // sin ejecutar SQL crudo (fuera de alcance).
 
     /// Obtiene lista única de artistas
     func getAllArtists() async throws -> [String] {

@@ -14,6 +14,7 @@ final class DownloadUseCasesTests: XCTestCase {
     private var mockCloudStorage: MockCloudStorageRepository!
     private var mockMetadata: MockMetadataRepository!
     private var mockCredentials: MockCredentialsRepository!
+    private var mockEventBus: MockEventBus!
 
     override func setUp() {
         super.setUp()
@@ -21,11 +22,13 @@ final class DownloadUseCasesTests: XCTestCase {
         mockCloudStorage = MockCloudStorageRepository()
         mockMetadata = MockMetadataRepository()
         mockCredentials = MockCredentialsRepository()
+        mockEventBus = MockEventBus()
         sut = DownloadUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
             metadataRepository: mockMetadata,
-            credentialsRepository: mockCredentials
+            credentialsRepository: mockCredentials,
+            eventBus: mockEventBus
         )
     }
 
@@ -35,6 +38,7 @@ final class DownloadUseCasesTests: XCTestCase {
         mockCloudStorage = nil
         mockMetadata = nil
         mockCredentials = nil
+        mockEventBus = nil
         super.tearDown()
     }
 
@@ -262,26 +266,31 @@ final class DownloadUseCasesTests: XCTestCase {
         let songs = [Song.make(isDownloaded: false), Song.make(isDownloaded: false)]
         mockSongRepo.songs = songs
 
-        await sut.downloadMultipleSongs(songs.map { $0.id })
+        let result = await sut.downloadMultipleSongs(songs.map { $0.id })
 
         XCTAssertEqual(mockSongRepo.updateCallCount, 2)
+        XCTAssertTrue(result.allSucceeded)
+        XCTAssertEqual(result.successCount, 2)
     }
 
-    func test_downloadMultipleSongs_skipsFailuresAndContinues() async {
+    func test_downloadMultipleSongs_partialFailure_reportsFailed() async {
         let goodSong = Song.make(isDownloaded: false)
-        // Segundo ID no existe → .songNotFound es ignorado silenciosamente
         mockSongRepo.songs = [goodSong]
 
-        await sut.downloadMultipleSongs([goodSong.id, UUID()])
+        let result = await sut.downloadMultipleSongs([goodSong.id, UUID()])
 
         XCTAssertEqual(mockSongRepo.updateCallCount, 1)
+        XCTAssertEqual(result.successCount, 1)
+        XCTAssertEqual(result.failureCount, 1)
+        XCTAssertTrue(result.hasFailures)
     }
 
     func test_downloadMultipleSongs_emptyList_makesNoCalls() async {
-        await sut.downloadMultipleSongs([])
+        let result = await sut.downloadMultipleSongs([])
 
         XCTAssertEqual(mockCloudStorage.downloadCallCount, 0)
         XCTAssertEqual(mockSongRepo.updateCallCount, 0)
+        XCTAssertTrue(result.allSucceeded)
     }
 
     // MARK: - deleteAllDownloads()

@@ -188,6 +188,43 @@ final class PlayerUseCasesTests: XCTestCase {
         XCTAssertEqual(result.count, 1)
     }
 
+    // MARK: - getSongByID()
+
+    func test_getSongByID_returnsMatchingSong() async throws {
+        let song = Song.make(title: "Bohemian Rhapsody")
+        mockSongRepo.songs = [song]
+
+        let result = try await sut.getSongByID(song.id)
+
+        XCTAssertEqual(result?.title, "Bohemian Rhapsody")
+    }
+
+    func test_getSongByID_returnsNil_forUnknownID() async throws {
+        let result = try await sut.getSongByID(UUID())
+        XCTAssertNil(result)
+    }
+
+    // MARK: - updateNowPlayingTime()
+
+    func test_updateNowPlayingTime_withNoCurrentSong_makesNoCall() async {
+        await sut.updateNowPlayingTime(currentTime: 30, duration: 180)
+        XCTAssertEqual(mockAudioPlayer.updateNowPlayingCallCount, 0)
+    }
+
+    func test_updateNowPlayingTime_afterPlay_callsAudioPlayer() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        try await sut.play(songID: songID)
+
+        let callsBefore = mockAudioPlayer.updateNowPlayingCallCount
+        await sut.updateNowPlayingTime(currentTime: 30, duration: 180)
+
+        XCTAssertGreaterThan(mockAudioPlayer.updateNowPlayingCallCount, callsBefore)
+    }
+
     // MARK: - Helpers
 
     private func createTempAudioFile(songID: UUID) throws -> URL {

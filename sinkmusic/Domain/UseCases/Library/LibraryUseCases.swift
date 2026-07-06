@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Casos de uso agrupados para la biblioteca de música
 /// Gestiona sincronización con almacenamiento cloud y acceso a canciones
@@ -18,6 +19,7 @@ final class LibraryUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Library")
 
     // MARK: - Initialization
 
@@ -43,15 +45,10 @@ final class LibraryUseCases {
         return try await songRepository.getByID(id)
     }
 
-    /// Obtiene canciones reproducidas recientemente
+    /// Obtiene canciones reproducidas recientemente (query targeted, no getAll()+filter)
     /// - Parameter limit: Número máximo de canciones a retornar
     func getRecentlyPlayedSongs(limit: Int = 10) async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs
-            .filter { $0.lastPlayedAt != nil }
-            .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
-            .prefix(limit)
-            .map { $0 }
+        return try await songRepository.getRecentlyPlayed(limit: limit)
     }
 
     /// Obtiene las canciones más reproducidas
@@ -95,10 +92,8 @@ final class LibraryUseCases {
         // Filtrar nuevas canciones
         let newFiles = remoteFiles.filter { !localFileIDs.contains($0.id) }
 
-        // Crear entidades para nuevas canciones
-        var newSongsCount = 0
-        for file in newFiles {
-            let newSong = Song(
+        let newSongs = newFiles.map { file in
+            Song(
                 id: UUID(),
                 title: file.title,
                 artist: file.artist,
@@ -114,12 +109,12 @@ final class LibraryUseCases {
                 lastPlayedAt: nil,
                 dominantColor: nil
             )
-
-            try await songRepository.create(newSong)
-            newSongsCount += 1
         }
 
-        return newSongsCount
+        guard !newSongs.isEmpty else { return 0 }
+
+        try await songRepository.create(newSongs)
+        return newSongs.count
     }
 
     /// Verifica si hay credenciales configuradas para el proveedor seleccionado
@@ -168,16 +163,29 @@ final class LibraryUseCases {
         try await songRepository.delete(id)
     }
 
-    /// Elimina múltiples canciones
-    func deleteSongs(_ ids: [UUID]) async throws {
+    /// Elimina múltiples canciones en modo best-effort.
+    /// Si una falla, continúa con las demás y reporta todos los fallos en el `BatchResult`.
+    func deleteSongs(_ ids: [UUID]) async -> BatchResult<UUID> {
+        var succeeded: [UUID] = []
+        var failed: [(id: UUID, error: Error)] = []
+
         for id in ids {
-            try await deleteSong(id)
+            do {
+                try await deleteSong(id)
+                succeeded.append(id)
+            } catch {
+                logger.error("Error al eliminar canción \(id): \(error)")
+                failed.append((id: id, error: error))
+            }
         }
+        return BatchResult(succeeded: succeeded, failed: failed)
     }
 
     // MARK: - Statistics
 
-    /// Obtiene estadísticas de la biblioteca
+    /// Obtiene estadísticas de la biblioteca.
+    /// Excepción aceptada: usa `getAll()` porque son agregaciones (conteos/sumas) sobre
+    /// *todas* las canciones — SwiftData no soporta agregación a nivel de `FetchDescriptor`.
     func getLibraryStats() async throws -> LibraryStats {
         let songs = try await songRepository.getAll()
 

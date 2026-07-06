@@ -142,14 +142,15 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
     ) {
         let key = TaskKey(downloadTask)
 
-        // 0–99% = descarga real; 100% solo al terminar desencriptado y guardado (progreso continuo y honesto)
+        // 0–90% = descarga de red. El resto del pipeline (desencriptado, metadata,
+        // guardado en SwiftData) completa el 90–100% — ver DownloadUseCases.downloadSong.
         let rawProgress: Double
         if totalBytesExpectedToWrite > 0 {
             rawProgress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
         } else {
             rawProgress = Double(totalBytesWritten) / Double(10 * 1024 * 1024)
         }
-        let progress = min(0.99, rawProgress)
+        let progress = min(0.90, rawProgress * 0.90)
 
         Task { [weak self] in
             guard let self else { return }
@@ -179,19 +180,20 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
             case .success(let data):
                 encryptedData = data
             case .failure(let error):
-                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
                 info.continuation.resume(throwing: error)
                 return
             }
 
-            // Pequeño avance al iniciar desencriptado (evita sensación de congelado en 99%)
-            await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.995)) }
+            // Fase de desencriptado (la red terminó en 90%)
+            await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.92)) }
             do {
                 let localURL = try await info.decryptAndSave(encryptedData)
-                await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 1.0)) }
+                // Archivo en disco; faltan metadata y guardado en SwiftData (DownloadUseCases)
+                await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.95)) }
                 info.continuation.resume(returning: localURL)
             } catch {
-                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+                await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
                 info.continuation.resume(throwing: error)
             }
         }
@@ -204,7 +206,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
         Task { [weak self] in
             guard let self else { return }
             guard let info = await self.state.removeTask(for: key) else { return }
-            await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, error: error.localizedDescription)) }
+            await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
             info.continuation.resume(throwing: error)
         }
     }

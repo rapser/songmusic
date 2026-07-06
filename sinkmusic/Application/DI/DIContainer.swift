@@ -51,6 +51,14 @@ final class DIContainer {
         authViewModel.checkAuth()
     }
 
+    /// Devuelve el `ModelContext` configurado o falla — evita repetir el guard en cada factory.
+    private func requireModelContext() -> ModelContext {
+        guard let modelContext else {
+            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
+        }
+        return modelContext
+    }
+
     // MARK: - Core Services (Creados una sola vez)
 
     /// EventBus - Instancia única creada en init
@@ -121,15 +129,35 @@ final class DIContainer {
 
     private(set) lazy var settingsUseCases: SettingsUseCases = makeSettingsUseCases()
 
+    // MARK: - Read Stores (lectura reactiva, SOLID: Interface Segregation por dominio)
+
+    private(set) lazy var homeReadStore: HomeReadStoreProtocol = HomeReadStore(
+        libraryUseCases: libraryUseCases,
+        playlistUseCases: playlistUseCases,
+        modelContext: requireModelContext()
+    )
+
+    private(set) lazy var libraryReadStore: LibraryReadStoreProtocol = LibraryReadStore(
+        libraryUseCases: libraryUseCases,
+        modelContext: requireModelContext()
+    )
+
+    private(set) lazy var playlistReadStore: PlaylistReadStoreProtocol = PlaylistReadStore(
+        playlistUseCases: playlistUseCases,
+        modelContext: requireModelContext()
+    )
+
+    private(set) lazy var searchReadStore: SearchReadStoreProtocol = SearchReadStore(
+        searchUseCases: searchUseCases,
+        modelContext: requireModelContext()
+    )
+
     // MARK: - Shared DataSources
 
     /// Instancia única de SongLocalDataSource compartida entre todos los repositorios
     /// que la necesiten. Evita múltiples instancias apuntando al mismo ModelContext.
     private lazy var songLocalDataSource: SongLocalDataSource = {
-        guard let context = modelContext else {
-            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
-        }
-        return SongLocalDataSource(modelContext: context, eventBus: eventBus)
+        SongLocalDataSource(modelContext: requireModelContext())
     }()
 
     // MARK: - Repository Factories
@@ -139,10 +167,7 @@ final class DIContainer {
     }
 
     private func makePlaylistRepository() -> PlaylistRepositoryProtocol {
-        guard let context = modelContext else {
-            fatalError("❌ DIContainer: ModelContext no configurado. Llama a configure(with:) primero.")
-        }
-        let playlistLocalDataSource = PlaylistLocalDataSource(modelContext: context, eventBus: eventBus)
+        let playlistLocalDataSource = PlaylistLocalDataSource(modelContext: requireModelContext())
         return PlaylistRepositoryImpl(
             localDataSource: playlistLocalDataSource,
             songRepository: songRepository,
@@ -211,7 +236,8 @@ final class DIContainer {
             songRepository: songRepository,
             cloudStorageRepository: cloudStorageRepository,
             metadataRepository: metadataRepository,
-            credentialsRepository: credentialsRepository
+            credentialsRepository: credentialsRepository,
+            eventBus: eventBus
         )
     }
 
@@ -232,17 +258,17 @@ final class DIContainer {
 
     /// Factory para LibraryViewModel
     func makeLibraryViewModel() -> LibraryViewModel {
-        LibraryViewModel(libraryUseCases: libraryUseCases, eventBus: eventBus)
+        LibraryViewModel(libraryUseCases: libraryUseCases, readStore: libraryReadStore)
     }
 
     /// Factory para PlaylistViewModel
     func makePlaylistViewModel() -> PlaylistViewModel {
-        PlaylistViewModel(playlistUseCases: playlistUseCases, eventBus: eventBus)
+        PlaylistViewModel(playlistUseCases: playlistUseCases, readStore: playlistReadStore)
     }
 
     /// Factory para SearchViewModel
     func makeSearchViewModel() -> SearchViewModel {
-        SearchViewModel(searchUseCases: searchUseCases)
+        SearchViewModel(readStore: searchReadStore)
     }
 
     /// Factory para SettingsViewModel
@@ -260,11 +286,7 @@ final class DIContainer {
 
     /// Factory para HomeViewModel
     func makeHomeViewModel() -> HomeViewModel {
-        HomeViewModel(
-            playlistUseCases: playlistUseCases,
-            libraryUseCases: libraryUseCases,
-            eventBus: eventBus
-        )
+        HomeViewModel(readStore: homeReadStore)
     }
 
     /// Factory para DownloadViewModel
@@ -279,5 +301,10 @@ final class DIContainer {
     /// Nota: Usar authViewModel directamente en lugar de crear nuevas instancias
     func makeAuthViewModel() -> AuthViewModel {
         authViewModel
+    }
+
+    /// Factory para PlayerCoordinator — recibe MetadataCacheViewModel que vive en la capa de UI
+    func makePlayerCoordinator(metadataViewModel: MetadataCacheViewModel) -> PlayerCoordinator {
+        PlayerCoordinator(metadataViewModel: metadataViewModel)
     }
 }
