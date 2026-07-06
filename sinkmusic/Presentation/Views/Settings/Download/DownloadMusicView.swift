@@ -10,14 +10,11 @@ import SwiftUI
 
 struct DownloadMusicView: View {
     // MARK: - ViewModels (Clean Architecture)
-    @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
-    @Environment(PlaylistViewModel.self) private var playlistViewModel
-    @Environment(SettingsViewModel.self) private var settingsViewModel
     @Environment(DownloadViewModel.self) private var downloadViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var songForPlaylistSheet: SongUI?
+    @State private var showErrorAlert = false
 
     var pendingSongs: [SongUI] {
         libraryViewModel.songs.filter { !$0.isDownloaded }
@@ -29,11 +26,13 @@ struct DownloadMusicView: View {
             Color.appDark.ignoresSafeArea()
             contentView
         }
-        .sheet(item: $songForPlaylistSheet) { song in
-            AddToPlaylistView(song: song)
-        }
         .navigationTitle("Descargar música")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                syncToolbarButton
+            }
+        }
         .alert("Límite de Descarga Alcanzado", isPresented: $download.showQuotaAlert) {
             Button("Entendido", role: .cancel) {
                 downloadViewModel.dismissQuotaAlert()
@@ -43,6 +42,18 @@ struct DownloadMusicView: View {
                 Text("Has alcanzado el límite de descarga de Mega (5GB/día). Podrás continuar descargando \(timeFormatted).")
             } else {
                 Text("Has alcanzado el límite de descarga de Mega (5GB/día). Por favor espera antes de continuar.")
+            }
+        }
+        .onChange(of: downloadViewModel.downloadError) { _, newValue in
+            showErrorAlert = newValue != nil
+        }
+        .alert("Error de descarga", isPresented: $showErrorAlert) {
+            Button("OK") {
+                downloadViewModel.clearDownloadError()
+            }
+        } message: {
+            if let error = downloadViewModel.downloadError {
+                Text(error)
             }
         }
     }
@@ -68,8 +79,9 @@ struct DownloadMusicView: View {
                 }
                 PendingSongsListView(
                     pendingSongs: pendingSongs,
-                    playerViewModel: playerViewModel,
-                    songForPlaylistSheet: $songForPlaylistSheet
+                    onRefresh: {
+                        await libraryViewModel.syncLibraryWithCatalog()
+                    }
                 )
             }
         }
@@ -113,6 +125,26 @@ struct DownloadMusicView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.appGray.opacity(0.5))
+    }
+
+    @ViewBuilder
+    private var syncToolbarButton: some View {
+        if downloadViewModel.isMegaProvider {
+            Button {
+                Task {
+                    await libraryViewModel.syncLibraryWithCatalog()
+                }
+            } label: {
+                if libraryViewModel.isLoadingSongs {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .disabled(libraryViewModel.isLoadingSongs)
+            .accessibilityLabel("Sincronizar carpeta")
+        }
     }
 }
 

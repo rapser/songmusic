@@ -11,17 +11,20 @@ import Foundation
 /// y obtiene `makeEventTask` como implementación por defecto.
 ///
 /// ## Uso
+/// Solo lo usan ViewModels que reaccionan a eventos verdaderamente globales
+/// (`PlaybackEvent`, `DownloadEvent`). La reactividad local de listas usa
+/// `ReadStoreProtocol.changes()` en su lugar, no este mixin.
 /// ```swift
-/// final class LibraryViewModel: EventBusObservable {
+/// final class DownloadViewModel: EventBusObservable {
 ///     var eventBus: EventBusProtocol
-///     private var dataEventTask: Task<Void, Never>?
+///     private var downloadEventTask: Task<Void, Never>?
 ///
 ///     init(eventBus: EventBusProtocol) {
 ///         self.eventBus = eventBus
-///         dataEventTask = makeEventTask(stream: { $0.dataEvents() },
-///                                       handler: { [weak self] in await self?.handleDataEvent($0) })
+///         downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
+///                                           handler: { [weak self] in await self?.handleDownloadEvent($0) })
 ///     }
-///     deinit { dataEventTask?.cancel() }
+///     deinit { downloadEventTask?.cancel() }
 /// }
 /// ```
 @MainActor

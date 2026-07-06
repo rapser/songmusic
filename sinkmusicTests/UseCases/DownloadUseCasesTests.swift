@@ -14,6 +14,7 @@ final class DownloadUseCasesTests: XCTestCase {
     private var mockCloudStorage: MockCloudStorageRepository!
     private var mockMetadata: MockMetadataRepository!
     private var mockCredentials: MockCredentialsRepository!
+    private var mockEventBus: MockEventBus!
 
     override func setUp() {
         super.setUp()
@@ -21,11 +22,13 @@ final class DownloadUseCasesTests: XCTestCase {
         mockCloudStorage = MockCloudStorageRepository()
         mockMetadata = MockMetadataRepository()
         mockCredentials = MockCredentialsRepository()
+        mockEventBus = MockEventBus()
         sut = DownloadUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
             metadataRepository: mockMetadata,
-            credentialsRepository: mockCredentials
+            credentialsRepository: mockCredentials,
+            eventBus: mockEventBus
         )
     }
 
@@ -35,6 +38,7 @@ final class DownloadUseCasesTests: XCTestCase {
         mockCloudStorage = nil
         mockMetadata = nil
         mockCredentials = nil
+        mockEventBus = nil
         super.tearDown()
     }
 

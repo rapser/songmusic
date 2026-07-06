@@ -334,18 +334,35 @@ struct MegaCrypto {
 
     // MARK: - Key String Parsing
 
-    /// Parsea la clave de un nodo desde el formato de Mega
-    /// Formato: "userHandle:encryptedKey" o solo "encryptedKey"
-    func parseNodeKey(_ keyString: String, folderKey: Data) -> Data? {
-        // El formato puede ser "handle:base64key" o solo "base64key"
-        let parts = keyString.components(separatedBy: ":")
-        let keyPart = parts.count > 1 ? parts[1] : parts[0]
+    /// Parsea una o varias claves candidatas de un nodo desde el formato de Mega.
+    ///
+    /// Formato simple: "userHandle:encryptedKey" o solo "encryptedKey".
+    /// Formato múltiple: "handle1:key1/handle2:key2/..." — ocurre en archivos que llegaron
+    /// a la carpeta desde más de un contexto de compartido (p.ej. movidos o re-compartidos).
+    /// En vez de quedarnos con una sola candidata, devolvemos todas las claves que parecen
+    /// válidas para que el mapper pruebe cuál desencripta realmente los atributos.
+    func parseNodeKeyCandidates(_ keyString: String, folderKey: Data) -> [Data] {
+        let candidates = keyString.components(separatedBy: "/")
+        var parsedKeys: [Data] = []
 
-        guard let encryptedKey = decodeBase64URL(keyPart) else {
-            return nil
+        for candidate in candidates {
+            let parts = candidate.components(separatedBy: ":")
+            let keyPart = parts.count > 1 ? parts[1] : parts[0]
+
+            guard let encryptedKey = decodeBase64URL(keyPart),
+                  let decrypted = decryptFileKey(encryptedKey: encryptedKey, folderKey: folderKey),
+                  decrypted.count == 16 || decrypted.count == 32 else {
+                continue
+            }
+
+            parsedKeys.append(decrypted)
         }
 
-        // Desencriptar la clave del archivo usando la clave de la carpeta
-        return decryptFileKey(encryptedKey: encryptedKey, folderKey: folderKey)
+        return parsedKeys
+    }
+
+    /// Compatibilidad: conserva el comportamiento antiguo devolviendo la primera clave válida.
+    func parseNodeKey(_ keyString: String, folderKey: Data) -> Data? {
+        parseNodeKeyCandidates(keyString, folderKey: folderKey).first
     }
 }

@@ -30,7 +30,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private let mixerNode: AVAudioMixerNode
 
     // State flags con sincronización
-    private var useAudioEngine = true
     private var isFirstConnection = true
     private var currentScheduleID = UUID()
     private var wasPlayingBeforeInterruption = false
@@ -121,27 +120,20 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                     standardFormatWithSampleRate: fileFormat.sampleRate,
                     channels: 2
                 )
+                let outFormat = stereoFormat ?? fileFormat
 
-                if !isFirstConnection {
-                    playerNode.reset()
-
-                    if audioEngine.isRunning {
-                        audioEngine.stop()
-                    }
-
-                    audioEngine.disconnectNodeInput(audioEngine.mainMixerNode)
-                    audioEngine.disconnectNodeInput(mixerNode)
-                    audioEngine.disconnectNodeInput(eq)
-                } else {
+                if isFirstConnection {
+                    // La cadena se arma una sola vez; luego solo cambiamos la pista programada.
+                    audioEngine.connect(playerNode, to: eq, format: fileFormat)
+                    audioEngine.connect(eq, to: mixerNode, format: fileFormat)
+                    audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
                     isFirstConnection = false
+                } else {
+                    playerNode.stop()
                 }
 
                 // Cadena Hi-Fi: playerNode → eq (bypass) → mixerNode (estéreo) → mainMixerNode
                 // Sin efectos intermedios: señal lo más pura posible, igual que Tidal.
-                let outFormat = stereoFormat ?? fileFormat
-                audioEngine.connect(playerNode, to: eq, format: fileFormat)
-                audioEngine.connect(eq, to: mixerNode, format: fileFormat)
-                audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
 
                 // Pan neutro: canal izquierdo y derecho con igual peso
                 playerNode.pan = 0

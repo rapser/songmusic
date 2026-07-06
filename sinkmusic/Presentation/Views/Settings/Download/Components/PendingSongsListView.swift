@@ -11,8 +11,7 @@ private let pageSize = 20
 
 struct PendingSongsListView: View {
     let pendingSongs: [SongUI]
-    let playerViewModel: PlayerViewModel
-    @Binding var songForPlaylistSheet: SongUI?
+    let onRefresh: () async -> Void
 
     @State private var displayedCount = pageSize
 
@@ -54,7 +53,7 @@ struct PendingSongsListView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(displayedSongs) { song in
-                    songRow(for: song)
+                    PendingSongRow(song: song)
                 }
 
                 if hasMore {
@@ -62,6 +61,9 @@ struct PendingSongsListView: View {
                 }
             }
             .padding(.bottom, 16)
+        }
+        .refreshable {
+            await onRefresh()
         }
     }
 
@@ -81,25 +83,5 @@ struct PendingSongsListView: View {
             .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
-    }
-
-    private func songRow(for song: SongUI) -> some View {
-        SongRow(
-            song: song,
-            songQueue: pendingSongs,
-            isCurrentlyPlaying: playerViewModel.currentlyPlayingID == song.id,
-            isPlaying: playerViewModel.isPlaying,
-            onPlay: {
-                Task {
-                    await playerViewModel.play(songID: song.id, queue: pendingSongs)
-                }
-            },
-            onPause: {
-                Task {
-                    await playerViewModel.pause()
-                }
-            },
-            showAddToPlaylistForSong: $songForPlaylistSheet
-        )
     }
 }

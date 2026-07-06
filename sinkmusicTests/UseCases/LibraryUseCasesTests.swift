@@ -110,7 +110,8 @@ final class LibraryUseCasesTests: XCTestCase {
         let added = try await sut.syncWithCloudStorage()
 
         XCTAssertEqual(added, 2)
-        XCTAssertEqual(mockSongRepo.createCallCount, 2)
+        XCTAssertEqual(mockSongRepo.createManyCallCount, 1)
+        XCTAssertEqual(mockSongRepo.createCallCount, 0)
     }
 
     func test_sync_skipsAlreadyLocalSongs() async throws {
@@ -121,6 +122,7 @@ final class LibraryUseCasesTests: XCTestCase {
         let added = try await sut.syncWithCloudStorage()
 
         XCTAssertEqual(added, 0)
+        XCTAssertEqual(mockSongRepo.createManyCallCount, 0)
         XCTAssertEqual(mockSongRepo.createCallCount, 0)
     }
 
@@ -248,7 +250,8 @@ final class LibraryUseCasesTests: XCTestCase {
         let added = try await sut.syncWithCloudStorage()
 
         XCTAssertEqual(added, 2)
-        XCTAssertEqual(mockSongRepo.createCallCount, 2)
+        XCTAssertEqual(mockSongRepo.createManyCallCount, 1)
+        XCTAssertEqual(mockSongRepo.createCallCount, 0)
     }
 
     func test_sync_mega_skipsAlreadyLocalSongs() async throws {
@@ -260,6 +263,7 @@ final class LibraryUseCasesTests: XCTestCase {
         let added = try await sut.syncWithCloudStorage()
 
         XCTAssertEqual(added, 0)
+        XCTAssertEqual(mockSongRepo.createManyCallCount, 0)
         XCTAssertEqual(mockSongRepo.createCallCount, 0)
     }
 

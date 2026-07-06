@@ -37,6 +37,11 @@ final class PlaylistUseCases {
 
     /// Obtiene las playlists más escuchadas (ordenadas por suma de playCount de sus canciones).
     /// Útil para la sección horizontal "Playlists más escuchadas" en Inicio.
+    ///
+    /// Excepción aceptada: ordenar por una suma calculada sobre una relación (`songs.playCount`)
+    /// no es expresable en `SortDescriptor`/`#Predicate` de SwiftData — no hay agregación sobre
+    /// relaciones a nivel de FetchDescriptor. Se deja en memoria; si el volumen lo justifica en el
+    /// futuro, se podría denormalizar un campo cacheado de "total plays" en `PlaylistDTO`.
     func getMostPlayedPlaylists(limit: Int = 10) async throws -> [Playlist] {
         let all = try await playlistRepository.getAll()
         return Array(

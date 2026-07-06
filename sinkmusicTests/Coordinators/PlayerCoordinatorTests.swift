@@ -13,13 +13,13 @@ final class PlayerCoordinatorTests: XCTestCase {
     private var metadataVM: MetadataCacheViewModel!
     private var mockLibraryVM: LibraryViewModel!
     private var mockSongRepo: MockSongRepository!
-    private var mockEventBus: MockEventBus!
+    private var mockReadStore: MockLibraryReadStore!
 
     override func setUp() {
         super.setUp()
         metadataVM = MetadataCacheViewModel()
         mockSongRepo = MockSongRepository()
-        mockEventBus = MockEventBus()
+        mockReadStore = MockLibraryReadStore()
         let libraryUseCases = LibraryUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: MockCloudStorageRepository(),
@@ -27,7 +27,7 @@ final class PlayerCoordinatorTests: XCTestCase {
         )
         mockLibraryVM = LibraryViewModel(
             libraryUseCases: libraryUseCases,
-            eventBus: mockEventBus
+            readStore: mockReadStore
         )
         sut = PlayerCoordinator(metadataViewModel: metadataVM)
     }
@@ -37,7 +37,7 @@ final class PlayerCoordinatorTests: XCTestCase {
         metadataVM = nil
         mockLibraryVM = nil
         mockSongRepo = nil
-        mockEventBus = nil
+        mockReadStore = nil
         super.tearDown()
     }
 

@@ -45,15 +45,10 @@ final class LibraryUseCases {
         return try await songRepository.getByID(id)
     }
 
-    /// Obtiene canciones reproducidas recientemente
+    /// Obtiene canciones reproducidas recientemente (query targeted, no getAll()+filter)
     /// - Parameter limit: Número máximo de canciones a retornar
     func getRecentlyPlayedSongs(limit: Int = 10) async throws -> [Song] {
-        let allSongs = try await songRepository.getAll()
-        return allSongs
-            .filter { $0.lastPlayedAt != nil }
-            .sorted { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
-            .prefix(limit)
-            .map { $0 }
+        return try await songRepository.getRecentlyPlayed(limit: limit)
     }
 
     /// Obtiene las canciones más reproducidas
@@ -97,10 +92,8 @@ final class LibraryUseCases {
         // Filtrar nuevas canciones
         let newFiles = remoteFiles.filter { !localFileIDs.contains($0.id) }
 
-        // Crear entidades para nuevas canciones
-        var newSongsCount = 0
-        for file in newFiles {
-            let newSong = Song(
+        let newSongs = newFiles.map { file in
+            Song(
                 id: UUID(),
                 title: file.title,
                 artist: file.artist,
@@ -116,12 +109,12 @@ final class LibraryUseCases {
                 lastPlayedAt: nil,
                 dominantColor: nil
             )
-
-            try await songRepository.create(newSong)
-            newSongsCount += 1
         }
 
-        return newSongsCount
+        guard !newSongs.isEmpty else { return 0 }
+
+        try await songRepository.create(newSongs)
+        return newSongs.count
     }
 
     /// Verifica si hay credenciales configuradas para el proveedor seleccionado
@@ -190,7 +183,9 @@ final class LibraryUseCases {
 
     // MARK: - Statistics
 
-    /// Obtiene estadísticas de la biblioteca
+    /// Obtiene estadísticas de la biblioteca.
+    /// Excepción aceptada: usa `getAll()` porque son agregaciones (conteos/sumas) sobre
+    /// *todas* las canciones — SwiftData no soporta agregación a nivel de `FetchDescriptor`.
     func getLibraryStats() async throws -> LibraryStats {
         let songs = try await songRepository.getAll()
 

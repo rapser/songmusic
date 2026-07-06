@@ -22,9 +22,10 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 
 ### Almacenamiento en la nube (Google Drive / MEGA)
 - **Dos proveedores**: Google Drive o MEGA (selección en Configuración)
-- Sincronización automática con la carpeta configurada
+- Sincronización a demanda con la carpeta configurada
 - **Descarga individual** por canción y **Descargar todo** (solo con MEGA)
 - Cola de descargas secuencial con límites por proveedor (Swift 6: actor + async/await)
+- Sincronización por lotes para reducir `save()` repetidos y hacer más fluida la actualización de la biblioteca
 - Aviso al usuario cuando se alcanza el límite de MEGA (5 GB/día) y limpieza de estado
 - Extracción automática de metadatos (ID3, artwork); escritura atómica del archivo para evitar errores de formato
 - Gestión de caché de imágenes (3 tamaños: 32×32, 64×64, full)
@@ -47,6 +48,12 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 - Color de fondo del mini player según la **carátula** de la canción (estilo Spotify)
 - Color dominante calculado la primera vez y guardado para siguientes reproducciones
 - Progreso de descarga fluido (throttle por tiempo) hasta 100%
+- Cambio de canción optimizado para reducir latencia entre pistas
+
+### Reactividad
+- UI reactiva con `@Observable` + `@MainActor` en los ViewModels
+- Read-stores reactivos basados en `ModelContext.didSave` para refrescar solo lo que cambió
+- Evita polling innecesario en Home, Library, Playlist y Search
 
 ### Búsqueda
 - Búsqueda en tiempo real con debouncing (300 ms)
@@ -56,7 +63,9 @@ Una aplicación de música moderna para iOS con reproducción de audio de alta c
 
 ## Arquitectura
 
-Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con **strict concurrency** verificada por el compilador (cero `@unchecked Sendable`, cero `NSLock`, cero `DispatchQueue`).
+Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con **strict concurrency** verificada por el compilador.
+
+La capa de lectura usa `ReadStore` reactivos para conectar SwiftData con la UI sin acoplar la presentación al EventBus global. El EventBus queda reservado para eventos verdaderamente transversales como reproducción, descargas y autenticación.
 
 ### Diagrama de Arquitectura
 
@@ -131,12 +140,12 @@ sinkmusic/
 |   +-- Errors/                     # Errores de dominio
 |   |   +-- AppError.swift
 |   |   +-- SyncError.swift
-|   +-- EventBus/                   # Sistema de eventos reactivo
+|   +-- EventBus/                   # Bus de eventos SOLO para lo global/cross-cutting
 |   |   +-- EventBus.swift          # Implementacion
 |   |   +-- EventBusProtocol.swift  # Abstraccion
+|   |   +-- EventBusObservable.swift # Mixin para ViewModels que escuchan eventos globales
 |   |   +-- Events/
 |   |       +-- AuthEvent.swift
-|   |       +-- DataChangeEvent.swift
 |   |       +-- DownloadEvent.swift
 |   |       +-- PlaybackEvent.swift
 |   +-- Extensions/
@@ -161,6 +170,11 @@ sinkmusic/
 |   |   +-- CloudStorageRepositoryProtocol.swift
 |   |   +-- CredentialsRepositoryProtocol.swift
 |   |   +-- MetadataRepositoryProtocol.swift
+|   +-- ReadStores/                 # Protocolos de lectura reactiva (uno por dominio, ISP)
+|   |   +-- HomeReadStoreProtocol.swift
+|   |   +-- LibraryReadStoreProtocol.swift
+|   |   +-- PlaylistReadStoreProtocol.swift
+|   |   +-- SearchReadStoreProtocol.swift
 |   +-- UseCases/                   # Casos de uso
 |   |   +-- Player/
 |   |   |   +-- PlayerUseCases.swift
@@ -187,11 +201,17 @@ sinkmusic/
 |   |   +-- Local/
 |   |   |   +-- SongLocalDataSource.swift
 |   |   |   +-- PlaylistLocalDataSource.swift
-|   |   |   +-- SwiftDataNotificationService.swift
 |   |   +-- Remote/
 |   |   |   +-- GoogleDriveDataSource.swift
 |   |   +-- Protocols/
 |   |       +-- GoogleDriveServiceProtocol.swift
+|   +-- ReadStores/                 # Implementaciones reactivas de los ReadStore
+|   |   +-- HomeReadStore.swift
+|   |   +-- LibraryReadStore.swift
+|   |   +-- PlaylistReadStore.swift
+|   |   +-- SearchReadStore.swift
+|   |   +-- Support/
+|   |       +-- ModelContextChangeObserver.swift  # Observa ModelContext.didSave
 |   +-- Mappers/                    # Conversores DTO <-> Entity
 |   |   +-- SongMapper.swift
 |   |   +-- PlaylistMapper.swift
@@ -262,24 +282,42 @@ sinkmusic/
 
 ### Flujo de Datos
 
+Escrituras y lecturas puntuales van por el camino clásico (UseCase → Repository → DataSource).
+La reactividad de listas (Home/Library/Playlist/Search) **no** pasa por EventBus: el ViewModel
+lee de su `ReadStore`, que se entera solo cuando SwiftData guarda algo relevante.
+
 ```
+Escritura:
 +-------+     +----------+     +----------+     +------------+     +------------+
 | View  | --> | ViewModel| --> | UseCase  | --> | Repository | --> | DataSource |
-+-------+     +----------+     +----------+     +------------+     +------------+
-    ^              |                                                      |
-    |              |                                                      |
-    +--------------+------------------------------------------------------+
-                   |              EventBus (Eventos reactivos)            |
-                   +------------------------------------------------------+
++-------+     +----------+     +----------+     +------------+     +-----+------+
+                                                                          |
+                                                                          v
+                                                                 ModelContext.save()
+
+Lectura reactiva:
++-------+     +----------+     +-----------+     +----------+
+| View  | <-- | ViewModel| <-- | ReadStore | <-- | UseCase  |  (mismo UseCase de arriba, solo lectura)
++-------+     +----------+     +-----+-----+     +----------+
+                                      ^
+                                      | ModelContext.didSave (NotificationCenter)
+                                      +---------------------------------------------+
+                                                                                     |
+                                                                          ModelContext.save()
+
+Eventos globales (Auth/Playback/Download) siguen usando EventBus, sin relación con lo anterior.
 ```
 
-1. **View** llama accion en **ViewModel**
-2. **ViewModel** ejecuta **UseCase**
-3. **UseCase** coordina **Repositories**
-4. **Repository** accede a **DataSources** (Local/Remote)
-5. **DataSource** emite eventos via **EventBus**
-6. **ViewModel** escucha eventos y actualiza estado
-7. **View** se re-renderiza automaticamente
+1. **View** llama acción en **ViewModel**
+2. **ViewModel** ejecuta **UseCase** para escrituras y consultas puntuales
+3. **UseCase** coordina **Repositories** → **DataSources** → `ModelContext.save()`
+4. Cada **ReadStore** (uno por dominio: Home/Library/Playlist/Search) observa `ModelContext.didSave`
+   y, si la entidad afectada le importa, emite una señal `AsyncStream<Void>`
+5. El **ViewModel** suscrito a esa señal vuelve a leer del **ReadStore** (que delega al mismo
+   **UseCase**, con queries targeted) y actualiza su estado
+6. **View** se re-renderiza automáticamente
+7. Para lo genuinamente global (login/logout, progreso de descarga, remote control) el flujo
+   sigue siendo **EventBus** — ver sección siguiente
 
 ### Dependency Injection
 
@@ -318,35 +356,71 @@ final class DIContainer {
 }
 ```
 
-### EventBus (Sistema de Eventos)
+### EventBus (solo eventos globales/cross-cutting)
 
-Comunicacion reactiva entre capas sin acoplar componentes:
+El EventBus **no** se usa para la reactividad de listas — eso lo cubren los `ReadStore`
+(ver sección siguiente). Queda acotado a lo que es genuinamente transversal a toda la app:
+autenticación, reproducción (Live Activity, remote control) y descargas.
 
 ```swift
 // Protocolo para DI
 protocol EventBusProtocol {
-    func emit(_ event: DataChangeEvent)
     func emit(_ event: AuthEvent)
     func emit(_ event: PlaybackEvent)
     func emit(_ event: DownloadEvent)
 
-    func dataEvents() -> AsyncStream<DataChangeEvent>
     func authEvents() -> AsyncStream<AuthEvent>
     func playbackEvents() -> AsyncStream<PlaybackEvent>
     func downloadEvents() -> AsyncStream<DownloadEvent>
 }
 
-// Uso en ViewModel
-init(useCases: UseCases, eventBus: EventBusProtocol) {
-    self.eventBus = eventBus
+// Uso en ViewModel (solo los que reaccionan a eventos globales: Player, Download)
+final class DownloadViewModel: EventBusObservable {
+    var eventBus: EventBusProtocol
+    private var downloadEventTask: Task<Void, Never>?
 
-    Task {
-        for await event in eventBus.dataEvents() {
-            handleEvent(event)
+    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
+        self.eventBus = eventBus
+        downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
+                                          handler: { [weak self] in await self?.handleDownloadEvent($0) })
+    }
+}
+```
+
+### ReadStore (lectura reactiva de listas)
+
+Home, Library, Playlist y Search **no** dependen del EventBus para reactividad: cada uno tiene
+su propio `ReadStoreProtocol` (ISP — protocolos pequeños por dominio, no uno genérico) cuya
+implementación observa `ModelContext.didSave` de SwiftData directamente y emite una señal
+`AsyncStream<Void>` cuando cambia algo relevante para ese dominio. El ViewModel simplemente
+vuelve a preguntar al mismo `UseCase` (con queries targeted, no `getAll()+filter`).
+
+```swift
+// Domain/ReadStores/LibraryReadStoreProtocol.swift
+@MainActor
+protocol LibraryReadStoreProtocol: AnyObject {
+    func allSongs() async throws -> [Song]
+    func stats() async throws -> LibraryStats
+    func changes() -> AsyncStream<Void>
+}
+
+// Uso en ViewModel
+init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
+    self.libraryUseCases = libraryUseCases
+    self.readStore = readStore
+    changesTask = Task { [weak self] in
+        guard let self else { return }
+        for await _ in readStore.changes() {
+            await self.loadSongs()
         }
     }
 }
 ```
+
+**Por qué no `@Query` de SwiftUI:** los ViewModels son `@Observable` puros (no Views), así que
+`@Query` no aplica. `ModelContextChangeObserver` (`Data/ReadStores/Support/`) hace ese mismo
+trabajo a nivel de ViewModel, filtrando por nombre de entidad (`SongDTO`, `PlaylistDTO`) para no
+notificar cambios irrelevantes.
 
 ### Modulo Auth (Facade + Strategy Pattern)
 
@@ -431,7 +505,7 @@ private actor MegaDownloadState {
 | **Single Responsibility** | Cada clase tiene una unica responsabilidad (ViewModel, UseCase, Repository, DataSource) |
 | **Open/Closed** | Extension via protocolos sin modificar codigo existente |
 | **Liskov Substitution** | Todas las implementaciones son intercambiables via protocolos |
-| **Interface Segregation** | Protocolos pequenos y especificos (EventBusProtocol, AudioPlayerProtocol) |
+| **Interface Segregation** | Protocolos pequenos y especificos (AudioPlayerProtocol, y los 4 `ReadStoreProtocol` — uno por dominio en vez de uno genérico) |
 | **Dependency Inversion** | Todas las dependencias se inyectan via constructor, dependiendo de abstracciones |
 
 ## Tecnologias
@@ -503,16 +577,35 @@ sinkmusicTests/
 │   ├── MockAudioPlayerRepository.swift
 │   ├── MockCloudStorageRepository.swift
 │   ├── MockCredentialsRepository.swift
-│   └── MockMetadataRepository.swift
-└── UseCases/
-    ├── PlayerUseCasesTests.swift    — 14 tests
-    ├── LibraryUseCasesTests.swift   — 22 tests
-    ├── PlaylistUseCasesTests.swift  — 26 tests
-    ├── SearchUseCasesTests.swift    — 19 tests
-    ├── DownloadUseCasesTests.swift  — 24 tests
-    ├── EqualizerUseCasesTests.swift — 10 tests
-    └── SettingsUseCasesTests.swift  — 34 tests
+│   ├── MockMetadataRepository.swift
+│   ├── MockEventBus.swift          — solo Auth/Playback/Download (ya no DataChangeEvent)
+│   ├── MockHomeReadStore.swift
+│   ├── MockLibraryReadStore.swift
+│   ├── MockPlaylistReadStore.swift
+│   └── MockSearchReadStore.swift
+├── UseCases/
+│   ├── PlayerUseCasesTests.swift    — 14 tests
+│   ├── LibraryUseCasesTests.swift   — 22 tests
+│   ├── PlaylistUseCasesTests.swift  — 26 tests
+│   ├── SearchUseCasesTests.swift    — 19 tests
+│   ├── DownloadUseCasesTests.swift  — 24 tests
+│   ├── EqualizerUseCasesTests.swift — 10 tests
+│   └── SettingsUseCasesTests.swift  — 34 tests
+├── ViewModels/                      — Home/Library/Playlist/Search migrados a mocks de ReadStore
+└── ReadStores/                      — integración real, con ModelContainer en memoria (sin mocks)
+    ├── ReadStoreTestSupport.swift   — helpers: makeInMemoryContainer(), insertSong(), insertPlaylist()
+    ├── ModelContextChangeObserverTests.swift
+    ├── HomeReadStoreTests.swift
+    ├── LibraryReadStoreTests.swift
+    ├── PlaylistReadStoreTests.swift
+    ├── SearchReadStoreTests.swift
+    └── ReactiveFlowTests.swift      — 4 flujos end-to-end (descarga, borrado, playlist, búsqueda)
 ```
+
+> **Nota sobre `ModelContainer` en tests**: `ModelContext` no retiene fuerte a su `ModelContainer`.
+> `ReadStoreTestSupport.makeInMemoryContainer()` devuelve el `ModelContainer` (no solo su
+> `.mainContext`) — el test debe quedarse con esa referencia (`let container = ...`) durante toda
+> su ejecución, o el contexto queda apuntando a memoria liberada.
 
 ### Patrón de mocks
 

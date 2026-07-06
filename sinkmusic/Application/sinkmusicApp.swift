@@ -20,6 +20,7 @@ struct sinkmusicApp: App {
     // Creado aquí para que sinkmusicApp sea el dueño explícito del ciclo de vida.
     // DIContainer.shared queda registrado para que AppDelegate pueda accederlo.
     private let container: DIContainer
+    private let modelContainer: ModelContainer
 
     // MARK: - ViewModels creados con DIContainer
     @State private var playerViewModel: PlayerViewModel?
@@ -37,11 +38,17 @@ struct sinkmusicApp: App {
 
     // MARK: - Coordinator
     @State private var playerCoordinator: PlayerCoordinator?
+    @State private var didConfigureContainer = false
 
     init() {
         // Crear e registrar el contenedor antes de que cualquier AppDelegate
         // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
         container = DIContainer.createShared()
+        do {
+            modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self)
+        } catch {
+            fatalError("❌ No se pudo crear el ModelContainer compartido: \(error)")
+        }
 
         // Configurar apariencia del NavigationBar
         let appearance = UINavigationBarAppearance()
@@ -114,43 +121,37 @@ struct sinkmusicApp: App {
             }
             .animation(.easeInOut(duration: 0.3), value: authViewModel?.isAuthenticated)
             .task {
-                // Configurar DIContainer con ModelContext
+                // Configurar DIContainer una sola vez con el contexto compartido
                 await configureDIContainer()
             }
         }
-        .modelContainer(for: [SongDTO.self, PlaylistDTO.self])
+        .modelContainer(modelContainer)
     }
 
     // MARK: - Configuration
 
     @MainActor
     private func configureDIContainer() async {
-        do {
-            // Crear ModelContainer y ModelContext
-            let modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self)
-            let modelContext = ModelContext(modelContainer)
+        guard !didConfigureContainer else { return }
 
-            // Configurar DIContainer
-            container.configure(with: modelContext)
+        // Configurar DIContainer
+        container.configure(with: modelContainer.mainContext)
 
-            // Crear ViewModels usando DIContainer
-            // AuthViewModel primero para que pueda recibir eventos de autenticación
-            authViewModel = container.makeAuthViewModel()
+        // Crear ViewModels usando DIContainer
+        // AuthViewModel primero para que pueda recibir eventos de autenticación
+        authViewModel = container.makeAuthViewModel()
 
-            playerViewModel = container.makePlayerViewModel()
-            libraryViewModel = container.makeLibraryViewModel()
-            homeViewModel = container.makeHomeViewModel()
-            searchViewModel = container.makeSearchViewModel()
-            playlistViewModel = container.makePlaylistViewModel()
-            settingsViewModel = container.makeSettingsViewModel()
-            equalizerViewModel = container.makeEqualizerViewModel()
-            downloadViewModel = container.makeDownloadViewModel()
-            playerCoordinator = container.makePlayerCoordinator(metadataViewModel: metadataViewModel)
+        playerViewModel = container.makePlayerViewModel()
+        libraryViewModel = container.makeLibraryViewModel()
+        homeViewModel = container.makeHomeViewModel()
+        searchViewModel = container.makeSearchViewModel()
+        playlistViewModel = container.makePlaylistViewModel()
+        settingsViewModel = container.makeSettingsViewModel()
+        equalizerViewModel = container.makeEqualizerViewModel()
+        downloadViewModel = container.makeDownloadViewModel()
+        playerCoordinator = container.makePlayerCoordinator(metadataViewModel: metadataViewModel)
 
-            logger.info("DIContainer configurado correctamente")
-
-        } catch {
-            logger.error("Error al configurar DIContainer: \(error)")
-        }
+        didConfigureContainer = true
+        logger.info("DIContainer configurado correctamente")
     }
 }

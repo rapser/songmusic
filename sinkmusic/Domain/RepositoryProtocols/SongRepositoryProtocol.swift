@@ -31,10 +31,22 @@ protocol SongRepositoryProtocol: Sendable {
     /// Obtiene top canciones por reproducciones
     func getTopSongs(limit: Int) async throws -> [Song]
 
+    /// Obtiene canciones reproducidas recientemente (query targeted, no getAll()+filter)
+    func getRecentlyPlayed(limit: Int) async throws -> [Song]
+
+    /// Busca canciones cuyo título o artista contengan `query` (query targeted, no getAll()+filter)
+    func search(query: String) async throws -> [Song]
+
+    /// Busca canciones cuyo álbum contenga `query` (query targeted, no getAll()+filter)
+    func searchByAlbum(query: String) async throws -> [Song]
+
     // MARK: - Mutation Operations
 
     /// Crea una nueva canción
     func create(_ song: Song) async throws
+
+    /// Crea múltiples canciones en una sola transacción lógica
+    func create(_ songs: [Song]) async throws
 
     /// Actualiza una canción existente
     func update(_ song: Song) async throws

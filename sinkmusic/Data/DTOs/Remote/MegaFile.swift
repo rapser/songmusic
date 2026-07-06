@@ -11,6 +11,7 @@ import Foundation
 /// DTO para archivos de Mega
 /// Contiene información del archivo y la clave de desencriptación
 struct MegaFile: Codable, Identifiable, Sendable, Hashable {
+    private static let supportedAudioExtensions = [".m4a", ".mp3", ".mp4", ".aac", ".flac", ".wav", ".ogg"]
 
     /// ID único del archivo en Mega (nodeId/handle)
     let id: String
@@ -30,20 +31,16 @@ struct MegaFile: Codable, Identifiable, Sendable, Hashable {
     // MARK: - Computed Properties
 
     /// Extrae el título del nombre del archivo
-    /// Asume formato: "Artista - Título.m4a" o solo "Título.m4a"
+    /// Asume formato: "Artista - Título.ext" o solo "Título.ext"
     var title: String {
-        let nameWithoutExtension = name
-            .replacingOccurrences(of: ".m4a", with: "")
-            .replacingOccurrences(of: ".mp3", with: "")
-            .replacingOccurrences(of: ".mp4", with: "")
-            .replacingOccurrences(of: ".aac", with: "")
+        let nameWithoutExtension = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
 
         let components = nameWithoutExtension.components(separatedBy: " - ")
         return components.count > 1 ? components[1] : nameWithoutExtension
     }
 
     /// Extrae el artista del nombre del archivo
-    /// Asume formato: "Artista - Título.m4a"
+    /// Asume formato: "Artista - Título.ext"
     var artist: String {
         let components = name.components(separatedBy: " - ")
         return components.count > 1 ? components[0] : "Artista Desconocido"
@@ -52,10 +49,7 @@ struct MegaFile: Codable, Identifiable, Sendable, Hashable {
     /// Verifica si es un archivo de audio soportado
     var isAudioFile: Bool {
         let lowercaseName = name.lowercased()
-        return lowercaseName.hasSuffix(".m4a") ||
-               lowercaseName.hasSuffix(".mp3") ||
-               lowercaseName.hasSuffix(".mp4") ||
-               lowercaseName.hasSuffix(".aac")
+        return MegaFile.supportedAudioExtensions.contains { lowercaseName.hasSuffix($0) }
     }
 
     /// Tamaño formateado en MB
@@ -74,6 +68,12 @@ struct MegaFile: Codable, Identifiable, Sendable, Hashable {
             return "audio/mpeg"
         } else if lowercaseName.hasSuffix(".aac") {
             return "audio/aac"
+        } else if lowercaseName.hasSuffix(".flac") {
+            return "audio/flac"
+        } else if lowercaseName.hasSuffix(".wav") {
+            return "audio/wav"
+        } else if lowercaseName.hasSuffix(".ogg") {
+            return "audio/ogg"
         }
         return "audio/unknown"
     }

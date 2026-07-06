@@ -103,7 +103,7 @@ struct PreviewViewModels {
 
     static func libraryVM() -> LibraryViewModel {
         setupDI()
-        return LibraryViewModel(libraryUseCases: DIContainer.shared.libraryUseCases, eventBus: DIContainer.shared.eventBus)
+        return DIContainer.shared.makeLibraryViewModel()
     }
 
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
@@ -120,12 +120,12 @@ struct PreviewViewModels {
 
     static func playlistVM() -> PlaylistViewModel {
         setupDI()
-        return PlaylistViewModel(playlistUseCases: DIContainer.shared.playlistUseCases, eventBus: DIContainer.shared.eventBus)
+        return DIContainer.shared.makePlaylistViewModel()
     }
 
     static func searchVM() -> SearchViewModel {
         setupDI()
-        return SearchViewModel(searchUseCases: DIContainer.shared.searchUseCases)
+        return DIContainer.shared.makeSearchViewModel()
     }
 
     static func equalizerVM() -> EqualizerViewModel {

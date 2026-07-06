@@ -9,21 +9,20 @@ import Foundation
 import SwiftData
 
 /// DataSource para acceso local a canciones usando SwiftData
-/// Encapsula toda la interacción con SwiftData y proporciona observabilidad
-/// SOLID: Dependency Inversion - Recibe EventBus por inyección
+/// Encapsula toda la interacción con SwiftData. La reactividad hacia la UI
+/// ocurre "gratis" vía `ModelContext.didSave` (ver `ModelContextChangeObserver`),
+/// así que este tipo ya no necesita notificar nada explícitamente tras `save()`.
 @MainActor
 final class SongLocalDataSource {
 
     // MARK: - Properties
 
     private let modelContext: ModelContext
-    private let notificationService: SwiftDataNotificationService
 
     // MARK: - Lifecycle
 
-    init(modelContext: ModelContext, eventBus: EventBusProtocol) {
+    init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.notificationService = SwiftDataNotificationService(modelContext: modelContext, eventBus: eventBus)
     }
 
     // MARK: - CRUD Operations
@@ -79,22 +78,69 @@ final class SongLocalDataSource {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Obtiene top canciones por playCount
+    /// Obtiene top canciones por playCount (query targeted: predicate + sort + fetchLimit a nivel SwiftData)
     func getTopSongs(limit: Int = 10) throws -> [SongDTO] {
         let predicate = #Predicate<SongDTO> { $0.playCount > 0 }
-        let descriptor = FetchDescriptor<SongDTO>(
+        var descriptor = FetchDescriptor<SongDTO>(
             predicate: predicate,
             sortBy: [SortDescriptor(\SongDTO.playCount, order: .reverse)]
         )
-        let allTop = try modelContext.fetch(descriptor)
-        return Array(allTop.prefix(limit))
+        descriptor.fetchLimit = limit
+        return try modelContext.fetch(descriptor)
+    }
+
+    /// Obtiene canciones reproducidas recientemente (query targeted: reemplaza getAll()+filter+sort+prefix)
+    func getRecentlyPlayed(limit: Int = 10) throws -> [SongDTO] {
+        let predicate = #Predicate<SongDTO> { $0.lastPlayedAt != nil }
+        var descriptor = FetchDescriptor<SongDTO>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\SongDTO.lastPlayedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        return try modelContext.fetch(descriptor)
+    }
+
+    /// Busca canciones cuyo título o artista contengan `query` (búsqueda targeted a nivel SwiftData)
+    func search(query: String) throws -> [SongDTO] {
+        let predicate = #Predicate<SongDTO> {
+            $0.title.localizedStandardContains(query) || $0.artist.localizedStandardContains(query)
+        }
+        let descriptor = FetchDescriptor<SongDTO>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\SongDTO.title)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    /// Busca canciones cuyo álbum contenga `query` (query targeted separada de `search`,
+    /// porque `album` es opcional y `#Predicate` con `||` sobre `String?.contains` tiene
+    /// limitaciones de macro-expansion en SwiftData al combinarlo con campos no opcionales).
+    func searchByAlbum(query: String) throws -> [SongDTO] {
+        let predicate = #Predicate<SongDTO> {
+            $0.album != nil && $0.album!.localizedStandardContains(query)
+        }
+        let descriptor = FetchDescriptor<SongDTO>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\SongDTO.title)]
+        )
+        return try modelContext.fetch(descriptor)
     }
 
     /// Crea una nueva canción
     func create(_ song: SongDTO) throws {
         modelContext.insert(song)
         try modelContext.save()
-        notificationService.notifyChange()
+    }
+
+    /// Crea varias canciones y persiste todo en un solo `save()`.
+    func create(_ songs: [SongDTO]) throws {
+        guard !songs.isEmpty else { return }
+
+        for song in songs {
+            modelContext.insert(song)
+        }
+
+        try modelContext.save()
     }
 
     /// Actualiza una canción existente
@@ -119,12 +165,6 @@ final class SongLocalDataSource {
         existing.cachedDominantColorBlue = song.cachedDominantColorBlue
 
         try modelContext.save()
-
-        if song.isDownloaded {
-            notificationService.notifySongDownloaded(song.id)
-        } else {
-            notificationService.notifyChange()
-        }
     }
 
     /// Elimina una canción por ID
@@ -132,7 +172,6 @@ final class SongLocalDataSource {
         guard let song = try getByID(id) else { return }
         modelContext.delete(song)
         try modelContext.save()
-        notificationService.notifySongDeleted(id)
     }
 
     /// Elimina todas las canciones
@@ -142,7 +181,6 @@ final class SongLocalDataSource {
             modelContext.delete(song)
         }
         try modelContext.save()
-        notificationService.notifyChange()
     }
 
     // MARK: - Batch Operations
@@ -153,7 +191,6 @@ final class SongLocalDataSource {
         song.playCount += 1
         song.lastPlayedAt = Date()
         try modelContext.save()
-        notificationService.notifyChange()
     }
 
     /// Actualiza el estado de descarga
@@ -161,11 +198,6 @@ final class SongLocalDataSource {
         guard let song = try getByID(id) else { return }
         song.isDownloaded = isDownloaded
         try modelContext.save()
-        if isDownloaded {
-            notificationService.notifySongDownloaded(id)
-        } else {
-            notificationService.notifyChange()
-        }
     }
 
     /// Actualiza metadata de una canción
@@ -200,43 +232,6 @@ final class SongLocalDataSource {
         }
 
         try modelContext.save()
-        notificationService.notifyChange()
     }
 
 }
-
-// MARK: - Observability Note
-/*
- Los ViewModels observan cambios via EventBus inyectado por DI:
-
- ```swift
- // ViewModel recibe eventBus en el init
- init(useCases: UseCases, eventBus: EventBusProtocol) {
-     self.eventBus = eventBus
-     startObserving()
- }
-
- private func startObserving() {
-     Task { [weak self] in
-         guard let self else { return }
-         for await event in self.eventBus.dataEvents() {
-             switch event {
-             case .songsUpdated:
-                 await self.reloadSongs()
-             case .songDownloaded(let id):
-                 await self.handleSongDownloaded(id)
-             case .songDeleted(let id):
-                 await self.handleSongDeleted(id)
-             default:
-                 break
-             }
-         }
-     }
- }
- ```
-
- VENTAJAS del DI:
- - EventBus inyectado via EventBusProtocol (testeable)
- - Sin singletons, mejor separación de responsabilidades
- - Clean Architecture compliant
- */

@@ -9,21 +9,20 @@ import Foundation
 import SwiftData
 
 /// DataSource para acceso local a playlists usando SwiftData
-/// Encapsula toda la interacción con SwiftData y proporciona observabilidad
-/// SOLID: Dependency Inversion - Recibe EventBus por inyección
+/// Encapsula toda la interacción con SwiftData. La reactividad hacia la UI
+/// ocurre "gratis" vía `ModelContext.didSave` (ver `ModelContextChangeObserver`),
+/// así que este tipo ya no necesita notificar nada explícitamente tras `save()`.
 @MainActor
 final class PlaylistLocalDataSource {
 
     // MARK: - Properties
 
     private let modelContext: ModelContext
-    private let notificationService: SwiftDataNotificationService
 
     // MARK: - Lifecycle
 
-    init(modelContext: ModelContext, eventBus: EventBusProtocol) {
+    init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.notificationService = SwiftDataNotificationService(modelContext: modelContext, eventBus: eventBus)
     }
 
     // MARK: - CRUD Operations
@@ -47,14 +46,12 @@ final class PlaylistLocalDataSource {
     func create(_ playlist: PlaylistDTO) throws {
         modelContext.insert(playlist)
         try modelContext.save()
-        notificationService.notifyPlaylistsChange()
     }
 
     /// Actualiza una playlist existente
     func update(_ playlist: PlaylistDTO) throws {
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyPlaylistsChange()
     }
 
     /// Elimina una playlist por ID
@@ -62,7 +59,6 @@ final class PlaylistLocalDataSource {
         guard let playlist = try getByID(id) else { return }
         modelContext.delete(playlist)
         try modelContext.save()
-        notificationService.notifyPlaylistsChange()
     }
 
     // MARK: - Song Management
@@ -86,7 +82,6 @@ final class PlaylistLocalDataSource {
         playlist.songOrder = playlist.songs.map { $0.id.uuidString }.joined(separator: ",")
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyPlaylistsChange()
     }
 
     /// Elimina una canción de una playlist
@@ -104,7 +99,6 @@ final class PlaylistLocalDataSource {
         playlist.songOrder = playlist.songs.map { $0.id.uuidString }.joined(separator: ",")
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyPlaylistsChange()
     }
 
     /// Reordena las canciones en una playlist
@@ -126,7 +120,6 @@ final class PlaylistLocalDataSource {
         playlist.songOrder = songIDs.map { $0.uuidString }.joined(separator: ",")
         playlist.updatedAt = Date()
         try modelContext.save()
-        notificationService.notifyPlaylistsChange()
     }
 
 }

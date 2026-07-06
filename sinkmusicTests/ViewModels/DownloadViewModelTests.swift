@@ -28,7 +28,8 @@ final class DownloadViewModelTests: XCTestCase {
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
             metadataRepository: mockMetadata,
-            credentialsRepository: mockCredentials
+            credentialsRepository: mockCredentials,
+            eventBus: mockEventBus
         )
         sut = DownloadViewModel(downloadUseCases: downloadUseCases, eventBus: mockEventBus)
     }
