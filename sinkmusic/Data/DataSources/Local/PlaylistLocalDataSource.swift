@@ -101,6 +101,34 @@ final class PlaylistLocalDataSource {
         try modelContext.save()
     }
 
+    /// Elimina una canción de todas las playlists que la referencian.
+    /// Se usa cuando una canción deja de existir o de estar descargada: el playlist se
+    /// mantiene, pero no tiene sentido seguir mostrando una canción que ya no existe.
+    /// Filtra `songOrder` en lugar de reconstruirlo desde `songs` (cuyo orden no está
+    /// garantizado por SwiftData) para preservar el orden manual de las canciones restantes.
+    func removeSongFromAllPlaylists(songID: UUID) throws {
+        let playlists = try getAll()
+        let songIDString = songID.uuidString
+        var didChange = false
+
+        for playlist in playlists {
+            guard playlist.songs.contains(where: { $0.id == songID }) else { continue }
+
+            playlist.songs.removeAll { $0.id == songID }
+            playlist.songOrder = playlist.songOrder
+                .split(separator: ",")
+                .map(String.init)
+                .filter { $0 != songIDString }
+                .joined(separator: ",")
+            playlist.updatedAt = Date()
+            didChange = true
+        }
+
+        if didChange {
+            try modelContext.save()
+        }
+    }
+
     /// Reordena las canciones en una playlist
     func updateSongsOrder(playlistID: UUID, songIDs: [UUID], songDataSource: SongLocalDataSource) throws {
         guard let playlist = try getByID(playlistID) else {

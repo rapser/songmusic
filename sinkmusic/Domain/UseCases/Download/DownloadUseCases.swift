@@ -204,6 +204,10 @@ final class DownloadUseCases {
             dominantColor: nil
         )
 
+        // La canción NO se retira de las playlists: sigue existiendo en la biblioteca y
+        // vuelve a aparecer en "Descargar música", así que se puede volver a bajar desde
+        // la propia playlist. Solo se limpia de las playlists cuando se borra de verdad
+        // (ver LibraryUseCases.deleteSong / SettingsUseCases.deleteAllSongs).
         try await songRepository.update(song)
     }
 

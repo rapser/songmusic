@@ -18,17 +18,20 @@ final class SettingsUseCases {
     private let credentialsRepository: CredentialsRepositoryProtocol
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
+    private let playlistRepository: PlaylistRepositoryProtocol
 
     // MARK: - Initialization
 
     init(
         credentialsRepository: CredentialsRepositoryProtocol,
         songRepository: SongRepositoryProtocol,
-        cloudStorageRepository: CloudStorageRepositoryProtocol
+        cloudStorageRepository: CloudStorageRepositoryProtocol,
+        playlistRepository: PlaylistRepositoryProtocol
     ) {
         self.credentialsRepository = credentialsRepository
         self.songRepository = songRepository
         self.cloudStorageRepository = cloudStorageRepository
+        self.playlistRepository = playlistRepository
     }
 
     // MARK: - Cloud Storage Credentials
@@ -177,6 +180,12 @@ final class SettingsUseCases {
         // Eliminar archivos descargados
         for song in songs where song.isDownloaded {
             try? cloudStorageRepository.deleteDownload(for: song.id)
+        }
+
+        // Quitarlas de cualquier playlist que las referencie: los playlists se mantienen,
+        // pero no deben seguir mostrando canciones que ya no existen en la biblioteca.
+        for song in songs {
+            try? await playlistRepository.removeSongFromAllPlaylists(songID: song.id)
         }
 
         // Eliminar todas las canciones de la base de datos

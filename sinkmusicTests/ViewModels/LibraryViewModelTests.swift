@@ -25,7 +25,8 @@ final class LibraryViewModelTests: XCTestCase {
         libraryUseCases = LibraryUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: mockCloudStorage,
-            credentialsRepository: mockCredentials
+            credentialsRepository: mockCredentials,
+            playlistRepository: MockPlaylistRepository()
         )
         sut = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: mockReadStore)
     }

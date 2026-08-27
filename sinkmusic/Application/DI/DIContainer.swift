@@ -216,7 +216,8 @@ final class DIContainer {
         LibraryUseCases(
             songRepository: songRepository,
             cloudStorageRepository: cloudStorageRepository,
-            credentialsRepository: credentialsRepository
+            credentialsRepository: credentialsRepository,
+            playlistRepository: playlistRepository
         )
     }
 
@@ -245,7 +246,8 @@ final class DIContainer {
         SettingsUseCases(
             credentialsRepository: credentialsRepository,
             songRepository: songRepository,
-            cloudStorageRepository: cloudStorageRepository
+            cloudStorageRepository: cloudStorageRepository,
+            playlistRepository: playlistRepository
         )
     }
 

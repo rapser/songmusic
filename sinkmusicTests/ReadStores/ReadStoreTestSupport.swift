@@ -44,7 +44,18 @@ enum ReadStoreTestSupport {
         LibraryUseCases(
             songRepository: makeSongRepository(context),
             cloudStorageRepository: MockCloudStorageRepository(),
-            credentialsRepository: MockCredentialsRepository()
+            credentialsRepository: MockCredentialsRepository(),
+            playlistRepository: makePlaylistRepository(context)
+        )
+    }
+
+    static func makeDownloadUseCases(_ context: ModelContext) -> DownloadUseCases {
+        DownloadUseCases(
+            songRepository: makeSongRepository(context),
+            cloudStorageRepository: MockCloudStorageRepository(),
+            metadataRepository: MockMetadataRepository(),
+            credentialsRepository: MockCredentialsRepository(),
+            eventBus: MockEventBus()
         )
     }
 

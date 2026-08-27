@@ -19,6 +19,7 @@ final class LibraryUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let playlistRepository: PlaylistRepositoryProtocol
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Library")
 
     // MARK: - Initialization
@@ -26,11 +27,13 @@ final class LibraryUseCases {
     init(
         songRepository: SongRepositoryProtocol,
         cloudStorageRepository: CloudStorageRepositoryProtocol,
-        credentialsRepository: CredentialsRepositoryProtocol
+        credentialsRepository: CredentialsRepositoryProtocol,
+        playlistRepository: PlaylistRepositoryProtocol
     ) {
         self.songRepository = songRepository
         self.cloudStorageRepository = cloudStorageRepository
         self.credentialsRepository = credentialsRepository
+        self.playlistRepository = playlistRepository
     }
 
     // MARK: - Library Access
@@ -158,6 +161,10 @@ final class LibraryUseCases {
     func deleteSong(_ id: UUID) async throws {
         // Eliminar archivo descargado si existe
         try? cloudStorageRepository.deleteDownload(for: id)
+
+        // Quitarla de cualquier playlist que la referencie: los playlists se mantienen,
+        // pero no debe quedar una canción fantasma que ya no existe en la biblioteca.
+        try? await playlistRepository.removeSongFromAllPlaylists(songID: id)
 
         // Eliminar de la base de datos
         try await songRepository.delete(id)

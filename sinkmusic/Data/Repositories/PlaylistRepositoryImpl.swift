@@ -90,6 +90,10 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
         )
     }
 
+    func removeSongFromAllPlaylists(songID: UUID) async throws {
+        try localDataSource.removeSongFromAllPlaylists(songID: songID)
+    }
+
 }
 
 // MARK: - Sendable Conformance

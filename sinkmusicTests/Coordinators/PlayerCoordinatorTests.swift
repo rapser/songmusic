@@ -23,7 +23,8 @@ final class PlayerCoordinatorTests: XCTestCase {
         let libraryUseCases = LibraryUseCases(
             songRepository: mockSongRepo,
             cloudStorageRepository: MockCloudStorageRepository(),
-            credentialsRepository: MockCredentialsRepository()
+            credentialsRepository: MockCredentialsRepository(),
+            playlistRepository: MockPlaylistRepository()
         )
         mockLibraryVM = LibraryViewModel(
             libraryUseCases: libraryUseCases,
