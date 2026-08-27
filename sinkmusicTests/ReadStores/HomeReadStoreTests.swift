@@ -21,8 +21,8 @@ final class HomeReadStoreTests: XCTestCase {
     func test_recentlyPlayedSongs_ordersByLastPlayedDescending() async throws {
         let container = try ReadStoreTestSupport.makeInMemoryContainer()
         let context = container.mainContext
-        try ReadStoreTestSupport.insertSong(context, title: "Old", lastPlayedAt: Date(timeIntervalSinceNow: -300))
-        try ReadStoreTestSupport.insertSong(context, title: "New", lastPlayedAt: Date(timeIntervalSinceNow: -10))
+        try ReadStoreTestSupport.insertSong(context, title: "Old", isDownloaded: true, lastPlayedAt: Date(timeIntervalSinceNow: -300))
+        try ReadStoreTestSupport.insertSong(context, title: "New", isDownloaded: true, lastPlayedAt: Date(timeIntervalSinceNow: -10))
         try ReadStoreTestSupport.insertSong(context, title: "Never", lastPlayedAt: nil)
 
         let sut = makeSUT(context)
@@ -30,6 +30,32 @@ final class HomeReadStoreTests: XCTestCase {
 
         XCTAssertEqual(songs.count, 2)
         XCTAssertEqual(songs.first?.title, "New")
+    }
+
+    func test_recentlyPlayedSongs_excludesRemovedDownloads() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        try ReadStoreTestSupport.insertSong(context, title: "StillDownloaded", isDownloaded: true, lastPlayedAt: Date())
+        try ReadStoreTestSupport.insertSong(context, title: "RemovedDownload", isDownloaded: false, lastPlayedAt: Date())
+
+        let sut = makeSUT(context)
+        let songs = try await sut.recentlyPlayedSongs(limit: 10)
+
+        XCTAssertEqual(songs.count, 1)
+        XCTAssertEqual(songs.first?.title, "StillDownloaded")
+    }
+
+    func test_mostPlayedSongs_excludesRemovedDownloads() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        try ReadStoreTestSupport.insertSong(context, title: "StillDownloaded", isDownloaded: true, playCount: 5)
+        try ReadStoreTestSupport.insertSong(context, title: "RemovedDownload", isDownloaded: false, playCount: 99)
+
+        let sut = makeSUT(context)
+        let songs = try await sut.mostPlayedSongs(limit: 10)
+
+        XCTAssertEqual(songs.count, 1)
+        XCTAssertEqual(songs.first?.title, "StillDownloaded")
     }
 
     func test_downloadedSongs_returnsOnlyDownloaded() async throws {
