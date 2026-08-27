@@ -26,7 +26,7 @@ final class HomeReadStore: HomeReadStoreProtocol {
     }
 
     func playlists() async throws -> [Playlist] {
-        try await playlistUseCases.getAllPlaylists()
+        try await playlistUseCases.getHomePlaylistLayout().shown
     }
 
     func mostPlayedPlaylists(limit: Int) async throws -> [Playlist] {

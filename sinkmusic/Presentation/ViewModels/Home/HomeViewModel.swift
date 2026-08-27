@@ -69,6 +69,12 @@ final class HomeViewModel {
         isLoading = false
     }
 
+    /// Recarga sin spinner. Se usa al volver a la pestaña Inicio (p. ej. tras curar las
+    /// playlists desde Ajustes) para que el listado se actualice sin un parpadeo de carga.
+    func refreshQuietly() async {
+        await reloadAllSections()
+    }
+
     /// Recarga las secciones de Home sin tocar `isLoading`.
     /// Usado por la reactividad del ReadStore: los datos ya están en pantalla, así que
     /// reemplazarlos por un spinner en cada cambio se sentiría como una recarga completa.

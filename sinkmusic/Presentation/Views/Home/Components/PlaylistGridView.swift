@@ -29,7 +29,7 @@ struct PlaylistGridView: View {
                 })
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(playlists.prefix(4)) { playlist in
+                    ForEach(playlists) { playlist in
                         NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
                             PlaylistGridCard(playlist: playlist)
                         }
