@@ -322,12 +322,18 @@ final class PlaylistViewModel {
 
     // MARK: - Detail View
 
-    /// Carga las canciones de una playlist
+    /// Carga las canciones de una playlist (detalle abierto).
     func loadSongsInPlaylist(_ playlistID: UUID) async {
         lastLoadedPlaylistID = playlistID
         do {
             let entities = try await readStore.songs(inPlaylist: playlistID)
-            songsInPlaylist = entities.map { SongMapper.toUI($0) }
+            let mapped = entities.map { SongMapper.toUI($0) }
+            // Solo reasigna si cambió lo que la fila muestra (id, orden, estado de descarga,
+            // título/artista). Reproducir una canción solo cambia su `playCount`, y reasignar
+            // el array por eso re-renderiza el List y hace que se pierdan/desvíen los toques.
+            if Self.detailRowsSignature(mapped) != Self.detailRowsSignature(songsInPlaylist) {
+                songsInPlaylist = mapped
+            }
         } catch {
             // La playlist pudo eliminarse mientras seguía referenciada por un refresco
             // reactivo. No es un error accionable: se deja el detalle vacío.
@@ -335,6 +341,16 @@ final class PlaylistViewModel {
             songsInPlaylist = []
             if lastLoadedPlaylistID == playlistID { lastLoadedPlaylistID = nil }
         }
+    }
+
+    /// Detalle de playlist cerrado: se deja de refrescar reactivamente `songsInPlaylist`.
+    func playlistDetailClosed(_ playlistID: UUID) {
+        if lastLoadedPlaylistID == playlistID { lastLoadedPlaylistID = nil }
+    }
+
+    /// Firma de lo que realmente pinta cada fila del detalle. Omite `playCount` a propósito.
+    private static func detailRowsSignature(_ songs: [SongUI]) -> [String] {
+        songs.map { "\($0.id.uuidString)|\($0.isDownloaded ? 1 : 0)|\($0.title)|\($0.artist)" }
     }
 
     /// Selecciona una playlist para ver en detalle

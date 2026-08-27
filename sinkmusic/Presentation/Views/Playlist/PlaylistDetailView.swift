@@ -30,6 +30,9 @@ struct PlaylistDetailView: View {
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 await MainActor.run { allowsSongInteractions = true }
             }
+            .onDisappear {
+                viewModel.playlistDetailClosed(playlist.id)
+            }
             .sheet(isPresented: $showAddSongsSheet) {
                 AddSongsToPlaylistView(playlist: playlist)
             }
