@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+/// Header de sección para `List` (estilo Ajustes de Spotify/Tidal: caption gris en mayúsculas).
+/// Sin padding horizontal propio — `List` ya aplica los márgenes que alinean con las filas.
 struct SectionHeaderView: View {
     let title: String
 
@@ -16,8 +18,5 @@ struct SectionHeaderView: View {
             .font(.caption)
             .fontWeight(.semibold)
             .foregroundColor(.textGray)
-            .padding(.horizontal, 16)
-            .padding(.top, 24)
-            .padding(.bottom, 8)
     }
 }

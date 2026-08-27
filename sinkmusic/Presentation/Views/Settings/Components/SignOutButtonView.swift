@@ -9,28 +9,17 @@ import SwiftUI
 
 // MARK: - Sign Out Button (Reusable Component)
 
+/// Texto rojo centrado, como "Cerrar sesión" en Ajustes de Apple/Tidal —
+/// sin caja ni icono, al fondo de su propia sección.
 struct SignOutButtonView: View {
     let onSignOut: () -> Void
 
     var body: some View {
         Button(action: onSignOut) {
-            HStack {
-                Image(systemName: "arrow.right.square.fill")
-                    .foregroundColor(.white)
-                    .frame(width: 24)
-
-                Text("Cerrar sesión")
-                    .foregroundColor(.white)
-                    .fontWeight(.semibold)
-
-                Spacer()
-            }
-            .padding(16)
-            .background(Color.red.opacity(0.7))
-            .cornerRadius(8)
+            Text("Cerrar sesión")
+                .foregroundColor(.red)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 24)
-        .padding(.bottom, 100)
+        .padding(.vertical, 4)
     }
 }

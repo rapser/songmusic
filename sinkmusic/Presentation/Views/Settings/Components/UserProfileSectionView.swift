@@ -9,39 +9,34 @@ import SwiftUI
 
 // MARK: - User Profile Section (Reusable Component)
 
+/// Fila de perfil, plana (sin tarjeta), estilo cabecera de cuenta de Spotify/Tidal.
 struct UserProfileSectionView: View {
     let profile: UserProfileData
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                Image(systemName: "person.circle.fill")
-                    .resizable()
-                    .frame(width: 60, height: 60)
-                    .foregroundColor(.appPurple)
+        HStack(spacing: 16) {
+            Image(systemName: "person.circle.fill")
+                .resizable()
+                .frame(width: 52, height: 52)
+                .foregroundColor(.appPurple)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.fullName ?? "Usuario Premium")
-                        .font(.headline)
-                        .foregroundColor(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profile.fullName ?? "Usuario Premium")
+                    .font(.headline)
+                    .foregroundColor(.white)
 
-                    Text(profile.email ?? "Ver perfil")
-                        .font(.subheadline)
-                        .foregroundColor(.textGray)
-                }
-
-                Spacer()
-
-                if profile.isAppleAccount {
-                    Image(systemName: "apple.logo")
-                        .foregroundColor(.textGray)
-                }
+                Text(profile.email ?? "Ver perfil")
+                    .font(.subheadline)
+                    .foregroundColor(.textGray)
             }
-            .padding(16)
-            .background(Color.appGray)
-            .cornerRadius(8)
+
+            Spacer()
+
+            if profile.isAppleAccount {
+                Image(systemName: "apple.logo")
+                    .foregroundColor(.textGray)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 24)
+        .padding(.vertical, 6)
     }
 }

@@ -2,7 +2,9 @@
 //  SettingsView.swift
 //  sinkmusic
 //
-//  Settings screen - Refactored to use AuthViewModel (Clean Architecture)
+//  Pantalla de Ajustes: una sola lista nativa agrupada por secciones, estilo
+//  Spotify/Tidal — sin subpantallas propias para cada grupo de opciones.
+//  Refactorizado para usar AuthViewModel (Clean Architecture)
 //
 
 import SwiftUI
@@ -18,51 +20,66 @@ struct SettingsView: View {
     @State private var showDeleteAllAlert = false
 
     var body: some View {
-        ZStack {
-            Color.appDark.edgesIgnoringSafeArea(.all)
+        List {
+            Section {
+                SettingsHeaderView()
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    SettingsHeaderView()
+                if let profile = makeUserProfile() {
+                    UserProfileSectionView(profile: profile)
+                }
+            }
 
-                    // User Profile Section
-                    if let profile = makeUserProfile() {
-                        UserProfileSectionView(profile: profile)
-                    }
-
+            if let profile = makeUserProfile() {
+                Section {
+                    AccountSectionView(profile: profile)
+                } header: {
                     SectionHeaderView(title: "Cuenta")
-                    if let profile = makeUserProfile() {
-                        AccountSectionView(profile: profile)
+                }
+            }
+
+            Section {
+                DownloadsSectionView(
+                    pendingCount: pendingSongsCount,
+                    isGoogleDriveConfigured: viewModel.hasCredentials,
+                    libraryViewModel: libraryViewModel,
+                    settingsViewModel: viewModel
+                )
+            } header: {
+                SectionHeaderView(title: "Descargas")
+            }
+
+            Section {
+                StorageSectionView(
+                    totalStorage: viewModel.storageInfo?.formattedTotalSize ?? "0 MB",
+                    downloadedCount: viewModel.downloadStats?.totalDownloaded ?? 0,
+                    onDeleteAll: {
+                        showDeleteAllAlert = true
                     }
+                )
+            } header: {
+                SectionHeaderView(title: "Almacenamiento")
+            }
 
-                    SectionHeaderView(title: "Descargas")
-                    DownloadsSectionView(
-                        pendingCount: pendingSongsCount,
-                        isGoogleDriveConfigured: viewModel.hasCredentials,
-                        libraryViewModel: libraryViewModel,
-                        settingsViewModel: viewModel
-                    )
+            Section {
+                AboutSectionView(appVersion: viewModel.appInfo?.fullVersion ?? "1.0.0")
+            } header: {
+                SectionHeaderView(title: "Acerca de")
+            }
 
-                    SectionHeaderView(title: "Almacenamiento")
-                    StorageSectionView(
-                        totalStorage: viewModel.storageInfo?.formattedTotalSize ?? "0 MB",
-                        downloadedCount: viewModel.downloadStats?.totalDownloaded ?? 0,
-                        onDeleteAll: {
-                            showDeleteAllAlert = true
-                        }
-                    )
-
-                    SectionHeaderView(title: "Acerca de")
-                    AboutSectionView(appVersion: viewModel.appInfo?.fullVersion ?? "1.0.0")
-
-                    SignOutButtonView {
-                        showSignOutAlert = true
-                    }
+            Section {
+                SignOutButtonView {
+                    showSignOutAlert = true
                 }
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.appDark)
+        .listRowBackground(Color.appDark)
+        .listRowSeparatorTint(Color.white.opacity(0.08))
         .task {
-            // Cargar información al aparecer
             await viewModel.loadAllInfo()
         }
         .alert("Eliminar todas las descargas", isPresented: $showDeleteAllAlert) {
@@ -119,7 +136,9 @@ struct SettingsView: View {
 
 #Preview {
     PreviewWrapper {
-        SettingsView()
-            .environment(PreviewData.authVM())
+        NavigationStack {
+            SettingsView()
+                .environment(PreviewData.authVM())
+        }
     }
 }

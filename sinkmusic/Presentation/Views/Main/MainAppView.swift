@@ -63,7 +63,7 @@ struct MainAppView: View {
             NavigationStack {
                 SettingsView()
             }
-                .tabItem { Label("Configuración", systemImage: "gearshape.fill") }
+                .tabItem { Label("Ajustes", systemImage: "gearshape.fill") }
         }
         .accentColor(.white)
     }

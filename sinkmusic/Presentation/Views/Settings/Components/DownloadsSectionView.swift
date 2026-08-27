@@ -16,13 +16,10 @@ struct DownloadsSectionView: View {
     let settingsViewModel: SettingsViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Download Music Button
+        Group {
             NavigationLink(destination: DownloadMusicView()) {
-                HStack(spacing: 16) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.textGray)
-                        .frame(width: 24)
+                HStack(spacing: 12) {
+                    SettingsIconBadge(systemName: "arrow.down.circle.fill", color: .appPurple)
 
                     Text("Descargar música")
                         .foregroundColor(.white)
@@ -32,37 +29,23 @@ struct DownloadsSectionView: View {
                     if pendingCount > 0 {
                         PendingBadgeView(count: pendingCount)
                     }
-
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.textGray)
-                        .font(.caption)
                 }
-                .padding(16)
-                .background(Color.appGray)
+                .padding(.vertical, 4)
             }
 
-            // Cloud Storage Config Button
             NavigationLink(destination: CloudStorageConfigView()) {
-                HStack(spacing: 16) {
-                    Image(systemName: "cloud.fill")
-                        .foregroundColor(.textGray)
-                        .frame(width: 24)
+                HStack(spacing: 12) {
+                    SettingsIconBadge(systemName: "cloud.fill", color: .blue)
 
-                    Text("Configurar Almacenamiento")
+                    Text("Configurar almacenamiento")
                         .foregroundColor(.white)
 
                     Spacer()
 
-                    // Mostrar badge del proveedor seleccionado
                     ProviderBadgeView(provider: settingsViewModel.selectedProvider,
                                       isConfigured: settingsViewModel.hasCurrentProviderCredentials)
-
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.textGray)
-                        .font(.caption)
                 }
-                .padding(16)
-                .background(Color.appGray)
+                .padding(.vertical, 4)
             }
         }
     }

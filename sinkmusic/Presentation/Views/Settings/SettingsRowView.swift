@@ -5,19 +5,19 @@
 //  Created by miguel tomairo on 19/12/25.
 //
 
-
 import SwiftUI
 
+/// Fila plana para listas de Ajustes (sin fondo propio ni chevron manual —
+/// eso lo aporta `List`/`NavigationLink` de forma nativa cuando la fila navega).
 struct SettingsRowView: View {
     let icon: String
+    var iconColor: Color = .textGray
     let title: String
     var value: String? = nil
 
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .foregroundColor(.textGray)
-                .frame(width: 24)
+        HStack(spacing: 12) {
+            SettingsIconBadge(systemName: icon, color: iconColor)
 
             Text(title)
                 .foregroundColor(.white)
@@ -28,13 +28,9 @@ struct SettingsRowView: View {
                 Text(value)
                     .foregroundColor(.textGray)
                     .font(.subheadline)
+                    .lineLimit(1)
             }
-
-            Image(systemName: "chevron.right")
-                .foregroundColor(.textGray)
-                .font(.caption)
         }
-        .padding(16)
-        .background(Color.appGray)
+        .padding(.vertical, 4)
     }
 }

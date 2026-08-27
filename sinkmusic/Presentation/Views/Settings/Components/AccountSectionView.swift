@@ -13,10 +13,11 @@ struct AccountSectionView: View {
     let profile: UserProfileData
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             if let email = profile.email {
                 SettingsRowView(
                     icon: "envelope.fill",
+                    iconColor: .blue,
                     title: "Correo electrónico",
                     value: email
                 )
@@ -27,6 +28,7 @@ struct AccountSectionView: View {
             if let userID = profile.userID {
                 SettingsRowView(
                     icon: "person.text.rectangle.fill",
+                    iconColor: .gray,
                     title: "ID de usuario",
                     value: String(userID.prefix(12))
                 )
@@ -34,6 +36,7 @@ struct AccountSectionView: View {
 
             SettingsRowView(
                 icon: "apple.logo",
+                iconColor: .appGray,
                 title: "Cuenta Apple",
                 value: "Conectada"
             )
@@ -45,25 +48,20 @@ struct AccountSectionView: View {
 
 private struct EmailNotSharedRowView: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 16) {
-                Image(systemName: "envelope.fill")
+        HStack(spacing: 12) {
+            SettingsIconBadge(systemName: "envelope.fill", color: .blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Correo electrónico")
+                    .foregroundColor(.white)
+
+                Text("No compartido por Apple")
+                    .font(.caption)
                     .foregroundColor(.textGray)
-                    .frame(width: 24)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Correo electrónico")
-                        .foregroundColor(.white)
-
-                    Text("No compartido por Apple")
-                        .font(.caption)
-                        .foregroundColor(.textGray)
-                }
-
-                Spacer()
             }
-            .padding(16)
-            .background(Color.appGray)
+
+            Spacer()
         }
+        .padding(.vertical, 4)
     }
 }

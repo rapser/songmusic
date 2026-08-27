@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SettingsHeaderView: View {
     var body: some View {
-        Text("Configuración")
+        Text("Ajustes")
             .font(.largeTitle)
             .fontWeight(.bold)
             .foregroundColor(.white)
