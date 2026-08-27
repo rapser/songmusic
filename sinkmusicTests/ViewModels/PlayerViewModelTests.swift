@@ -139,6 +139,22 @@ final class PlayerViewModelTests: XCTestCase {
         XCTAssertNil(sut.currentlyPlayingID)
     }
 
+    func test_stop_closesFullPlayerAndClearsPlayingState() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+        let song = Song.make(id: songID, isDownloaded: true)
+        mockSongRepo.songs = [song]
+        await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
+        sut.showPlayerView = true
+
+        await sut.stop()
+
+        XCTAssertNil(sut.currentlyPlayingID)
+        XCTAssertFalse(sut.showPlayerView)
+        XCTAssertFalse(sut.isPlaying)
+    }
+
     // MARK: - toggleShuffle()
 
     func test_toggleShuffle_enablesWhenOff() {

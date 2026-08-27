@@ -49,6 +49,16 @@ struct MainAppView: View {
             // canción restaurada aún no estaba en `songsLookup` en el .task de arriba).
             // Idempotente: si el artwork ya se cargó para esta canción, no hace nada.
             Task { await playerCoordinator.onPlayingIDChanged(playerViewModel.currentlyPlayingID, libraryViewModel: libraryViewModel) }
+
+            // Si la canción en curso dejó de estar descargada (p. ej. "Eliminar todas las
+            // descargas" en Ajustes), su archivo local ya no existe: detener la reproducción
+            // y limpiar el mini-reproductor. Solo actúa si la canción sigue en la biblioteca
+            // pero sin descarga, para no interferir con la carga inicial ni con un borrado total.
+            if let playingID = playerViewModel.currentlyPlayingID,
+               let playingSong = newValue.first(where: { $0.id == playingID }),
+               !playingSong.isDownloaded {
+                Task { await playerViewModel.stop() }
+            }
         }
     }
 

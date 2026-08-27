@@ -134,6 +134,12 @@ final class PlayerViewModel: EventBusObservable {
     func stop() async {
         await playerUseCases.stop()
         currentlyPlayingID = nil
+        isPlaying = false
+        // Cerrar el reproductor grande: sin canción en curso no tiene nada que mostrar y
+        // dejar el flag activo haría que se abriera solo al reproducir la próxima canción.
+        showPlayerView = false
+        currentSong = nil
+        liveActivityService.endActivity()
     }
 
     func seek(to time: TimeInterval) async {
