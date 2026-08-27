@@ -40,6 +40,14 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink(destination: HomePlaylistsOrderView()) {
+                    SettingsRowView(icon: "rectangle.stack.fill", iconColor: .appPurple, title: "Playlists en Inicio")
+                }
+            } header: {
+                SectionHeaderView(title: "Inicio")
+            }
+
+            Section {
                 DownloadsSectionView(
                     pendingCount: pendingSongsCount,
                     isGoogleDriveConfigured: viewModel.hasCredentials,
