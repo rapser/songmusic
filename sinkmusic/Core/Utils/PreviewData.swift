@@ -48,7 +48,7 @@ struct PreviewPlaylists {
 struct PreviewData {
     static func container(with items: [SongDTO]) -> ModelContainer {
         do {
-            let container = try ModelContainer(for: SongDTO.self, PlaylistDTO.self,
+            let container = try ModelContainer(for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self,
                                                configurations: ModelConfiguration(isStoredInMemoryOnly: true))
             let context = container.mainContext
             items.forEach { context.insert($0) }
@@ -72,7 +72,7 @@ struct PreviewContainer {
     private init() {
         do {
             container = try ModelContainer(
-                for: SongDTO.self, PlaylistDTO.self,
+                for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true)
             )
 

@@ -16,15 +16,16 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     private let localDataSource: SongLocalDataSource
 
-    /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días.
-    /// Vive fuera de SwiftData para no forzar migraciones del modelo de canciones.
+    /// Ranking de Inicio ("Canciones que más escuchas"): contador con ventana de 7 días,
+    /// persistido en su propia entidad SwiftData (`RankingWindowEntryDTO`), independiente
+    /// del `playCount` histórico de la canción.
     private let rankingWindowRepository: RankingWindowRepositoryProtocol
 
     // MARK: - Lifecycle
 
     init(
         localDataSource: SongLocalDataSource,
-        rankingWindowRepository: RankingWindowRepositoryProtocol = RankingWindowRepositoryImpl()
+        rankingWindowRepository: RankingWindowRepositoryProtocol
     ) {
         self.localDataSource = localDataSource
         self.rankingWindowRepository = rankingWindowRepository
@@ -62,7 +63,7 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
     /// se queda fija eternamente en el puesto 1. Las ventanas caducadas ya fueron
     /// descartadas por `activeCounts()`.
     func getTopSongs(limit: Int = 10) async throws -> [Song] {
-        let counts = rankingWindowRepository.activeCounts()
+        let counts = await rankingWindowRepository.activeCounts()
         guard !counts.isEmpty else { return [] }
 
         // `getDownloaded()` excluye canciones sin descargar: al quitar una descarga sale
@@ -114,12 +115,12 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     func delete(_ id: UUID) async throws {
         try localDataSource.delete(id)
-        rankingWindowRepository.remove(songID: id)
+        await rankingWindowRepository.remove(songID: id)
     }
 
     func deleteAll() async throws {
         try localDataSource.deleteAll()
-        rankingWindowRepository.clear()
+        await rankingWindowRepository.clear()
     }
 
     // MARK: - Specific Operations
@@ -127,7 +128,7 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
     func incrementPlayCount(for id: UUID) async throws {
         try localDataSource.incrementPlayCount(for: id)
         // Abre o incrementa la ventana de 7 días de esta canción en el ranking de Inicio.
-        rankingWindowRepository.registerPlay(songID: id)
+        await rankingWindowRepository.registerPlay(songID: id)
     }
 
     func updateDownloadStatus(for id: UUID, isDownloaded: Bool) async throws {

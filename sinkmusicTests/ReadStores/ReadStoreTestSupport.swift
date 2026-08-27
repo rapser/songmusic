@@ -21,32 +21,31 @@ enum ReadStoreTestSupport {
     /// crashes reportados en esta suite — no un bug de SwiftData con `@Attribute(.unique)`.
     static func makeInMemoryContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try ModelContainer(for: SongDTO.self, PlaylistDTO.self, configurations: config)
+        return try ModelContainer(for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self, configurations: config)
     }
 
     static func makeSongLocalDataSource(_ context: ModelContext) -> SongLocalDataSource {
         SongLocalDataSource(modelContext: context)
     }
 
-    /// Ranking de Inicio respaldado por un `UserDefaults` volátil y aislado por test,
-    /// para que no haya estado compartido entre corridas.
-    static func makeRankingWindowRepository() -> RankingWindowRepositoryProtocol {
-        let suiteName = "test.ranking.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return RankingWindowRepositoryImpl(defaults: defaults)
+    /// Ranking de Inicio sobre el mismo contenedor SwiftData en memoria del test.
+    static func makeRankingWindowRepository(_ context: ModelContext) -> RankingWindowRepositoryProtocol {
+        RankingWindowRepositoryImpl(dataSource: RankingWindowLocalDataSource(modelContext: context))
     }
 
     static func makeSongRepository(
         _ context: ModelContext,
-        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+        ranking: RankingWindowRepositoryProtocol? = nil
     ) -> SongRepositoryProtocol {
-        SongRepositoryImpl(localDataSource: makeSongLocalDataSource(context), rankingWindowRepository: ranking)
+        SongRepositoryImpl(
+            localDataSource: makeSongLocalDataSource(context),
+            rankingWindowRepository: ranking ?? makeRankingWindowRepository(context)
+        )
     }
 
     static func makePlaylistRepository(
         _ context: ModelContext,
-        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+        ranking: RankingWindowRepositoryProtocol? = nil
     ) -> PlaylistRepositoryProtocol {
         PlaylistRepositoryImpl(
             localDataSource: PlaylistLocalDataSource(modelContext: context),
@@ -57,7 +56,7 @@ enum ReadStoreTestSupport {
 
     static func makeLibraryUseCases(
         _ context: ModelContext,
-        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+        ranking: RankingWindowRepositoryProtocol? = nil
     ) -> LibraryUseCases {
         LibraryUseCases(
             songRepository: makeSongRepository(context, ranking: ranking),

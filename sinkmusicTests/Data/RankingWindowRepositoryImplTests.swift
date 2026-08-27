@@ -4,87 +4,108 @@
 //
 
 import XCTest
+import SwiftData
 @testable import sinkmusic
 
+@MainActor
 final class RankingWindowRepositoryImplTests: XCTestCase {
 
-    private var suiteName: String!
-    private var defaults: UserDefaults!
+    private var container: ModelContainer!
 
-    override func setUp() {
-        super.setUp()
-        suiteName = "test.ranking.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)
-        defaults.removePersistentDomain(forName: suiteName)
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        container = try ModelContainer(
+            for: RankingWindowEntryDTO.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
-        defaults = nil
-        suiteName = nil
+        container = nil
         super.tearDown()
     }
 
     private func makeSUT(now: @escaping () -> Date) -> RankingWindowRepositoryImpl {
-        RankingWindowRepositoryImpl(defaults: defaults, now: now)
+        RankingWindowRepositoryImpl(
+            dataSource: RankingWindowLocalDataSource(modelContext: container.mainContext),
+            now: now
+        )
     }
 
-    func test_registerPlay_accumulatesWithinWindow() {
+    func test_registerPlay_accumulatesWithinWindow() async {
         var clock = Date(timeIntervalSince1970: 1_000_000)
         let sut = makeSUT(now: { clock })
         let song = UUID()
 
-        sut.registerPlay(songID: song)
-        clock = clock.addingTimeInterval(3600) // +1h
-        sut.registerPlay(songID: song)
+        await sut.registerPlay(songID: song)
         clock = clock.addingTimeInterval(3600)
-        sut.registerPlay(songID: song)
+        await sut.registerPlay(songID: song)
+        clock = clock.addingTimeInterval(3600)
+        await sut.registerPlay(songID: song)
 
-        XCTAssertEqual(sut.activeCounts()[song], 3)
+        let counts = await sut.activeCounts()
+        XCTAssertEqual(counts[song], 3)
     }
 
-    func test_activeCounts_dropsSongWhoseWindowExpired() {
+    func test_activeCounts_ignoresSongWhoseWindowExpired() async {
         var clock = Date(timeIntervalSince1970: 1_000_000)
         let sut = makeSUT(now: { clock })
         let fresh = UUID()
         let stale = UUID()
 
-        sut.registerPlay(songID: stale)
-        clock = clock.addingTimeInterval(2 * 24 * 3600) // stale abrió su ventana 2 días antes que fresh
-        sut.registerPlay(songID: fresh)
+        await sut.registerPlay(songID: stale)
+        clock = clock.addingTimeInterval(2 * 24 * 3600) // stale abrió su ventana 2 días antes
+        await sut.registerPlay(songID: fresh)
 
-        // Avanzar hasta que la ventana de `stale` (7 días) haya caducado pero la de `fresh` no.
-        clock = clock.addingTimeInterval(6 * 24 * 3600)
+        clock = clock.addingTimeInterval(6 * 24 * 3600) // stale caduca (8 días), fresh no (6)
 
-        let counts = sut.activeCounts()
+        let counts = await sut.activeCounts()
         XCTAssertNil(counts[stale])
         XCTAssertEqual(counts[fresh], 1)
     }
 
-    func test_registerPlay_afterExpiry_startsFreshWindow() {
+    func test_registerPlay_afterExpiry_startsFreshWindow() async {
         var clock = Date(timeIntervalSince1970: 1_000_000)
         let sut = makeSUT(now: { clock })
         let song = UUID()
 
-        for _ in 0..<10 { sut.registerPlay(songID: song) }
-        clock = clock.addingTimeInterval(RankingWindowRepositoryImpl.windowDuration + 60) // caduca
-        XCTAssertNil(sut.activeCounts()[song])
+        for _ in 0..<10 { await sut.registerPlay(songID: song) }
+        clock = clock.addingTimeInterval(RankingWindowRepositoryImpl.windowDuration + 60)
 
-        sut.registerPlay(songID: song) // nueva ventana
-        XCTAssertEqual(sut.activeCounts()[song], 1)
+        var counts = await sut.activeCounts()
+        XCTAssertNil(counts[song])
+
+        await sut.registerPlay(songID: song) // nueva ventana
+        counts = await sut.activeCounts()
+        XCTAssertEqual(counts[song], 1)
     }
 
-    func test_remove_and_clear() {
+    func test_registerPlay_purgesExpiredRows() async throws {
+        var clock = Date(timeIntervalSince1970: 1_000_000)
+        let sut = makeSUT(now: { clock })
+        let stale = UUID()
+
+        await sut.registerPlay(songID: stale)
+        clock = clock.addingTimeInterval(RankingWindowRepositoryImpl.windowDuration + 60)
+        await sut.registerPlay(songID: UUID()) // dispara la limpieza oportunista
+
+        let ds = RankingWindowLocalDataSource(modelContext: container.mainContext)
+        XCTAssertNil(try ds.entry(for: stale))
+    }
+
+    func test_remove_and_clear() async {
         let sut = makeSUT(now: { Date() })
         let a = UUID(); let b = UUID()
-        sut.registerPlay(songID: a)
-        sut.registerPlay(songID: b)
+        await sut.registerPlay(songID: a)
+        await sut.registerPlay(songID: b)
 
-        sut.remove(songID: a)
-        XCTAssertNil(sut.activeCounts()[a])
-        XCTAssertEqual(sut.activeCounts()[b], 1)
+        await sut.remove(songID: a)
+        var counts = await sut.activeCounts()
+        XCTAssertNil(counts[a])
+        XCTAssertEqual(counts[b], 1)
 
-        sut.clear()
-        XCTAssertTrue(sut.activeCounts().isEmpty)
+        await sut.clear()
+        counts = await sut.activeCounts()
+        XCTAssertTrue(counts.isEmpty)
     }
 }

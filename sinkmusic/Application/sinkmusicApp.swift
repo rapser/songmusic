@@ -48,7 +48,7 @@ struct sinkmusicApp: App {
         // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
         container = DIContainer.createShared()
         do {
-            modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self)
+            modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self)
         } catch {
             fatalError("❌ No se pudo crear el ModelContainer compartido: \(error)")
         }

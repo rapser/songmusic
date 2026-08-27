@@ -117,9 +117,11 @@ final class DIContainer {
 
     private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
 
-    /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días.
-    /// Fuera de SwiftData: no fuerza migraciones del modelo de canciones.
-    private(set) lazy var rankingWindowRepository: RankingWindowRepositoryProtocol = RankingWindowRepositoryImpl()
+    /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días,
+    /// persistido en su propia entidad SwiftData (`RankingWindowEntryDTO`).
+    private(set) lazy var rankingWindowRepository: RankingWindowRepositoryProtocol = RankingWindowRepositoryImpl(
+        dataSource: RankingWindowLocalDataSource(modelContext: requireModelContext())
+    )
 
     // MARK: - Use Cases (Lazy initialization)
 
