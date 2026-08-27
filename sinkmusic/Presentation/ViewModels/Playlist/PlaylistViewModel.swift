@@ -49,6 +49,12 @@ final class PlaylistViewModel {
     @ObservationIgnored
     private var changesTask: Task<Void, Never>?
 
+    /// Última playlist cuyas canciones se cargaron en `songsInPlaylist` (la que está
+    /// abierta en `PlaylistDetailView`). Se usa para refrescarla ante cambios reactivos
+    /// —p. ej. al terminar una descarga— aunque no se haya pasado por `selectPlaylist`.
+    @ObservationIgnored
+    private var lastLoadedPlaylistID: UUID?
+
     // MARK: - Initialization
 
     init(playlistUseCases: PlaylistUseCases, readStore: PlaylistReadStoreProtocol) {
@@ -59,9 +65,9 @@ final class PlaylistViewModel {
             for await _ in readStore.changes() {
                 guard !Task.isCancelled else { break }
                 await self.loadPlaylists()
-                if let selectedID = self.selectedPlaylist?.id {
-                    await self.loadSongsInPlaylist(selectedID)
-                    await self.loadPlaylistStats(selectedID)
+                if let detailID = self.selectedPlaylist?.id ?? self.lastLoadedPlaylistID {
+                    await self.loadSongsInPlaylist(detailID)
+                    await self.loadPlaylistStats(detailID)
                 }
             }
         }
@@ -154,6 +160,9 @@ final class PlaylistViewModel {
             await loadPlaylists()
             if selectedPlaylist?.id == id {
                 selectedPlaylist = nil
+            }
+            if lastLoadedPlaylistID == id {
+                lastLoadedPlaylistID = nil
             }
             errorMessage = nil
         } catch {
@@ -315,11 +324,16 @@ final class PlaylistViewModel {
 
     /// Carga las canciones de una playlist
     func loadSongsInPlaylist(_ playlistID: UUID) async {
+        lastLoadedPlaylistID = playlistID
         do {
             let entities = try await readStore.songs(inPlaylist: playlistID)
             songsInPlaylist = entities.map { SongMapper.toUI($0) }
         } catch {
-            errorMessage = "Error al cargar canciones: \(error.localizedDescription)"
+            // La playlist pudo eliminarse mientras seguía referenciada por un refresco
+            // reactivo. No es un error accionable: se deja el detalle vacío.
+            logger.error("Error al cargar canciones de la playlist: \(error)")
+            songsInPlaylist = []
+            if lastLoadedPlaylistID == playlistID { lastLoadedPlaylistID = nil }
         }
     }
 

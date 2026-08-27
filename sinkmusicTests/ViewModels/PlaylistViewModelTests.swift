@@ -155,6 +155,22 @@ final class PlaylistViewModelTests: XCTestCase {
         XCTAssertEqual(sut.playlists.count, 2)
     }
 
+    /// Al terminar una descarga (o borrarla) mientras el detalle de la playlist está abierto,
+    /// `songsInPlaylist` debe refrescarse aunque no se haya pasado por `selectPlaylist`.
+    func test_readStoreChanges_reloadsOpenPlaylistDetail() async {
+        let songID = UUID()
+        let playlistID = UUID()
+        mockReadStore.songsInPlaylistValue = [Song.make(id: songID, isDownloaded: false)]
+        await sut.loadSongsInPlaylist(playlistID)
+        XCTAssertEqual(sut.songsInPlaylist.first?.isDownloaded, false)
+
+        mockReadStore.songsInPlaylistValue = [Song.make(id: songID, isDownloaded: true)]
+        mockReadStore.simulateChange()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(sut.songsInPlaylist.first?.isDownloaded, true)
+    }
+
     // MARK: - Home Layout (curaduría de playlists en Inicio)
 
     func test_loadHomePlaylistLayout_populatesShownAndOthers() async {
