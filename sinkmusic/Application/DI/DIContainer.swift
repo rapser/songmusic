@@ -115,6 +115,8 @@ final class DIContainer {
 
     private(set) lazy var playbackStateRepository: PlaybackStateRepositoryProtocol = PlaybackStateRepositoryImpl()
 
+    private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
+
     // MARK: - Use Cases (Lazy initialization)
 
     private(set) lazy var playerUseCases: PlayerUseCases = makePlayerUseCases()
@@ -227,7 +229,8 @@ final class DIContainer {
     private func makePlaylistUseCases() -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: playlistRepository,
-            songRepository: songRepository
+            songRepository: songRepository,
+            homePlaylistLayoutRepository: homePlaylistLayoutRepository
         )
     }
 

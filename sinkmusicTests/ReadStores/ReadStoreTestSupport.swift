@@ -62,7 +62,10 @@ enum ReadStoreTestSupport {
     static func makePlaylistUseCases(_ context: ModelContext) -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: makePlaylistRepository(context),
-            songRepository: makeSongRepository(context)
+            songRepository: makeSongRepository(context),
+            // Mock explícito: evita que estos tests dependan de UserDefaults real
+            // (que persiste entre corridas) para la curaduría de playlists en Inicio.
+            homePlaylistLayoutRepository: MockHomePlaylistLayoutRepository()
         )
     }
 
