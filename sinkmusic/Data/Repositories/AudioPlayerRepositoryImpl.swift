@@ -26,8 +26,12 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
 
     // MARK: - AudioPlayerRepositoryProtocol
 
-    func play(songID: UUID, url: URL) async throws {
-        audioPlayerService.play(songID: songID, url: url)
+    func play(songID: UUID, url: URL, startTime: TimeInterval) async throws {
+        audioPlayerService.play(songID: songID, url: url, startTime: startTime)
+    }
+
+    func resume() async -> Bool {
+        audioPlayerService.resume()
     }
 
     func pause() async {
@@ -50,22 +54,24 @@ final class AudioPlayerRepositoryImpl: AudioPlayerRepositoryProtocol {
         audioPlayerService.updateEqualizer(bands: bands)
     }
 
-    func updateNowPlayingInfo(
+    func setNowPlayingMetadata(
         title: String,
         artist: String,
         album: String?,
         duration: TimeInterval,
-        currentTime: TimeInterval,
         artwork: Data?
     ) async {
-        audioPlayerService.updateNowPlayingInfo(
+        audioPlayerService.setNowPlayingMetadata(
             title: title,
             artist: artist,
             album: album,
             duration: duration,
-            currentTime: currentTime,
             artwork: artwork
         )
+    }
+
+    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) async {
+        audioPlayerService.updateNowPlayingTime(elapsed, duration: duration)
     }
 }
 

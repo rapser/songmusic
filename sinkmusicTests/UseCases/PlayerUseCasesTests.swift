@@ -12,14 +12,17 @@ final class PlayerUseCasesTests: XCTestCase {
     private var sut: PlayerUseCases!
     private var mockAudioPlayer: MockAudioPlayerRepository!
     private var mockSongRepo: MockSongRepository!
+    private var mockPlaybackState: MockPlaybackStateRepository!
 
     override func setUp() {
         super.setUp()
         mockAudioPlayer = MockAudioPlayerRepository()
         mockSongRepo = MockSongRepository()
+        mockPlaybackState = MockPlaybackStateRepository()
         sut = PlayerUseCases(
             audioPlayerRepository: mockAudioPlayer,
-            songRepository: mockSongRepo
+            songRepository: mockSongRepo,
+            playbackStateRepository: mockPlaybackState
         )
     }
 
@@ -27,6 +30,7 @@ final class PlayerUseCasesTests: XCTestCase {
         sut = nil
         mockAudioPlayer = nil
         mockSongRepo = nil
+        mockPlaybackState = nil
         super.tearDown()
     }
 
@@ -91,7 +95,8 @@ final class PlayerUseCasesTests: XCTestCase {
 
         try await sut.play(songID: songID)
 
-        XCTAssertTrue(sut.getIsPlaying())
+        let playing = await sut.isPlaying()
+        XCTAssertTrue(playing)
         XCTAssertEqual(sut.getCurrentSongID(), songID)
     }
 
@@ -112,7 +117,8 @@ final class PlayerUseCasesTests: XCTestCase {
 
         await sut.pause()
 
-        XCTAssertFalse(sut.getIsPlaying())
+        let playing = await sut.isPlaying()
+        XCTAssertFalse(playing)
     }
 
     // MARK: - stop()
@@ -133,7 +139,8 @@ final class PlayerUseCasesTests: XCTestCase {
         await sut.stop()
 
         XCTAssertNil(sut.getCurrentSongID())
-        XCTAssertFalse(sut.getIsPlaying())
+        let playing = await sut.isPlaying()
+        XCTAssertFalse(playing)
     }
 
     // MARK: - togglePlayPause()
@@ -204,14 +211,9 @@ final class PlayerUseCasesTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    // MARK: - updateNowPlayingTime()
+    // MARK: - Now Playing
 
-    func test_updateNowPlayingTime_withNoCurrentSong_makesNoCall() async {
-        await sut.updateNowPlayingTime(currentTime: 30, duration: 180)
-        XCTAssertEqual(mockAudioPlayer.updateNowPlayingCallCount, 0)
-    }
-
-    func test_updateNowPlayingTime_afterPlay_callsAudioPlayer() async throws {
+    func test_play_setsNowPlayingMetadata() async throws {
         let songID = UUID()
         let musicDir = try createTempAudioFile(songID: songID)
         defer { try? FileManager.default.removeItem(at: musicDir) }
@@ -219,10 +221,172 @@ final class PlayerUseCasesTests: XCTestCase {
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
 
-        let callsBefore = mockAudioPlayer.updateNowPlayingCallCount
-        await sut.updateNowPlayingTime(currentTime: 30, duration: 180)
+        XCTAssertEqual(mockAudioPlayer.setNowPlayingMetadataCallCount, 1)
+    }
 
-        XCTAssertGreaterThan(mockAudioPlayer.updateNowPlayingCallCount, callsBefore)
+    // MARK: - Playback State Persistence
+
+    func test_pendingResumeTime_persistedOnPlay() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+
+        try await sut.play(songID: songID)
+
+        XCTAssertEqual(mockPlaybackState.savedTime, 0)
+    }
+
+    func test_persistCurrentPlaybackTime_withCurrentSong_savesState() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        try await sut.play(songID: songID)
+
+        sut.persistCurrentPlaybackTime(37.5)
+
+        XCTAssertEqual(mockPlaybackState.savedSongID, songID)
+        XCTAssertEqual(mockPlaybackState.savedTime, 37.5)
+    }
+
+    func test_persistCurrentPlaybackTime_withNoCurrentSong_doesNotSave() {
+        sut.persistCurrentPlaybackTime(37.5)
+        XCTAssertEqual(mockPlaybackState.saveCallCount, 0)
+    }
+
+    // MARK: - restoreLastPlaybackState()
+
+    func test_restoreLastPlaybackState_withNoSavedState_returnsNil() async {
+        let result = await sut.restoreLastPlaybackState()
+        XCTAssertNil(result)
+    }
+
+    /// Actualización desde una versión anterior: no hay estado guardado en UserDefaults.
+    /// Debe ser un no-op limpio, sin borrar nada ni dejar el reproductor en un estado raro.
+    func test_restoreLastPlaybackState_onUpgradeFromOldVersion_isCleanNoOp() async {
+        // Sin `stateToLoad`: simula UserDefaults sin las claves nuevas.
+        let result = await sut.restoreLastPlaybackState()
+
+        XCTAssertNil(result)
+        XCTAssertNil(sut.getCurrentSongID())
+        XCTAssertEqual(mockPlaybackState.clearCallCount, 0, "No debe borrar nada si no había estado")
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 0)
+    }
+
+    func test_restoreLastPlaybackState_withDownloadedSong_returnsSongAndTime() async {
+        let song = Song.make(isDownloaded: true)
+        mockSongRepo.songs = [song]
+        mockPlaybackState.stateToLoad = (song.id, 145)
+
+        let result = await sut.restoreLastPlaybackState()
+
+        XCTAssertEqual(result?.song.id, song.id)
+        XCTAssertEqual(result?.time, 145)
+        let playing = await sut.isPlaying()
+        XCTAssertFalse(playing)
+        XCTAssertEqual(sut.getCurrentSongID(), song.id)
+    }
+
+    func test_restoreLastPlaybackState_withNoLongerDownloadedSong_clearsAndReturnsNil() async {
+        let song = Song.make(isDownloaded: false)
+        mockSongRepo.songs = [song]
+        mockPlaybackState.stateToLoad = (song.id, 145)
+
+        let result = await sut.restoreLastPlaybackState()
+
+        XCTAssertNil(result)
+        XCTAssertEqual(mockPlaybackState.clearCallCount, 1)
+    }
+
+    func test_togglePlayPause_afterRestore_resumesFromSavedTime() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        mockPlaybackState.stateToLoad = (songID, 145)
+        _ = await sut.restoreLastPlaybackState()
+
+        try await sut.togglePlayPause()
+
+        // La posición viaja como parámetro de `play`, no con un seek posterior.
+        XCTAssertEqual(mockAudioPlayer.lastStartTime, 145)
+        XCTAssertEqual(mockAudioPlayer.seekCallCount, 0)
+        let playing = await sut.isPlaying()
+        XCTAssertTrue(playing)
+    }
+
+    // MARK: - resume()
+
+    func test_resume_whenEngineHasTrack_doesNotReplayNorIncrementPlayCount() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        try await sut.play(songID: songID)
+        await sut.pause()
+
+        let playsBefore = mockAudioPlayer.playCallCount
+        let countBefore = mockSongRepo.incrementPlayCountCallCount
+
+        try await sut.resume()
+
+        XCTAssertEqual(mockAudioPlayer.resumeCallCount, 1)
+        XCTAssertEqual(mockAudioPlayer.playCallCount, playsBefore, "Reanudar no debe recargar la canción")
+        XCTAssertEqual(mockSongRepo.incrementPlayCountCallCount, countBefore, "Reanudar no debe contar otra reproducción")
+    }
+
+    func test_resume_afterColdRestore_playsFromSavedTime() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        mockPlaybackState.stateToLoad = (songID, 145)
+        _ = await sut.restoreLastPlaybackState()
+
+        // Arranque en frío: el motor no tiene nada cargado.
+        mockAudioPlayer.canResumeValue = false
+
+        try await sut.resume()
+
+        XCTAssertEqual(mockAudioPlayer.resumeCallCount, 1)
+        XCTAssertEqual(mockAudioPlayer.playCallCount, 1)
+        XCTAssertEqual(mockAudioPlayer.lastStartTime, 145)
+        XCTAssertEqual(mockSongRepo.incrementPlayCountCallCount, 1)
+    }
+
+    func test_togglePlayPause_whenEnginePaused_resumesWithoutSeekingToZero() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        try await sut.play(songID: songID)
+        await sut.pause()
+
+        try await sut.togglePlayPause()
+
+        XCTAssertEqual(mockAudioPlayer.resumeCallCount, 1)
+        XCTAssertEqual(mockAudioPlayer.seekCallCount, 0, "Reanudar no debe reiniciar la posición a 0")
+    }
+
+    func test_togglePlayPause_whenEnginePlaying_pauses() async throws {
+        let songID = UUID()
+        let musicDir = try createTempAudioFile(songID: songID)
+        defer { try? FileManager.default.removeItem(at: musicDir) }
+
+        mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
+        try await sut.play(songID: songID)
+
+        try await sut.togglePlayPause()
+
+        XCTAssertEqual(mockAudioPlayer.pauseCallCount, 1)
+        XCTAssertEqual(mockAudioPlayer.resumeCallCount, 0)
     }
 
     // MARK: - Helpers

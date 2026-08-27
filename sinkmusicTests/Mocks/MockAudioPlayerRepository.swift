@@ -10,26 +10,42 @@ import Foundation
 final class MockAudioPlayerRepository: AudioPlayerRepositoryProtocol {
 
     var playCallCount = 0
+    var resumeCallCount = 0
     var pauseCallCount = 0
     var stopCallCount = 0
     var seekCallCount = 0
     var updateEqualizerCallCount = 0
-    var updateNowPlayingCallCount = 0
+    var setNowPlayingMetadataCallCount = 0
+    var updateNowPlayingTimeCallCount = 0
 
     var lastPlayedSongID: UUID?
     var lastPlayedURL: URL?
+    var lastStartTime: TimeInterval?
     var lastSeekTime: TimeInterval?
     var lastEqualizerBands: [Float]?
 
     var isPlayingValue = false
     var shouldThrowOnPlay = false
 
-    func play(songID: UUID, url: URL) async throws {
+    /// Simula si el motor tiene una pista cargada que se pueda reanudar.
+    /// `false` = arranque en frío, el UseCase debe caer a un `play` real.
+    var canResumeValue = false
+
+    func play(songID: UUID, url: URL, startTime: TimeInterval) async throws {
         if shouldThrowOnPlay { throw SongError.fileNotFound }
         playCallCount += 1
         lastPlayedSongID = songID
         lastPlayedURL = url
+        lastStartTime = startTime
         isPlayingValue = true
+        canResumeValue = true
+    }
+
+    func resume() async -> Bool {
+        resumeCallCount += 1
+        guard canResumeValue else { return false }
+        isPlayingValue = true
+        return true
     }
 
     func pause() async {
@@ -54,14 +70,17 @@ final class MockAudioPlayerRepository: AudioPlayerRepositoryProtocol {
         lastEqualizerBands = bands
     }
 
-    func updateNowPlayingInfo(
+    func setNowPlayingMetadata(
         title: String,
         artist: String,
         album: String?,
         duration: TimeInterval,
-        currentTime: TimeInterval,
         artwork: Data?
     ) async {
-        updateNowPlayingCallCount += 1
+        setNowPlayingMetadataCallCount += 1
+    }
+
+    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) async {
+        updateNowPlayingTimeCallCount += 1
     }
 }

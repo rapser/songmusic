@@ -40,6 +40,9 @@ struct sinkmusicApp: App {
     @State private var playerCoordinator: PlayerCoordinator?
     @State private var didConfigureContainer = false
 
+    // MARK: - Scene Phase
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
         // Crear e registrar el contenedor antes de que cualquier AppDelegate
         // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
@@ -124,6 +127,12 @@ struct sinkmusicApp: App {
                 // Configurar DIContainer una sola vez con el contexto compartido
                 await configureDIContainer()
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                // Respaldo al pasar a segundo plano: no depende del throttle de timeUpdated
+                if newPhase == .background {
+                    playerViewModel?.persistCurrentPlaybackState()
+                }
+            }
         }
         .modelContainer(modelContainer)
     }
@@ -142,6 +151,7 @@ struct sinkmusicApp: App {
         authViewModel = container.makeAuthViewModel()
 
         playerViewModel = container.makePlayerViewModel()
+        await playerViewModel?.restoreLastPlaybackState()
         libraryViewModel = container.makeLibraryViewModel()
         homeViewModel = container.makeHomeViewModel()
         searchViewModel = container.makeSearchViewModel()

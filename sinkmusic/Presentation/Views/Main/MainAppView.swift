@@ -34,12 +34,21 @@ struct MainAppView: View {
         }
         .task {
             playerCoordinator.onLibrarySongsChanged(libraryViewModel.songs, currentlyPlayingID: playerViewModel.currentlyPlayingID)
+            // Necesario también aquí (no solo en el .onChange de abajo): si se restauró una
+            // canción al abrir la app, `currentlyPlayingID` ya viene fijado antes de que esta
+            // vista se monte, así que el .onChange nunca ve un cambio para ese valor inicial
+            // y el artwork no se cargaba, mostrando solo el placeholder por defecto.
+            await playerCoordinator.onPlayingIDChanged(playerViewModel.currentlyPlayingID, libraryViewModel: libraryViewModel)
         }
         .onChange(of: playerViewModel.currentlyPlayingID) { _, newValue in
             Task { await playerCoordinator.onPlayingIDChanged(newValue, libraryViewModel: libraryViewModel) }
         }
         .onChange(of: libraryViewModel.songs) { _, newValue in
             playerCoordinator.onLibrarySongsChanged(newValue, currentlyPlayingID: playerViewModel.currentlyPlayingID)
+            // La biblioteca puede terminar de cargar DESPUÉS del arranque en frío (la
+            // canción restaurada aún no estaba en `songsLookup` en el .task de arriba).
+            // Idempotente: si el artwork ya se cargó para esta canción, no hace nada.
+            Task { await playerCoordinator.onPlayingIDChanged(playerViewModel.currentlyPlayingID, libraryViewModel: libraryViewModel) }
         }
     }
 

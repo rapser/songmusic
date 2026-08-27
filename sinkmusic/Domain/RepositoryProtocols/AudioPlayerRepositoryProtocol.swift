@@ -14,8 +14,12 @@ protocol AudioPlayerRepositoryProtocol: Sendable {
 
     // MARK: - Playback Control
 
-    /// Reproduce una canción
-    func play(songID: UUID, url: URL) async throws
+    /// Carga y reproduce una canción, opcionalmente desde una posición dada
+    func play(songID: UUID, url: URL, startTime: TimeInterval) async throws
+
+    /// Continúa la canción ya cargada sin reprogramarla ni reiniciar su posición.
+    /// Devuelve `false` si no hay nada cargado y hace falta un `play` real.
+    func resume() async -> Bool
 
     /// Pausa la reproducción
     func pause() async
@@ -26,7 +30,7 @@ protocol AudioPlayerRepositoryProtocol: Sendable {
     /// Busca a una posición específica
     func seek(to time: TimeInterval) async
 
-    /// Verifica si está reproduciendo
+    /// Estado real de reproducción — fuente única de verdad, leída del motor de audio
     func isPlaying() async -> Bool
 
     // MARK: - Equalizer
@@ -36,13 +40,15 @@ protocol AudioPlayerRepositoryProtocol: Sendable {
 
     // MARK: - Now Playing Info
 
-    /// Actualiza la información de reproducción (Lock Screen)
-    func updateNowPlayingInfo(
+    /// Fija la metadata de la canción actual (Lock Screen), una vez por canción
+    func setNowPlayingMetadata(
         title: String,
         artist: String,
         album: String?,
         duration: TimeInterval,
-        currentTime: TimeInterval,
         artwork: Data?
     ) async
+
+    /// Refresca solo el tiempo transcurrido (Lock Screen)
+    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) async
 }

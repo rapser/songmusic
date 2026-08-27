@@ -16,6 +16,7 @@ final class MockSongRepository: SongRepositoryProtocol {
     var updateCallCount = 0
     var deleteCallCount = 0
     var incrementPlayCountCallCount = 0
+    var getByIDCallCount = 0
     var lastDeletedID: UUID?
     var lastUpdatedSong: Song?
     var lastCreatedSong: Song?
@@ -28,7 +29,8 @@ final class MockSongRepository: SongRepositoryProtocol {
     func getAll() async throws -> [Song] { songs }
 
     func getByID(_ id: UUID) async throws -> Song? {
-        songs.first { $0.id == id }
+        getByIDCallCount += 1
+        return songs.first { $0.id == id }
     }
 
     func getByFileID(_ fileID: String) async throws -> Song? {

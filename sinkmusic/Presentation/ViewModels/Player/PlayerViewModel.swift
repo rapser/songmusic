@@ -19,6 +19,9 @@ final class PlayerViewModel: EventBusObservable {
 
     // MARK: - Published State
 
+    /// Espejo de solo-UI del estado de reproducción. **No es fuente de verdad**: se escribe
+    /// únicamente desde `.stateChanged` y jamás debe usarse para decidir si reproducir o
+    /// pausar — para eso está `PlayerUseCases.isPlaying()`, que consulta al motor de audio.
     var isPlaying = false
     var currentlyPlayingID: UUID?
     var playbackTime: TimeInterval = 0
@@ -39,7 +42,7 @@ final class PlayerViewModel: EventBusObservable {
 
     private var queueSongIDs: [UUID] = []
     private var currentSong: SongUI?
-    private var lastNowPlayingUpdateTime: TimeInterval = 0
+    private var lastProgressPersistTime: TimeInterval = 0
     private var lastPlaybackTime: TimeInterval = 0
 
     // MARK: - Tasks
@@ -112,8 +115,20 @@ final class PlayerViewModel: EventBusObservable {
         }
     }
 
+    /// Continúa la canción actual desde donde se quedó (intención explícita de "play")
+    func resume() async {
+        do {
+            try await playerUseCases.resume()
+        } catch {
+            logger.error("Error al reanudar: \(error)")
+        }
+    }
+
     func pause() async {
         await playerUseCases.pause()
+        // Respaldo inmediato: si el usuario cierra la app justo después de pausar,
+        // no dependemos del siguiente `timeUpdated` (que ya no llegará) para persistir.
+        playerUseCases.persistCurrentPlaybackTime(playbackTime)
     }
 
     func stop() async {
@@ -125,6 +140,26 @@ final class PlayerViewModel: EventBusObservable {
         await playerUseCases.seek(to: time)
         playbackTime = time
         lastPlaybackTime = time
+    }
+
+    /// Restaura la última canción escuchada y su posición al abrir la app.
+    /// No inicia la reproducción: solo deja el mini reproductor listo con el
+    /// tiempo donde el usuario se quedó (p.ej. 2:25) para que continúe al presionar play.
+    func restoreLastPlaybackState() async {
+        guard let (song, time) = await playerUseCases.restoreLastPlaybackState() else { return }
+
+        currentSong = SongMapper.toUI(song)
+        currentlyPlayingID = song.id
+        playbackTime = time
+        lastPlaybackTime = time
+        songDuration = song.duration ?? 0
+        isPlaying = false
+    }
+
+    /// Persiste de inmediato la posición actual, sin esperar al próximo `timeUpdated`.
+    /// Se invoca cuando la app pasa a segundo plano para no perder precisión.
+    func persistCurrentPlaybackState() {
+        playerUseCases.persistCurrentPlaybackTime(playbackTime)
     }
 
     // MARK: - Queue Management
@@ -214,7 +249,9 @@ final class PlayerViewModel: EventBusObservable {
                 if idx < queueSongIDs.count - 1 {
                     await playNextSong(afterSongID: finishedSongID)
                 } else {
-                    isPlaying = false
+                    // Fin de la cola: pasar por el UseCase para que el motor de audio y el
+                    // reproductor nativo se enteren, en vez de tocar solo el flag local.
+                    await playerUseCases.pause()
                 }
             }
         }
@@ -232,7 +269,6 @@ final class PlayerViewModel: EventBusObservable {
             self.updateLiveActivity()
 
         case .timeUpdated(let time, let duration):
-            let isFirstDurationUpdate = self.songDuration == 0 && duration > 0
             self.songDuration = duration
 
             // Throttle: actualizar solo si el cambio es > 0.5 segundos
@@ -241,18 +277,12 @@ final class PlayerViewModel: EventBusObservable {
                 self.lastPlaybackTime = time
             }
 
-            // Primera actualización de duración: actualizar Now Playing inmediatamente
-            if isFirstDurationUpdate {
-                await self.playerUseCases.updateNowPlayingTime(currentTime: time, duration: duration)
-                self.lastNowPlayingUpdateTime = CACurrentMediaTime()
-                return
-            }
-
-            // Actualizar Now Playing cada 1 segundo
+            // Now Playing lo refresca AudioPlayerService; aquí solo persistimos el avance
+            // (cada 1s) para poder retomar la canción al reabrir la app.
             let currentTime = CACurrentMediaTime()
-            if currentTime - self.lastNowPlayingUpdateTime >= 1.0 {
-                self.lastNowPlayingUpdateTime = currentTime
-                await self.playerUseCases.updateNowPlayingTime(currentTime: time, duration: duration)
+            if currentTime - self.lastProgressPersistTime >= 1.0 {
+                self.lastProgressPersistTime = currentTime
+                self.playerUseCases.persistCurrentPlaybackTime(time)
             }
 
         case .songFinished(let finishedSongID):
@@ -266,6 +296,12 @@ final class PlayerViewModel: EventBusObservable {
 
     private func handleRemoteCommand(_ command: RemoteCommand) async {
         switch command {
+        case .play:
+            // Intención explícita de iOS: reanudar, nunca alternar.
+            await resume()
+        case .pause:
+            // Pasa por `pause()` del VM para que también persista la posición.
+            await pause()
         case .playPause:
             await togglePlayPause()
         case .next:
