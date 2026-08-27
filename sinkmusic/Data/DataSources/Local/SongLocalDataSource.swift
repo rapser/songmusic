@@ -78,22 +78,13 @@ final class SongLocalDataSource {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Obtiene top canciones por playCount (query targeted: predicate + sort + fetchLimit a nivel SwiftData)
-    /// Solo considera canciones actualmente descargadas: al eliminar una descarga se conserva
-    /// su `playCount` como historial, pero no debe seguir apareciendo como "más escuchada" en Home.
-    func getTopSongs(limit: Int = 10) throws -> [SongDTO] {
-        let predicate = #Predicate<SongDTO> { $0.playCount > 0 && $0.isDownloaded }
-        var descriptor = FetchDescriptor<SongDTO>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\SongDTO.playCount, order: .reverse)]
-        )
-        descriptor.fetchLimit = limit
-        return try modelContext.fetch(descriptor)
-    }
+    // Nota: el ranking "Canciones que más escuchas" de Inicio NO se calcula aquí.
+    // Usa un contador con ventana de 7 días que vive fuera de SwiftData
+    // (`RankingWindowRepository`), combinado con `getDownloaded()` en `SongRepositoryImpl`.
 
     /// Obtiene canciones reproducidas recientemente (query targeted: reemplaza getAll()+filter+sort+prefix)
-    /// Igual que `getTopSongs`, excluye canciones ya no descargadas para que "Recientes" en Home
-    /// se limpie automáticamente al eliminar una descarga.
+    /// Excluye canciones ya no descargadas para que "Recientes" en Home se limpie
+    /// automáticamente al eliminar una descarga.
     func getRecentlyPlayed(limit: Int = 10) throws -> [SongDTO] {
         let predicate = #Predicate<SongDTO> { $0.lastPlayedAt != nil && $0.isDownloaded }
         var descriptor = FetchDescriptor<SongDTO>(

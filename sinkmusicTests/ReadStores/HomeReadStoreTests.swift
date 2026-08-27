@@ -10,9 +10,12 @@ import SwiftData
 @MainActor
 final class HomeReadStoreTests: XCTestCase {
 
-    private func makeSUT(_ context: ModelContext) -> HomeReadStore {
+    private func makeSUT(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+    ) -> HomeReadStore {
         HomeReadStore(
-            libraryUseCases: ReadStoreTestSupport.makeLibraryUseCases(context),
+            libraryUseCases: ReadStoreTestSupport.makeLibraryUseCases(context, ranking: ranking),
             playlistUseCases: ReadStoreTestSupport.makePlaylistUseCases(context),
             modelContext: context
         )
@@ -48,14 +51,35 @@ final class HomeReadStoreTests: XCTestCase {
     func test_mostPlayedSongs_excludesRemovedDownloads() async throws {
         let container = try ReadStoreTestSupport.makeInMemoryContainer()
         let context = container.mainContext
-        try ReadStoreTestSupport.insertSong(context, title: "StillDownloaded", isDownloaded: true, playCount: 5)
-        try ReadStoreTestSupport.insertSong(context, title: "RemovedDownload", isDownloaded: false, playCount: 99)
+        let ranking = ReadStoreTestSupport.makeRankingWindowRepository()
+        let still = try ReadStoreTestSupport.insertSong(context, title: "StillDownloaded", isDownloaded: true)
+        let removed = try ReadStoreTestSupport.insertSong(context, title: "RemovedDownload", isDownloaded: false)
+        // Ambas con reproducciones recientes; solo la descargada debe salir en el ranking.
+        for _ in 0..<5 { ranking.registerPlay(songID: still.id) }
+        for _ in 0..<9 { ranking.registerPlay(songID: removed.id) }
 
-        let sut = makeSUT(context)
+        let sut = makeSUT(context, ranking: ranking)
         let songs = try await sut.mostPlayedSongs(limit: 10)
 
-        XCTAssertEqual(songs.count, 1)
-        XCTAssertEqual(songs.first?.title, "StillDownloaded")
+        XCTAssertEqual(songs.map(\.title), ["StillDownloaded"])
+    }
+
+    func test_mostPlayedSongs_ordersByWindowedPlayCount() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        let ranking = ReadStoreTestSupport.makeRankingWindowRepository()
+        let a = try ReadStoreTestSupport.insertSong(context, title: "A", isDownloaded: true)
+        let b = try ReadStoreTestSupport.insertSong(context, title: "B", isDownloaded: true)
+        let c = try ReadStoreTestSupport.insertSong(context, title: "C", isDownloaded: true)
+        for _ in 0..<2 { ranking.registerPlay(songID: a.id) }
+        for _ in 0..<5 { ranking.registerPlay(songID: b.id) }
+        // c nunca se reprodujo → no aparece en el ranking.
+        _ = c
+
+        let sut = makeSUT(context, ranking: ranking)
+        let songs = try await sut.mostPlayedSongs(limit: 10)
+
+        XCTAssertEqual(songs.map(\.title), ["B", "A"])
     }
 
     func test_downloadedSongs_returnsOnlyDownloaded() async throws {

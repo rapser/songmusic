@@ -28,24 +28,42 @@ enum ReadStoreTestSupport {
         SongLocalDataSource(modelContext: context)
     }
 
-    static func makeSongRepository(_ context: ModelContext) -> SongRepositoryProtocol {
-        SongRepositoryImpl(localDataSource: makeSongLocalDataSource(context))
+    /// Ranking de Inicio respaldado por un `UserDefaults` volátil y aislado por test,
+    /// para que no haya estado compartido entre corridas.
+    static func makeRankingWindowRepository() -> RankingWindowRepositoryProtocol {
+        let suiteName = "test.ranking.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return RankingWindowRepositoryImpl(defaults: defaults)
     }
 
-    static func makePlaylistRepository(_ context: ModelContext) -> PlaylistRepositoryProtocol {
+    static func makeSongRepository(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+    ) -> SongRepositoryProtocol {
+        SongRepositoryImpl(localDataSource: makeSongLocalDataSource(context), rankingWindowRepository: ranking)
+    }
+
+    static func makePlaylistRepository(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+    ) -> PlaylistRepositoryProtocol {
         PlaylistRepositoryImpl(
             localDataSource: PlaylistLocalDataSource(modelContext: context),
-            songRepository: makeSongRepository(context),
+            songRepository: makeSongRepository(context, ranking: ranking),
             songLocalDataSource: makeSongLocalDataSource(context)
         )
     }
 
-    static func makeLibraryUseCases(_ context: ModelContext) -> LibraryUseCases {
+    static func makeLibraryUseCases(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol = ReadStoreTestSupport.makeRankingWindowRepository()
+    ) -> LibraryUseCases {
         LibraryUseCases(
-            songRepository: makeSongRepository(context),
+            songRepository: makeSongRepository(context, ranking: ranking),
             cloudStorageRepository: MockCloudStorageRepository(),
             credentialsRepository: MockCredentialsRepository(),
-            playlistRepository: makePlaylistRepository(context)
+            playlistRepository: makePlaylistRepository(context, ranking: ranking)
         )
     }
 

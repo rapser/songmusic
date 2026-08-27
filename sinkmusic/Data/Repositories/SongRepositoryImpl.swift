@@ -16,10 +16,18 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     private let localDataSource: SongLocalDataSource
 
+    /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días.
+    /// Vive fuera de SwiftData para no forzar migraciones del modelo de canciones.
+    private let rankingWindowRepository: RankingWindowRepositoryProtocol
+
     // MARK: - Lifecycle
 
-    init(localDataSource: SongLocalDataSource) {
+    init(
+        localDataSource: SongLocalDataSource,
+        rankingWindowRepository: RankingWindowRepositoryProtocol = RankingWindowRepositoryImpl()
+    ) {
         self.localDataSource = localDataSource
+        self.rankingWindowRepository = rankingWindowRepository
     }
 
     // MARK: - Query Operations
@@ -49,9 +57,27 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         return SongMapper.toDomain(dtos)
     }
 
+    /// Top canciones del ranking de Inicio: ordenadas por su contador de ventana (7 días),
+    /// no por el `playCount` histórico. Así el listado se mantiene fresco y ninguna canción
+    /// se queda fija eternamente en el puesto 1. Las ventanas caducadas ya fueron
+    /// descartadas por `activeCounts()`.
     func getTopSongs(limit: Int = 10) async throws -> [Song] {
-        let dtos = try localDataSource.getTopSongs(limit: limit)
-        return SongMapper.toDomain(dtos)
+        let counts = rankingWindowRepository.activeCounts()
+        guard !counts.isEmpty else { return [] }
+
+        // `getDownloaded()` excluye canciones sin descargar: al quitar una descarga sale
+        // del ranking aunque conserve su ventana (se limpia sola al caducar).
+        let downloaded = try localDataSource.getDownloaded()
+        let ranked = downloaded
+            .filter { counts[$0.id] != nil }
+            .sorted { lhs, rhs in
+                let l = counts[lhs.id] ?? 0
+                let r = counts[rhs.id] ?? 0
+                if l != r { return l > r }
+                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+            }
+            .prefix(limit)
+        return SongMapper.toDomain(Array(ranked))
     }
 
     func getRecentlyPlayed(limit: Int = 10) async throws -> [Song] {
@@ -88,16 +114,20 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     func delete(_ id: UUID) async throws {
         try localDataSource.delete(id)
+        rankingWindowRepository.remove(songID: id)
     }
 
     func deleteAll() async throws {
         try localDataSource.deleteAll()
+        rankingWindowRepository.clear()
     }
 
     // MARK: - Specific Operations
 
     func incrementPlayCount(for id: UUID) async throws {
         try localDataSource.incrementPlayCount(for: id)
+        // Abre o incrementa la ventana de 7 días de esta canción en el ranking de Inicio.
+        rankingWindowRepository.registerPlay(songID: id)
     }
 
     func updateDownloadStatus(for id: UUID, isDownloaded: Bool) async throws {

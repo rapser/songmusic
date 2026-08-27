@@ -117,6 +117,10 @@ final class DIContainer {
 
     private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
 
+    /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días.
+    /// Fuera de SwiftData: no fuerza migraciones del modelo de canciones.
+    private(set) lazy var rankingWindowRepository: RankingWindowRepositoryProtocol = RankingWindowRepositoryImpl()
+
     // MARK: - Use Cases (Lazy initialization)
 
     private(set) lazy var playerUseCases: PlayerUseCases = makePlayerUseCases()
@@ -167,7 +171,10 @@ final class DIContainer {
     // MARK: - Repository Factories
 
     private func makeSongRepository() -> SongRepositoryProtocol {
-        SongRepositoryImpl(localDataSource: songLocalDataSource)
+        SongRepositoryImpl(
+            localDataSource: songLocalDataSource,
+            rankingWindowRepository: rankingWindowRepository
+        )
     }
 
     private func makePlaylistRepository() -> PlaylistRepositoryProtocol {
