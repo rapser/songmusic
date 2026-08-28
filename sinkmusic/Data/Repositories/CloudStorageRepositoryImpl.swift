@@ -47,25 +47,31 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     func fetchSongsFromFolder() async throws -> [CloudFile] {
         let provider = credentialsRepository.getSelectedCloudProvider()
 
-        switch provider {
-        case .googleDrive:
-            let source = googleDriveDataSource
-            let googleDriveFiles = try await source.fetchSongsFromFolder()
-            return CloudFileMapper.toDomain(from: googleDriveFiles)
+        do {
+            switch provider {
+            case .googleDrive:
+                let source = googleDriveDataSource
+                let googleDriveFiles = try await source.fetchSongsFromFolder()
+                return CloudFileMapper.toDomain(from: googleDriveFiles)
 
-        case .mega:
-            let folderURL = credentialsRepository.loadMegaFolderURL()
-            guard !folderURL.isEmpty else {
-                throw CloudStorageError.credentialsNotConfigured
+            case .mega:
+                let folderURL = credentialsRepository.loadMegaFolderURL()
+                guard !folderURL.isEmpty else {
+                    throw CloudStorageError.credentialsNotConfigured
+                }
+
+                let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
+
+                // Cachear archivos para tener acceso a la clave de desencriptación
+                megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
+                logger.debug("MEGA Cache actualizado con \(self.megaFilesCache.count) archivos")
+
+                return CloudFileMapper.toDomain(from: megaFiles)
             }
-
-            let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
-
-            // Cachear archivos para tener acceso a la clave de desencriptación
-            megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
-            logger.debug("MEGA Cache actualizado con \(self.megaFilesCache.count) archivos")
-
-            return CloudFileMapper.toDomain(from: megaFiles)
+        } catch {
+            // Frontera de la capa Data: el resto de la app recibe un `SyncError` tipado,
+            // no un `URLError`/`NSError` crudo que haya que clasificar por texto.
+            throw SyncError.from(error)
         }
     }
 

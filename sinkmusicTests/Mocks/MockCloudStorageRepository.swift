@@ -26,7 +26,7 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
 
     func fetchSongsFromFolder() async throws -> [CloudFile] {
         fetchCallCount += 1
-        if shouldThrowOnFetch { throw CloudStorageError.credentialsNotConfigured }
+        if shouldThrowOnFetch { throw SyncError.invalidCredentials }
         return remoteFiles
     }
 

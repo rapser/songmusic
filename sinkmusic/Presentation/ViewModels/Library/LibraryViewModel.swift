@@ -117,21 +117,13 @@ final class LibraryViewModel {
             logger.info("Sincronización completada: \(newSongsCount) nuevas canciones. Total: \(self.songs.count)")
 
         } catch {
-            let errorString = error.localizedDescription.lowercased()
-
-            if errorString.contains("401") || errorString.contains("403") || errorString.contains("unauthorized") {
-                syncError = .invalidCredentials
-                syncErrorMessage = "Las credenciales son inválidas o han expirado"
-            } else if errorString.contains("404") || errorString.contains("not found") {
-                syncError = .emptyFolder
-                syncErrorMessage = "No se encontró la carpeta o no contiene archivos de audio"
-            } else {
-                syncError = .networkError(error.localizedDescription)
-                syncErrorMessage = "Error de conexión: \(error.localizedDescription)"
-            }
-
+            // La capa Data ya entrega `SyncError` tipado; el `catch` genérico es un
+            // salvavidas por si llega algo sin clasificar.
+            let classified = (error as? SyncError) ?? .networkError(error.localizedDescription)
+            syncError = classified
+            syncErrorMessage = classified.userMessage
             isLoadingSongs = false
-            logger.error("Error en sincronización: \(self.syncErrorMessage ?? "Error desconocido")")
+            logger.error("Error en sincronización: \(classified.userMessage, privacy: .public)")
         }
     }
 
