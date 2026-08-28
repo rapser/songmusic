@@ -153,23 +153,7 @@ final class SettingsUseCases {
 
         // Limpiar artwork de canciones no descargadas
         for song in songs where !song.isDownloaded {
-            let updatedSong = Song(
-                id: song.id,
-                title: song.title,
-                artist: song.artist,
-                album: song.album,
-                author: song.author,
-                fileID: song.fileID,
-                isDownloaded: song.isDownloaded,
-                duration: song.duration,
-                artworkData: nil,
-                artworkThumbnail: nil,
-                artworkMediumThumbnail: nil,
-                playCount: song.playCount,
-                lastPlayedAt: song.lastPlayedAt,
-                dominantColor: nil
-            )
-            try await songRepository.update(updatedSong)
+            try await songRepository.update(song.clearingLocalArtwork())
         }
     }
 

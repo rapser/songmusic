@@ -122,22 +122,7 @@ final class DownloadUseCases {
         } else {
             // Metadata extraction falló, solo marcar como descargada
             let duration = cloudStorageRepository.getDuration(for: localURL)
-            song = Song(
-                id: song.id,
-                title: song.title,
-                artist: song.artist,
-                album: song.album,
-                author: song.author,
-                fileID: song.fileID,
-                isDownloaded: true,
-                duration: duration,
-                artworkData: song.artworkData,
-                artworkThumbnail: song.artworkThumbnail,
-                artworkMediumThumbnail: song.artworkMediumThumbnail,
-                playCount: song.playCount,
-                lastPlayedAt: song.lastPlayedAt,
-                dominantColor: song.dominantColor
-            )
+            song = song.with(isDownloaded: true, duration: duration)
         }
 
         // Actualizar en la base de datos — solo después de esto la canción está
@@ -187,22 +172,7 @@ final class DownloadUseCases {
         try cloudStorageRepository.deleteDownload(for: songID)
 
         // Actualizar canción (marcar como no descargada, limpiar metadata local)
-        song = Song(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            album: song.album,
-            author: song.author,
-            fileID: song.fileID,
-            isDownloaded: false,
-            duration: song.duration,
-            artworkData: nil,
-            artworkThumbnail: nil,
-            artworkMediumThumbnail: nil,
-            playCount: song.playCount,
-            lastPlayedAt: song.lastPlayedAt,
-            dominantColor: nil
-        )
+        song = song.clearingLocalArtwork().with(isDownloaded: false)
 
         // La canción NO se retira de las playlists: sigue existiendo en la biblioteca y
         // vuelve a aparecer en "Descargar música", así que se puede volver a bajar desde

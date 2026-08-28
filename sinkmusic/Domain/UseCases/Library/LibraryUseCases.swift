@@ -138,23 +138,7 @@ final class LibraryUseCases {
     func updateDominantColor(songID: UUID, red: Double, green: Double, blue: Double) async throws {
         guard let existing = try await songRepository.getByID(songID) else { return }
         let color = RGBColor(red: red, green: green, blue: blue)
-        let updated = Song(
-            id: existing.id,
-            title: existing.title,
-            artist: existing.artist,
-            album: existing.album,
-            author: existing.author,
-            fileID: existing.fileID,
-            isDownloaded: existing.isDownloaded,
-            duration: existing.duration,
-            artworkData: existing.artworkData,
-            artworkThumbnail: existing.artworkThumbnail,
-            artworkMediumThumbnail: existing.artworkMediumThumbnail,
-            playCount: existing.playCount,
-            lastPlayedAt: existing.lastPlayedAt,
-            dominantColor: color
-        )
-        try await songRepository.update(updated)
+        try await songRepository.update(existing.with(dominantColor: color))
     }
 
     /// Elimina una canción de la biblioteca
