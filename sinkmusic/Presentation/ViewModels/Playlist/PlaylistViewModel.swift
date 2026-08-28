@@ -60,15 +60,12 @@ final class PlaylistViewModel {
     init(playlistUseCases: PlaylistUseCases, readStore: PlaylistReadStoreProtocol) {
         self.playlistUseCases = playlistUseCases
         self.readStore = readStore
-        changesTask = Task { [weak self] in
+        changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
             guard let self else { return }
-            for await _ in readStore.changes() {
-                guard !Task.isCancelled else { break }
-                await self.loadPlaylists()
-                if let detailID = self.selectedPlaylist?.id ?? self.lastLoadedPlaylistID {
-                    await self.loadSongsInPlaylist(detailID)
-                    await self.loadPlaylistStats(detailID)
-                }
+            await self.loadPlaylists()
+            if let detailID = self.selectedPlaylist?.id ?? self.lastLoadedPlaylistID {
+                await self.loadSongsInPlaylist(detailID)
+                await self.loadPlaylistStats(detailID)
             }
         }
         Task {

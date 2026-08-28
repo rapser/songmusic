@@ -45,15 +45,10 @@ final class HomeViewModel {
 
     init(readStore: HomeReadStoreProtocol) {
         self.readStore = readStore
-        changesTask = Task { [weak self] in
-            guard let self else { return }
-            for await _ in readStore.changes() {
-                guard !Task.isCancelled else { break }
-                // Recarga en segundo plano, sin isLoading: esto se dispara con cambios
-                // menores como incrementar playCount al reproducir una canción, y no debe
-                // reemplazar el contenido visible por un spinner (ver reloadAllSections()).
-                await self.reloadAllSections()
-            }
+        // Recarga en segundo plano (sin `isLoading`): se dispara con cambios menores; las
+        // secciones solo se reasignan si su contenido cambió (ver `reloadAllSections`).
+        changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
+            await self?.reloadAllSections()
         }
         Task {
             await loadData()

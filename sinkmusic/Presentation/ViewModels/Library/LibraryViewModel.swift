@@ -43,12 +43,8 @@ final class LibraryViewModel {
     init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
         self.libraryUseCases = libraryUseCases
         self.readStore = readStore
-        changesTask = Task { [weak self] in
-            guard let self else { return }
-            for await _ in readStore.changes() {
-                guard !Task.isCancelled else { break }
-                await self.reloadLibrary()
-            }
+        changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
+            await self?.reloadLibrary()
         }
         Task {
             await loadSongs()
