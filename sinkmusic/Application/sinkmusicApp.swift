@@ -20,7 +20,9 @@ struct sinkmusicApp: App {
     // Creado aquí para que sinkmusicApp sea el dueño explícito del ciclo de vida.
     // DIContainer.shared queda registrado para que AppDelegate pueda accederlo.
     private let container: DIContainer
-    private let modelContainer: ModelContainer
+    /// `nil` si SwiftData no pudo abrir el store (ver `modelContainerError`).
+    private let modelContainer: ModelContainer?
+    private let modelContainerError: String?
 
     // MARK: - ViewModels creados con DIContainer
     @State private var playerViewModel: PlayerViewModel?
@@ -49,8 +51,12 @@ struct sinkmusicApp: App {
         container = DIContainer.createShared()
         do {
             modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self)
+            modelContainerError = nil
         } catch {
-            fatalError("❌ No se pudo crear el ModelContainer compartido: \(error)")
+            // Antes: `fatalError` → crash-loop al arrancar. Ahora se muestra `StorageErrorView`.
+            modelContainer = nil
+            modelContainerError = String(describing: error)
+            logger.critical("No se pudo crear el ModelContainer: \(String(describing: error), privacy: .public)")
         }
 
         // Configurar apariencia del NavigationBar
@@ -74,8 +80,19 @@ struct sinkmusicApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if let authVM = authViewModel {
+            if let modelContainer {
+                mainContent
+                    .modelContainer(modelContainer)
+            } else {
+                StorageErrorView(details: modelContainerError ?? "Error desconocido al abrir la base de datos.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        Group {
+            if let authVM = authViewModel {
                     if authVM.isCheckingAuth {
                         // Pantalla de carga mientras verifica autenticación
                         Color.appDark
@@ -133,18 +150,16 @@ struct sinkmusicApp: App {
                     playerViewModel?.persistCurrentPlaybackState()
                 }
             }
-        }
-        .modelContainer(modelContainer)
     }
 
     // MARK: - Configuration
 
     @MainActor
     private func configureDIContainer() async {
-        guard !didConfigureContainer else { return }
+        guard !didConfigureContainer, let modelContext = modelContainer?.mainContext else { return }
 
         // Configurar DIContainer
-        container.configure(with: modelContainer.mainContext)
+        container.configure(with: modelContext)
 
         // Crear ViewModels usando DIContainer
         // AuthViewModel primero para que pueda recibir eventos de autenticación
