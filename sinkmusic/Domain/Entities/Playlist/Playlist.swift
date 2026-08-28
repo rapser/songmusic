@@ -34,14 +34,7 @@ struct Playlist: Identifiable, Hashable, Sendable {
 
     /// Duración formateada (ej: "2 h 35 min" o "45 min")
     var formattedDuration: String {
-        let hours = Int(totalDuration) / 3600
-        let minutes = (Int(totalDuration) % 3600) / 60
-
-        if hours > 0 {
-            return "\(hours) h \(minutes) min"
-        } else {
-            return "\(minutes) min"
-        }
+        DurationFormatter.hoursMinutes(totalDuration, style: .spaced)
     }
 
     /// Información para mostrar en UI (ej: "15 canciones • 1 h 20 min")

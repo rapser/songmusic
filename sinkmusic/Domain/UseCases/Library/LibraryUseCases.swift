@@ -209,9 +209,7 @@ struct LibraryStats: Sendable {
     let uniqueAlbums: Int
 
     var formattedDuration: String {
-        let hours = Int(totalDuration) / 3600
-        let minutes = (Int(totalDuration) % 3600) / 60
-        return "\(hours)h \(minutes)m"
+        DurationFormatter.hoursMinutes(totalDuration, style: .compactAlways)
     }
 }
 

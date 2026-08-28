@@ -240,9 +240,7 @@ struct DownloadStats: Sendable {
     }
 
     var formattedDuration: String {
-        let hours = Int(downloadedDuration) / 3600
-        let minutes = (Int(downloadedDuration) % 3600) / 60
-        return "\(hours)h \(minutes)m"
+        DurationFormatter.hoursMinutes(downloadedDuration, style: .compactAlways)
     }
 
     var formattedSize: String {

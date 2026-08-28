@@ -257,14 +257,7 @@ struct PlaylistStats: Sendable {
     let downloadedSongs: Int
 
     var formattedDuration: String {
-        let hours = Int(totalDuration) / 3600
-        let minutes = (Int(totalDuration) % 3600) / 60
-
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        } else {
-            return "\(minutes) min"
-        }
+        DurationFormatter.hoursMinutes(totalDuration, style: .compact)
     }
 }
 
