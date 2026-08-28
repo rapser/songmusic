@@ -95,7 +95,10 @@ struct SettingsView: View {
         }
         .listStyle(.plain)
         .listSectionSpacing(.compact)
-        .environment(\.defaultMinListRowHeight, 38)
+        // `List` reserva mucho alto vertical por fila con el estilo por defecto; estos dos
+        // son los que de verdad compactan la tabla (el `.padding` interno de cada fila no basta).
+        .environment(\.defaultMinListRowHeight, 32)
+        .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
         .scrollContentBackground(.hidden)
         .background(Color.appDark)
         .listRowBackground(Color.appDark)
