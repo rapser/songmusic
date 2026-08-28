@@ -20,8 +20,6 @@ struct SongUI: Identifiable, Hashable, Sendable {
     let artworkThumbnail: Data? // Thumbnail mediano para listas (64x64)
     let artworkSmallThumbnail: Data? // Thumbnail pequeño para Live Activity (32x32)
     let isDownloaded: Bool
-    let playCount: Int
-    let playCountText: String // Ya formateado (ej: "15 reproducciones")
     let dominantColor: Color?
     let artistAlbumInfo: String // Ya formateado (ej: "Artist • Album")
 
@@ -57,8 +55,6 @@ struct SongUI: Identifiable, Hashable, Sendable {
             artworkThumbnail: artworkThumbnail,
             artworkSmallThumbnail: artworkSmallThumbnail,
             isDownloaded: isDownloaded,
-            playCount: playCount,
-            playCountText: playCountText,
             dominantColor: newColor,
             artistAlbumInfo: artistAlbumInfo
         )

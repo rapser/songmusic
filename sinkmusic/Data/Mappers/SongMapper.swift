@@ -81,8 +81,6 @@ enum SongMapper {
             artworkThumbnail: song.artworkMediumThumbnail,
             artworkSmallThumbnail: song.artworkThumbnail,
             isDownloaded: song.isDownloaded,
-            playCount: song.playCount,
-            playCountText: song.playCountText,
             dominantColor: toSwiftUIColor(song.dominantColor),
             artistAlbumInfo: song.artistAlbumInfo
         )

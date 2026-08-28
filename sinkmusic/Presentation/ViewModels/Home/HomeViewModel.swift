@@ -93,7 +93,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.playlists() },
             map: { $0.map(PlaylistMapper.toUI) },
-            assign: { playlists = $0 },
+            assign: { if playlists != $0 { playlists = $0 } },
             onError: { [self] in logger.error("Error al cargar playlists: \($0)") }
         )
     }
@@ -103,7 +103,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.mostPlayedPlaylists(limit: 10) },
             map: { $0.map(PlaylistMapper.toUI) },
-            assign: { mostPlayedPlaylists = $0 },
+            assign: { if mostPlayedPlaylists != $0 { mostPlayedPlaylists = $0 } },
             onError: { [self] in logger.error("Error al cargar playlists más escuchadas: \($0)") }
         )
     }
@@ -113,7 +113,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.recentlyPlayedSongs(limit: 10) },
             map: { $0.map(SongMapper.toUI) },
-            assign: { recentSongs = $0 },
+            assign: { if recentSongs != $0 { recentSongs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones recientes: \($0)") }
         )
     }
@@ -123,7 +123,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.mostPlayedSongs(limit: 10) },
             map: { $0.map(SongMapper.toUI) },
-            assign: { mostPlayedSongs = $0 },
+            assign: { if mostPlayedSongs != $0 { mostPlayedSongs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones más reproducidas: \($0)") }
         )
     }
@@ -133,7 +133,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.downloadedSongs() },
             map: { $0.map(SongMapper.toUI) },
-            assign: { downloadedSongs = $0 },
+            assign: { if downloadedSongs != $0 { downloadedSongs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones descargadas: \($0)") }
         )
     }

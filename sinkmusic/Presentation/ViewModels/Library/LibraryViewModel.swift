@@ -63,7 +63,7 @@ final class LibraryViewModel {
         await loadAndAssign(
             fetch: { try await readStore.allSongs() },
             map: { $0.map(SongMapper.toUI) },
-            assign: { songs = $0 },
+            assign: { if songs != $0 { songs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones: \($0)") }
         )
     }

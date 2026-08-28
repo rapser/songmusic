@@ -88,7 +88,10 @@ final class SearchViewModel {
                 downloadedOnly: downloadedOnly,
                 sortBy: sortOption
             )
-            searchResults = entities.map { SongMapper.toUI($0) }
+            let mapped = entities.map { SongMapper.toUI($0) }
+            // Solo reasigna si cambió el contenido: un refresco reactivo con resultados
+            // idénticos no debe invalidar la lista (ver P0.3/P0.4 en la deuda técnica).
+            if mapped != searchResults { searchResults = mapped }
         } catch {
             logger.error("Error en búsqueda: \(error)")
             searchResults = []

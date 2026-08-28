@@ -83,7 +83,7 @@ final class PlaylistViewModel {
         await loadAndAssign(
             fetch: { try await readStore.allPlaylists() },
             map: { $0.map(PlaylistMapper.toUI) },
-            assign: { playlists = $0 },
+            assign: { if playlists != $0 { playlists = $0 } },
             onError: { [self] in errorMessage = "Error al cargar playlists: \($0.localizedDescription)" }
         )
     }
