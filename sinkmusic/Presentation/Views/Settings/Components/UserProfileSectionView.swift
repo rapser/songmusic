@@ -14,10 +14,10 @@ struct UserProfileSectionView: View {
     let profile: UserProfileData
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             Image(systemName: "person.circle.fill")
                 .resizable()
-                .frame(width: 52, height: 52)
+                .frame(width: 44, height: 44)
                 .foregroundColor(.appPurple)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -37,6 +37,6 @@ struct UserProfileSectionView: View {
                     .foregroundColor(.textGray)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 }

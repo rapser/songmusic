@@ -7,30 +7,39 @@
 
 import SwiftUI
 
-/// Fila plana para listas de Ajustes (sin fondo propio ni chevron manual —
-/// eso lo aporta `List`/`NavigationLink` de forma nativa cuando la fila navega).
+/// Fila compacta para la lista de Ajustes (layout propio, sin `List`).
 struct SettingsRowView: View {
     let icon: String
     var iconColor: Color = .textGray
     let title: String
+    var titleColor: Color = .white
     var value: String? = nil
+    /// Muestra el chevron de navegación al final (para filas dentro de un `NavigationLink`).
+    var showsChevron: Bool = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             SettingsIconBadge(systemName: icon, color: iconColor)
 
             Text(title)
-                .foregroundColor(.white)
+                .foregroundColor(titleColor)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             if let value = value {
                 Text(value)
                     .foregroundColor(.textGray)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .lineLimit(1)
             }
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(.textGray.opacity(0.6))
+            }
         }
-        .padding(.vertical, 2)
+        .frame(minHeight: 38)
+        .contentShape(Rectangle())
     }
 }

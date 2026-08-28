@@ -2,8 +2,9 @@
 //  SettingsView.swift
 //  sinkmusic
 //
-//  Pantalla de Ajustes: una sola lista nativa agrupada por secciones, estilo
-//  Spotify/Tidal — sin subpantallas propias para cada grupo de opciones.
+//  Pantalla de Ajustes: layout propio (ScrollView + tarjetas) en lugar de `List`,
+//  para controlar el alto de cada fila y el espaciado entre secciones — `List`
+//  imponía filas de ~44pt y secciones muy separadas.
 //  Refactorizado para usar AuthViewModel (Clean Architecture)
 //
 
@@ -19,99 +20,88 @@ struct SettingsView: View {
     @State private var showSignOutAlert = false
     @State private var showDeleteAllAlert = false
 
+    // MARK: - Métricas del layout compacto
+    private enum Metrics {
+        static let sectionSpacing: CGFloat = 16
+        static let rowSpacing: CGFloat = 2
+        static let cardCornerRadius: CGFloat = 12
+        static let cardInsetV: CGFloat = 4
+        static let cardInsetH: CGFloat = 10
+        static let horizontalMargin: CGFloat = 16
+    }
+
     var body: some View {
-        List {
-            Section {
-                SettingsHeaderView()
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
+        ZStack {
+            Color.appDark.ignoresSafeArea()
 
-                if let profile = makeUserProfile() {
-                    UserProfileSectionView(profile: profile)
-                }
-            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+                    SettingsHeaderView()
 
-            if let profile = makeUserProfile() {
-                Section {
-                    AccountSectionView(profile: profile)
-                } header: {
-                    SectionHeaderView(title: "Cuenta")
-                }
-            }
-
-            Section {
-                NavigationLink(destination: HomePlaylistsOrderView()) {
-                    SettingsRowView(icon: "rectangle.stack.fill", iconColor: .appPurple, title: "Playlists en Inicio")
-                }
-            } header: {
-                SectionHeaderView(title: "Inicio")
-            }
-
-            Section {
-                DownloadsSectionView(
-                    pendingCount: pendingSongsCount,
-                    isGoogleDriveConfigured: viewModel.hasCredentials,
-                    libraryViewModel: libraryViewModel,
-                    settingsViewModel: viewModel
-                )
-            } header: {
-                SectionHeaderView(title: "Descargas")
-            }
-
-            Section {
-                StorageSectionView(
-                    totalStorage: viewModel.storageInfo?.formattedTotalSize ?? "0 MB",
-                    downloadedCount: viewModel.downloadStats?.totalDownloaded ?? 0,
-                    onDeleteAll: {
-                        showDeleteAllAlert = true
+                    if let profile = makeUserProfile() {
+                        card {
+                            UserProfileSectionView(profile: profile)
+                        }
                     }
-                )
-            } header: {
-                SectionHeaderView(title: "Almacenamiento")
-            }
 
-            Section {
-                AboutSectionView(appVersion: viewModel.appInfo?.fullVersion ?? "1.0.0")
-            } header: {
-                SectionHeaderView(title: "Acerca de")
-            }
+                    if let profile = makeUserProfile() {
+                        section("Cuenta") {
+                            AccountSectionView(profile: profile)
+                        }
+                    }
 
-            Section {
-                SignOutButtonView {
-                    showSignOutAlert = true
+                    section("Inicio") {
+                        NavigationLink(destination: HomePlaylistsOrderView()) {
+                            SettingsRowView(
+                                icon: "rectangle.stack.fill",
+                                iconColor: .appPurple,
+                                title: "Playlists en Inicio",
+                                showsChevron: true
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    section("Descargas") {
+                        DownloadsSectionView(
+                            pendingCount: pendingSongsCount,
+                            isGoogleDriveConfigured: viewModel.hasCredentials,
+                            libraryViewModel: libraryViewModel,
+                            settingsViewModel: viewModel
+                        )
+                    }
+
+                    section("Almacenamiento") {
+                        StorageSectionView(
+                            totalStorage: viewModel.storageInfo?.formattedTotalSize ?? "0 MB",
+                            downloadedCount: viewModel.downloadStats?.totalDownloaded ?? 0,
+                            onDeleteAll: { showDeleteAllAlert = true }
+                        )
+                    }
+
+                    section("Acerca de") {
+                        AboutSectionView(appVersion: viewModel.appInfo?.fullVersion ?? "1.0.0")
+                    }
+
+                    card {
+                        SignOutButtonView { showSignOutAlert = true }
+                    }
+
+                    // Espacio inferior para que el mini-reproductor no tape "Cerrar sesión".
+                    Color.clear.frame(height: playerViewModel.currentlyPlayingID != nil ? 96 : 12)
                 }
+                .padding(.horizontal, Metrics.horizontalMargin)
+                .padding(.top, 4)
             }
-
-            // Espacio inferior para que el mini-reproductor no tape "Cerrar sesión".
-            if playerViewModel.currentlyPlayingID != nil {
-                Section {
-                    Color.clear
-                        .frame(height: 80)
-                        .listRowBackground(Color.appDark)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets())
-                }
-            }
+            .scrollIndicators(.hidden)
         }
-        .listStyle(.plain)
-        .listSectionSpacing(.compact)
-        // `List` reserva mucho alto vertical por fila con el estilo por defecto; estos dos
-        // son los que de verdad compactan la tabla (el `.padding` interno de cada fila no basta).
-        .environment(\.defaultMinListRowHeight, 32)
-        .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
-        .scrollContentBackground(.hidden)
-        .background(Color.appDark)
-        .listRowBackground(Color.appDark)
-        .listRowSeparatorTint(Color.white.opacity(0.08))
         .task {
             await viewModel.loadAllInfo()
         }
         .alert("Eliminar todas las descargas", isPresented: $showDeleteAllAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar", role: .destructive) {
-                Task {
-                    await handleDeleteAllDownloads()
-                }
+                Task { await handleDeleteAllDownloads() }
             }
         } message: {
             Text("Se eliminarán \(viewModel.downloadStats?.totalDownloaded ?? 0) canciones descargadas. Esta acción no se puede deshacer.")
@@ -124,6 +114,35 @@ struct SettingsView: View {
         } message: {
             Text("¿Estás seguro de que quieres cerrar sesión?")
         }
+    }
+
+    // MARK: - Section builders
+
+    /// Sección con título en mayúsculas + tarjeta compacta con las filas.
+    @ViewBuilder
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundColor(.textGray)
+                .padding(.leading, 6)
+
+            card { content() }
+        }
+    }
+
+    /// Tarjeta redondeada que agrupa filas con espaciado mínimo entre ellas.
+    @ViewBuilder
+    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: Metrics.rowSpacing) {
+            content()
+        }
+        .padding(.vertical, Metrics.cardInsetV)
+        .padding(.horizontal, Metrics.cardInsetH)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous))
     }
 
     // MARK: - Helpers
@@ -140,20 +159,14 @@ struct SettingsView: View {
     }
 
     private var pendingSongsCount: Int {
-        // Canciones no descargadas
         libraryViewModel.songs.filter { !$0.isDownloaded }.count
     }
 
     private func handleDeleteAllDownloads() async {
-        // Pausar reproducción si está activa
         if playerViewModel.isPlaying {
             await playerViewModel.pause()
         }
-
-        // Eliminar todas las descargas
         await viewModel.deleteAllDownloads()
-
-        // Recargar información
         await viewModel.loadAllInfo()
     }
 }

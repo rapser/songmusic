@@ -18,36 +18,54 @@ struct DownloadsSectionView: View {
     var body: some View {
         Group {
             NavigationLink(destination: DownloadMusicView()) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     SettingsIconBadge(systemName: "arrow.down.circle.fill", color: .appPurple)
 
                     Text("Descargar música")
                         .foregroundColor(.white)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
                     if pendingCount > 0 {
                         PendingBadgeView(count: pendingCount)
                     }
+
+                    Chevron()
                 }
-                .padding(.vertical, 2)
+                .frame(minHeight: 38)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
             NavigationLink(destination: CloudStorageConfigView()) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     SettingsIconBadge(systemName: "cloud.fill", color: .blue)
 
                     Text("Configurar almacenamiento")
                         .foregroundColor(.white)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
                     ProviderBadgeView(provider: settingsViewModel.selectedProvider,
                                       isConfigured: settingsViewModel.hasCurrentProviderCredentials)
+
+                    Chevron()
                 }
-                .padding(.vertical, 2)
+                .frame(minHeight: 38)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
+    }
+}
+
+// MARK: - Chevron
+
+private struct Chevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(.textGray.opacity(0.6))
     }
 }
 
@@ -61,7 +79,7 @@ private struct PendingBadgeView: View {
             .foregroundColor(.white)
             .font(.subheadline)
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 3)
             .background(Color.appPurple)
             .cornerRadius(12)
     }

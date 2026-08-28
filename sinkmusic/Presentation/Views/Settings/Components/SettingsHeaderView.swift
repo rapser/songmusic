@@ -10,11 +10,11 @@ import SwiftUI
 struct SettingsHeaderView: View {
     var body: some View {
         Text("Ajustes")
-            .font(.largeTitle)
+            .font(.title)
             .fontWeight(.bold)
             .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
     }
 }
