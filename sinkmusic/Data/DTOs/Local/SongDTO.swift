@@ -72,29 +72,6 @@ extension SongDTO {
     }
 }
 
-// MARK: - Helper Extensions
-extension SongDTO {
-    /// Obtiene la URL local del archivo descargado
-    /// Replica la lógica de GoogleDriveService.localURL(for:)
-    var localURL: URL? {
-        guard isDownloaded else { return nil }
-
-        let fileManager = FileManager.default
-        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let musicDirectory = documentsDirectory.appendingPathComponent("Music")
-        let fileURL = musicDirectory.appendingPathComponent("\(id.uuidString).m4a")
-
-        // Verificar que el archivo existe
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
-
-        return fileURL
-    }
-}
-
 // MARK: - Hashable
 extension SongDTO: Hashable {
     static func == (lhs: SongDTO, rhs: SongDTO) -> Bool {

@@ -18,6 +18,7 @@ final class PlayerUseCases {
     private let audioPlayerRepository: AudioPlayerRepositoryProtocol
     private let songRepository: SongRepositoryProtocol
     private let playbackStateRepository: PlaybackStateRepositoryProtocol
+    private let fileStore: DownloadFileStoreProtocol
 
     // MARK: - State
 
@@ -38,11 +39,13 @@ final class PlayerUseCases {
     init(
         audioPlayerRepository: AudioPlayerRepositoryProtocol,
         songRepository: SongRepositoryProtocol,
-        playbackStateRepository: PlaybackStateRepositoryProtocol
+        playbackStateRepository: PlaybackStateRepositoryProtocol,
+        fileStore: DownloadFileStoreProtocol
     ) {
         self.audioPlayerRepository = audioPlayerRepository
         self.songRepository = songRepository
         self.playbackStateRepository = playbackStateRepository
+        self.fileStore = fileStore
     }
 
     // MARK: - Playback Control
@@ -57,7 +60,7 @@ final class PlayerUseCases {
             throw PlayerError.songNotFound
         }
 
-        guard let localURL = songEntity.localURL else {
+        guard songEntity.isDownloaded, let localURL = fileStore.existingFileURL(for: songID) else {
             throw PlayerError.fileNotDownloaded
         }
 

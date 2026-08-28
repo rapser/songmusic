@@ -115,6 +115,8 @@ final class DIContainer {
 
     private(set) lazy var playbackStateRepository: PlaybackStateRepositoryProtocol = PlaybackStateRepositoryImpl()
 
+    private(set) lazy var downloadFileStore: DownloadFileStoreProtocol = DownloadFileStore()
+
     private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
 
     /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días,
@@ -218,7 +220,8 @@ final class DIContainer {
         PlayerUseCases(
             audioPlayerRepository: audioPlayerRepository,
             songRepository: songRepository,
-            playbackStateRepository: playbackStateRepository
+            playbackStateRepository: playbackStateRepository,
+            fileStore: downloadFileStore
         )
     }
 

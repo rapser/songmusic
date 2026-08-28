@@ -36,24 +36,6 @@ struct Song: Identifiable, Hashable, Sendable {
 
     // MARK: - Computed Properties (Lógica de Dominio)
 
-    /// URL local del archivo descargado
-    var localURL: URL? {
-        guard isDownloaded else { return nil }
-
-        let fileManager = FileManager.default
-        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let musicDirectory = documentsDirectory.appendingPathComponent("Music")
-        let fileURL = musicDirectory.appendingPathComponent("\(id.uuidString).m4a")
-
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
-
-        return fileURL
-    }
-
     /// Duración formateada (mm:ss)
     var formattedDuration: String {
         DurationFormatter.clock(duration)

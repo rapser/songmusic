@@ -22,7 +22,8 @@ final class PlayerUseCasesTests: XCTestCase {
         sut = PlayerUseCases(
             audioPlayerRepository: mockAudioPlayer,
             songRepository: mockSongRepo,
-            playbackStateRepository: mockPlaybackState
+            playbackStateRepository: mockPlaybackState,
+            fileStore: DownloadFileStore()
         )
     }
 

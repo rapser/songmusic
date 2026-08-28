@@ -27,7 +27,8 @@ final class PlayerViewModelTests: XCTestCase {
         playerUseCases = PlayerUseCases(
             audioPlayerRepository: mockAudioPlayer,
             songRepository: mockSongRepo,
-            playbackStateRepository: mockPlaybackState
+            playbackStateRepository: mockPlaybackState,
+            fileStore: DownloadFileStore()
         )
         sut = PlayerViewModel(
             playerUseCases: playerUseCases,
