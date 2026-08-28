@@ -14,6 +14,10 @@ import SwiftData
 /// filtra esas notificaciones por nombre de entidad (`SongDTO`, `PlaylistDTO`, ...)
 /// y las republica como un `AsyncStream<Void>` — una señal simple de "algo cambió,
 /// vuelve a preguntar", sin acoplar el observer a qué hacer con el cambio.
+///
+/// **Coalescing**: una acción de usuario suele producir varios `save()` seguidos
+/// (p. ej. reproducir = `playCount` + posición). Se agrupan en una sola emisión con
+/// una ventana de `debounce` para no disparar N recargas completas en los ViewModels.
 @MainActor
 final class ModelContextChangeObserver {
 
@@ -23,7 +27,11 @@ final class ModelContextChangeObserver {
     private nonisolated(unsafe) var token: NSObjectProtocol?
     private var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
-    init(modelContext: ModelContext, relevantEntityNames: Set<String>) {
+    private let debounce: Duration
+    private var pendingNotify: Task<Void, Never>?
+
+    init(modelContext: ModelContext, relevantEntityNames: Set<String>, debounce: Duration = .milliseconds(120)) {
+        self.debounce = debounce
         token = NotificationCenter.default.addObserver(
             forName: ModelContext.didSave,
             object: modelContext,
@@ -33,8 +41,18 @@ final class ModelContextChangeObserver {
             // sin cruzar el note al Task aislado a MainActor.
             guard Self.isRelevant(note, relevantEntityNames: relevantEntityNames) else { return }
             Task { @MainActor [weak self] in
-                self?.notifyContinuations()
+                self?.scheduleNotify()
             }
+        }
+    }
+
+    /// Reprograma la emisión: si llegan más `save()` dentro de `debounce`, se colapsan en uno.
+    private func scheduleNotify() {
+        pendingNotify?.cancel()
+        pendingNotify = Task { [weak self] in
+            try? await Task.sleep(for: self?.debounce ?? .milliseconds(120))
+            guard !Task.isCancelled, let self else { return }
+            self.notifyContinuations()
         }
     }
 
