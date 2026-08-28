@@ -81,6 +81,17 @@ struct SettingsView: View {
                     showSignOutAlert = true
                 }
             }
+
+            // Espacio inferior para que el mini-reproductor no tape "Cerrar sesión".
+            if playerViewModel.currentlyPlayingID != nil {
+                Section {
+                    Color.clear
+                        .frame(height: 80)
+                        .listRowBackground(Color.appDark)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                }
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
