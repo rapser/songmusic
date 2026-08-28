@@ -107,18 +107,21 @@ final class SongLocalDataSource {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Busca canciones cuyo álbum contenga `query` (query targeted separada de `search`,
-    /// porque `album` es opcional y `#Predicate` con `||` sobre `String?.contains` tiene
-    /// limitaciones de macro-expansion en SwiftData al combinarlo con campos no opcionales).
+    /// Busca canciones cuyo álbum contenga `query`.
+    ///
+    /// Excepción aceptada: se filtra en memoria en vez de con `#Predicate`. `album` es
+    /// opcional y SwiftData/CoreData no sabe generar SQL para `CONTAINS[cd]` sobre una
+    /// columna opcional (ni con `$0.album!`, ni con `$0.album ?? ""`, ni con encadenado
+    /// opcional). El pre-filtro `album != nil` sí es expresable y acota la carga a las
+    /// canciones que tienen álbum antes de hacer el `contains` real.
     func searchByAlbum(query: String) throws -> [SongDTO] {
-        let predicate = #Predicate<SongDTO> {
-            $0.album != nil && $0.album!.localizedStandardContains(query)
-        }
-        let descriptor = FetchDescriptor<SongDTO>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\SongDTO.title)]
+        let withAlbum = try modelContext.fetch(
+            FetchDescriptor<SongDTO>(
+                predicate: #Predicate { $0.album != nil },
+                sortBy: [SortDescriptor(\SongDTO.title)]
+            )
         )
-        return try modelContext.fetch(descriptor)
+        return withAlbum.filter { $0.album?.localizedStandardContains(query) ?? false }
     }
 
     /// Crea una nueva canción
