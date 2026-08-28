@@ -38,7 +38,7 @@ final class PlayerUseCases {
     init(
         audioPlayerRepository: AudioPlayerRepositoryProtocol,
         songRepository: SongRepositoryProtocol,
-        playbackStateRepository: PlaybackStateRepositoryProtocol = PlaybackStateRepositoryImpl()
+        playbackStateRepository: PlaybackStateRepositoryProtocol
     ) {
         self.audioPlayerRepository = audioPlayerRepository
         self.songRepository = songRepository

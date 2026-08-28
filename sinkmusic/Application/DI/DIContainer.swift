@@ -270,7 +270,11 @@ final class DIContainer {
 
     /// Factory para PlayerViewModel
     func makePlayerViewModel() -> PlayerViewModel {
-        PlayerViewModel(playerUseCases: playerUseCases, eventBus: eventBus)
+        PlayerViewModel(
+            playerUseCases: playerUseCases,
+            eventBus: eventBus,
+            liveActivityService: liveActivityService
+        )
     }
 
     /// Factory para LibraryViewModel

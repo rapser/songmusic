@@ -71,4 +71,4 @@ final class RankingWindowRepositoryImpl: RankingWindowRepositoryProtocol {
 
 // MARK: - Sendable Conformance
 
-extension RankingWindowRepositoryImpl: @unchecked Sendable {}
+extension RankingWindowRepositoryImpl: Sendable {}

@@ -56,7 +56,7 @@ final class PlayerViewModel: EventBusObservable {
     init(
         playerUseCases: PlayerUseCases,
         eventBus: EventBusProtocol,
-        liveActivityService: LiveActivityServiceProtocol = LiveActivityService()
+        liveActivityService: LiveActivityServiceProtocol
     ) {
         self.playerUseCases = playerUseCases
         self.eventBus = eventBus

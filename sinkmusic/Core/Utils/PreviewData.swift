@@ -108,7 +108,11 @@ struct PreviewViewModels {
 
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
         setupDI()
-        let vm = PlayerViewModel(playerUseCases: DIContainer.shared.playerUseCases, eventBus: DIContainer.shared.eventBus)
+        let vm = PlayerViewModel(
+            playerUseCases: DIContainer.shared.playerUseCases,
+            eventBus: DIContainer.shared.eventBus,
+            liveActivityService: DIContainer.shared.liveActivityService
+        )
         if let id = songID {
             vm.currentlyPlayingID = id
             vm.isPlaying = true

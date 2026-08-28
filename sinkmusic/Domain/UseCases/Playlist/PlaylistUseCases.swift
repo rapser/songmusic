@@ -24,7 +24,7 @@ final class PlaylistUseCases {
     init(
         playlistRepository: PlaylistRepositoryProtocol,
         songRepository: SongRepositoryProtocol,
-        homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
+        homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol
     ) {
         self.playlistRepository = playlistRepository
         self.songRepository = songRepository
