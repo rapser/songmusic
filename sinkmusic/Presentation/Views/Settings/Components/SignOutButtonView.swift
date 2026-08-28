@@ -20,6 +20,6 @@ struct SignOutButtonView: View {
                 .foregroundColor(.red)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }

@@ -94,6 +94,8 @@ struct SettingsView: View {
             }
         }
         .listStyle(.plain)
+        .listSectionSpacing(.compact)
+        .environment(\.defaultMinListRowHeight, 38)
         .scrollContentBackground(.hidden)
         .background(Color.appDark)
         .listRowBackground(Color.appDark)

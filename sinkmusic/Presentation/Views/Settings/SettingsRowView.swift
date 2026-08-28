@@ -31,6 +31,6 @@ struct SettingsRowView: View {
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }

@@ -57,7 +57,7 @@ private struct DeleteAllDownloadsButton: View {
 
                 Spacer()
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         }
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1.0 : 0.6)

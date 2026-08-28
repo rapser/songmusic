@@ -62,6 +62,6 @@ private struct EmailNotSharedRowView: View {
 
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }

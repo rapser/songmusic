@@ -30,7 +30,7 @@ struct DownloadsSectionView: View {
                         PendingBadgeView(count: pendingCount)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
 
             NavigationLink(destination: CloudStorageConfigView()) {
@@ -45,7 +45,7 @@ struct DownloadsSectionView: View {
                     ProviderBadgeView(provider: settingsViewModel.selectedProvider,
                                       isConfigured: settingsViewModel.hasCurrentProviderCredentials)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
         }
     }
