@@ -39,7 +39,7 @@ struct SettingsRowView: View {
                     .foregroundColor(.textGray.opacity(0.6))
             }
         }
-        .frame(minHeight: 38)
+        .frame(minHeight: 46)
         .contentShape(Rectangle())
     }
 }

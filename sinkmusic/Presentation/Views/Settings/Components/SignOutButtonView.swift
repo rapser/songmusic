@@ -18,7 +18,7 @@ struct SignOutButtonView: View {
         Button(action: onSignOut) {
             Text("Cerrar sesión")
                 .foregroundColor(.red)
-                .frame(maxWidth: .infinity, minHeight: 38, alignment: .center)
+                .frame(maxWidth: .infinity, minHeight: 46, alignment: .center)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

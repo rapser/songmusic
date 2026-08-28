@@ -32,7 +32,7 @@ struct DownloadsSectionView: View {
 
                     Chevron()
                 }
-                .frame(minHeight: 38)
+                .frame(minHeight: 46)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -51,7 +51,7 @@ struct DownloadsSectionView: View {
 
                     Chevron()
                 }
-                .frame(minHeight: 38)
+                .frame(minHeight: 46)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
