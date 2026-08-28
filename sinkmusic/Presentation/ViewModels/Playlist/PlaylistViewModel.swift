@@ -26,16 +26,6 @@ final class PlaylistViewModel {
     var isLoading = false
     var errorMessage: String?
 
-    // MARK: - Home Layout (curaduría de playlists en Inicio, ver Ajustes)
-
-    var homeShownPlaylists: [PlaylistUI] = []
-    var homeOtherPlaylists: [PlaylistUI] = []
-
-    /// `true` cuando Inicio ya tiene el máximo de playlists permitido.
-    var isHomePlaylistsFull: Bool {
-        homeShownPlaylists.count >= PlaylistUseCases.maxHomePlaylistsCount
-    }
-
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Playlist")
 
     // MARK: - Dependencies
@@ -261,61 +251,8 @@ final class PlaylistViewModel {
         isLoading = false
     }
 
-    // MARK: - Home Layout (curaduría de playlists en Inicio)
-
-    /// Carga la curaduría actual: playlists en Inicio (y su orden) y el resto ("Otros").
-    func loadHomePlaylistLayout() async {
-        do {
-            let layout = try await playlistUseCases.getHomePlaylistLayout()
-            homeShownPlaylists = layout.shown.map(PlaylistMapper.toUI)
-            homeOtherPlaylists = layout.others.map(PlaylistMapper.toUI)
-        } catch {
-            errorMessage = "Error al cargar las playlists de Inicio: \(error.localizedDescription)"
-        }
-    }
-
-    /// Reordena dentro de "Inicio" (control ≡ de esa lista).
-    func moveHomePlaylistWithinShown(fromOffsets: IndexSet, toOffset: Int) {
-        homeShownPlaylists.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        persistHomePlaylistLayout()
-    }
-
-    /// Reordena dentro de "Otros".
-    func moveHomePlaylistWithinOthers(fromOffsets: IndexSet, toOffset: Int) {
-        homeOtherPlaylists.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        persistHomePlaylistLayout()
-    }
-
-    /// Mueve a "Inicio" la playlist arrastrada desde "Otros". Sin efecto si Inicio ya está
-    /// en su máximo, o si la playlist ya estaba ahí (soltar sobre su propia sección).
-    func movePlaylistToHome(_ id: UUID) {
-        guard !homeShownPlaylists.contains(where: { $0.id == id }),
-              let index = homeOtherPlaylists.firstIndex(where: { $0.id == id }),
-              homeShownPlaylists.count < PlaylistUseCases.maxHomePlaylistsCount else {
-            return
-        }
-
-        homeShownPlaylists.append(homeOtherPlaylists.remove(at: index))
-        persistHomePlaylistLayout()
-    }
-
-    /// Mueve a "Otros" la playlist arrastrada desde "Inicio".
-    func movePlaylistToOthers(_ id: UUID) {
-        guard !homeOtherPlaylists.contains(where: { $0.id == id }),
-              let index = homeShownPlaylists.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-
-        homeOtherPlaylists.append(homeShownPlaylists.remove(at: index))
-        persistHomePlaylistLayout()
-    }
-
-    private func persistHomePlaylistLayout() {
-        playlistUseCases.updateHomePlaylistLayout(
-            shownIDs: homeShownPlaylists.map(\.id),
-            otherIDs: homeOtherPlaylists.map(\.id)
-        )
-    }
+    // NOTA: la curaduría de playlists en Inicio ("Editar inicio") vive ahora en
+    // `HomePlaylistLayoutViewModel`, no aquí.
 
     // MARK: - Detail View
 

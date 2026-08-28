@@ -18,7 +18,7 @@ import SwiftUI
 /// en dos listas independientes. Con botones se conservan encabezados fijos y el arrastre
 /// nativo donde sí funciona bien.
 struct HomePlaylistsOrderView: View {
-    @Environment(PlaylistViewModel.self) private var viewModel
+    @Environment(HomePlaylistLayoutViewModel.self) private var viewModel
 
     /// Margen lateral que `insetGrouped` aplica a sus secciones. El banner vive fuera de la
     /// `List`, así que replica este valor a mano para quedar del mismo ancho que las tarjetas.

@@ -284,6 +284,11 @@ final class DIContainer {
         PlaylistViewModel(playlistUseCases: playlistUseCases, readStore: playlistReadStore)
     }
 
+    /// Factory para HomePlaylistLayoutViewModel (pantalla "Editar inicio")
+    func makeHomePlaylistLayoutViewModel() -> HomePlaylistLayoutViewModel {
+        HomePlaylistLayoutViewModel(playlistUseCases: playlistUseCases)
+    }
+
     /// Factory para SearchViewModel
     func makeSearchViewModel() -> SearchViewModel {
         SearchViewModel(readStore: searchReadStore)

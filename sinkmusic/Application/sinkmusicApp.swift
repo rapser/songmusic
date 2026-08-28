@@ -30,6 +30,7 @@ struct sinkmusicApp: App {
     @State private var homeViewModel: HomeViewModel?
     @State private var searchViewModel: SearchViewModel?
     @State private var playlistViewModel: PlaylistViewModel?
+    @State private var homePlaylistLayoutViewModel: HomePlaylistLayoutViewModel?
     @State private var settingsViewModel: SettingsViewModel?
     @State private var equalizerViewModel: EqualizerViewModel?
     @State private var downloadViewModel: DownloadViewModel?
@@ -104,6 +105,7 @@ struct sinkmusicApp: App {
                            let homeVM = homeViewModel,
                            let searchVM = searchViewModel,
                            let playlistVM = playlistViewModel,
+                           let homeLayoutVM = homePlaylistLayoutViewModel,
                            let settingsVM = settingsViewModel,
                            let equalizerVM = equalizerViewModel,
                            let downloadVM = downloadViewModel,
@@ -115,6 +117,7 @@ struct sinkmusicApp: App {
                                 .environment(homeVM)
                                 .environment(searchVM)
                                 .environment(playlistVM)
+                                .environment(homeLayoutVM)
                                 .environment(settingsVM)
                                 .environment(equalizerVM)
                                 .environment(downloadVM)
@@ -171,6 +174,7 @@ struct sinkmusicApp: App {
         homeViewModel = container.makeHomeViewModel()
         searchViewModel = container.makeSearchViewModel()
         playlistViewModel = container.makePlaylistViewModel()
+        homePlaylistLayoutViewModel = container.makeHomePlaylistLayoutViewModel()
         settingsViewModel = container.makeSettingsViewModel()
         equalizerViewModel = container.makeEqualizerViewModel()
         downloadViewModel = container.makeDownloadViewModel()

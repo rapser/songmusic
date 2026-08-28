@@ -127,6 +127,11 @@ struct PreviewViewModels {
         return DIContainer.shared.makePlaylistViewModel()
     }
 
+    static func homePlaylistLayoutVM() -> HomePlaylistLayoutViewModel {
+        setupDI()
+        return DIContainer.shared.makeHomePlaylistLayoutViewModel()
+    }
+
     static func searchVM() -> SearchViewModel {
         setupDI()
         return DIContainer.shared.makeSearchViewModel()
@@ -224,6 +229,7 @@ struct PreviewWrapper<Content: View>: View {
             .environment(libraryVM ?? PreviewViewModels.libraryVM())
             .environment(playerVM ?? PreviewViewModels.playerVM())
             .environment(playlistVM ?? PreviewViewModels.playlistVM())
+            .environment(PreviewViewModels.homePlaylistLayoutVM())
             .environment(searchVM ?? PreviewViewModels.searchVM())
             .environment(equalizerVM ?? PreviewViewModels.equalizerVM())
             .environment(downloadVM ?? PreviewViewModels.downloadVM())
