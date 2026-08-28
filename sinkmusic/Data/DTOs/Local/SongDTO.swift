@@ -48,6 +48,30 @@ final class SongDTO: Identifiable {
     }
 }
 
+// MARK: - Mutación
+extension SongDTO {
+    /// Copia todos los campos mutables desde otro DTO (menos `id` y la relación `playlists`,
+    /// que se gestionan aparte). Único punto de verdad del copiado para `update()`:
+    /// añadir un campo nuevo al modelo = tocar solo aquí.
+    func apply(from other: SongDTO) {
+        title = other.title
+        artist = other.artist
+        album = other.album
+        author = other.author
+        fileID = other.fileID
+        isDownloaded = other.isDownloaded
+        duration = other.duration
+        artworkData = other.artworkData
+        artworkThumbnail = other.artworkThumbnail
+        artworkMediumThumbnail = other.artworkMediumThumbnail
+        cachedDominantColorRed = other.cachedDominantColorRed
+        cachedDominantColorGreen = other.cachedDominantColorGreen
+        cachedDominantColorBlue = other.cachedDominantColorBlue
+        playCount = other.playCount
+        lastPlayedAt = other.lastPlayedAt
+    }
+}
+
 // MARK: - Helper Extensions
 extension SongDTO {
     /// Obtiene la URL local del archivo descargado

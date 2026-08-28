@@ -141,27 +141,10 @@ final class SongLocalDataSource {
         try modelContext.save()
     }
 
-    /// Actualiza una canción existente
+    /// Actualiza una canción existente copiando los campos del DTO recibido al persistido.
     func update(_ song: SongDTO) throws {
         guard let existing = try getByID(song.id) else { return }
-
-        // Copiar propiedades del DTO recibido al objeto persistido
-        existing.title = song.title
-        existing.artist = song.artist
-        existing.album = song.album
-        existing.author = song.author
-        existing.fileID = song.fileID
-        existing.isDownloaded = song.isDownloaded
-        existing.duration = song.duration
-        existing.artworkData = song.artworkData
-        existing.artworkThumbnail = song.artworkThumbnail
-        existing.artworkMediumThumbnail = song.artworkMediumThumbnail
-        existing.playCount = song.playCount
-        existing.lastPlayedAt = song.lastPlayedAt
-        existing.cachedDominantColorRed = song.cachedDominantColorRed
-        existing.cachedDominantColorGreen = song.cachedDominantColorGreen
-        existing.cachedDominantColorBlue = song.cachedDominantColorBlue
-
+        existing.apply(from: song)
         try modelContext.save()
     }
 
