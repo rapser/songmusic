@@ -8,7 +8,6 @@
 
 import Foundation
 import AVFoundation
-import MediaPlayer
 
 /// SOLID: Dependency Inversion - Depende de EventBusProtocol
 @MainActor
@@ -41,16 +40,8 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     /// devuelve nil, así que este es el único valor válido para informar a iOS.
     private var lastKnownTime: TimeInterval = 0
 
-    /// Metadata fija de la canción actual (título/artista/álbum/artwork/duración).
-    /// Se construye una vez por canción; los refrescos de tiempo solo mutan este diccionario
-    /// en lugar de reconstruirlo, evitando re-decodificar el artwork cada segundo.
-    private var nowPlayingBase: [String: Any] = [:]
-
-    /// Artwork ya convertido a `MPMediaItemArtwork`, junto al `Data` del que salió,
-    /// para reutilizarlo mientras no cambie la canción.
-    private var cachedArtworkData: Data?
-
-    private var lastNowPlayingPush: CFTimeInterval = 0
+    /// Pantalla de bloqueo / Centro de Control (metadata + comandos remotos).
+    private let nowPlaying: NowPlayingCenter
 
     /// Estado real de reproducción — **fuente única de verdad de toda la app**.
     /// Ninguna otra capa debe mantener su propio flag: el motor de audio es el único
@@ -66,11 +57,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         self.playerNode = AVAudioPlayerNode()
         self.eq = AVAudioUnitEQ(numberOfBands: 6)
         self.mixerNode = AVAudioMixerNode()
+        self.nowPlaying = NowPlayingCenter(eventBus: eventBus)
 
         super.init()
         setupAudioSession()
         setupAudioEngine()
-        setupRemoteCommandCenter()
+        nowPlaying.setupRemoteCommands()
         setupInterruptionHandling()
     }
 
@@ -379,12 +371,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
                 self.lastKnownTime = currentTime
                 self.eventBus.emit(.timeUpdated(current: currentTime, duration: duration))
 
-                // Refresco periódico del widget nativo (1 Hz). Vive aquí, en el dueño del
-                // estado, y no en el ViewModel: solo muta un diccionario ya construido.
-                let now = CACurrentMediaTime()
-                if now - self.lastNowPlayingPush >= 1.0 {
-                    self.pushNowPlaying(elapsed: currentTime, isPlaying: true)
-                }
+                // Refresco periódico del widget nativo (~1 Hz); el throttle vive en NowPlayingCenter.
+                self.nowPlaying.pushIfStale(
+                    elapsed: currentTime, isPlaying: true,
+                    realDuration: duration, minInterval: 1.0
+                )
             }
         }
 
@@ -480,146 +471,27 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         }
     }
 
-    // MARK: - Now Playing Info & Remote Commands
-    private func setupRemoteCommandCenter() {
-        let commandCenter = MPRemoteCommandCenter.shared()
-
-        // Intenciones explícitas: iOS envía play o pause según el estado que él cree que
-        // tenemos. Traducirlas a un toggle hacía que un `pauseCommand` acabara reproduciendo
-        // en cuanto los dos estados se desfasaban, y el espejo ya no se recuperaba.
-        commandCenter.playCommand.isEnabled = true
-        commandCenter.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.play))
-            }
-            return .success
-        }
-
-        commandCenter.pauseCommand.isEnabled = true
-        commandCenter.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.pause))
-            }
-            return .success
-        }
-
-        // Botón central de los AirPods / auriculares: aquí sí es un alternar de verdad.
-        commandCenter.togglePlayPauseCommand.isEnabled = true
-        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.playPause))
-            }
-            return .success
-        }
-
-        commandCenter.nextTrackCommand.isEnabled = true
-        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.next))
-            }
-            return .success
-        }
-
-        commandCenter.previousTrackCommand.isEnabled = true
-        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.previous))
-            }
-            return .success
-        }
-
-        commandCenter.changePlaybackPositionCommand.isEnabled = true
-        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
-                return .commandFailed
-            }
-            let position = event.positionTime
-            Task { @MainActor [weak self] in
-                // Solo emitir: el evento ya rutea el seek de vuelta hasta aquí vía
-                // PlayerViewModel → PlayerUseCases → repositorio. Llamarlo además de forma
-                // directa provocaba dos `stop()` + `scheduleSegment` por cada arrastre.
-                self?.eventBus.emit(.remoteCommand(.seek(position)))
-            }
-            return .success
-        }
-    }
-
     /// Fija la metadata de la canción actual. Se llama una vez por canción, no en cada tick.
     func setNowPlayingMetadata(title: String, artist: String, album: String?, duration: TimeInterval, artwork: Data?) {
-        var info = [String: Any]()
-
-        info[MPMediaItemPropertyTitle] = title
-        info[MPMediaItemPropertyArtist] = artist
-
-        if let album = album, !album.isEmpty {
-            info[MPMediaItemPropertyAlbumTitle] = album
-        }
-
-        // Evitar NaN/infinitos: el sistema puede hacer INVOP al asignar nowPlayingInfo
-        let safeDuration = duration.isFinite && duration >= 0 ? duration : 0
-        info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: safeDuration)
-        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
-
-        // Reconstruir el artwork solo si cambió: convertirlo es caro y antes se rehacía
-        // en cada refresco de tiempo.
-        if let artworkData = artwork {
-            if artworkData != cachedArtworkData || nowPlayingBase[MPMediaItemPropertyArtwork] == nil {
-                if let image = UIImage(data: artworkData) {
-                    // El sistema invoca el closure desde otro hilo: debe ser @Sendable y solo capturar Sendable (Data).
-                    let artworkImage = MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in
-                        UIImage(data: artworkData) ?? UIImage()
-                    }
-                    info[MPMediaItemPropertyArtwork] = artworkImage
-                    cachedArtworkData = artworkData
-                }
-            } else if let existing = nowPlayingBase[MPMediaItemPropertyArtwork] {
-                info[MPMediaItemPropertyArtwork] = existing
-            }
-        } else {
-            cachedArtworkData = nil
-        }
-
-        nowPlayingBase = info
-        pushNowPlaying(elapsed: currentPlaybackTime(), isPlaying: playerNode.isPlaying)
+        nowPlaying.setMetadata(
+            title: title, artist: artist, album: album, duration: duration, artwork: artwork,
+            elapsed: currentPlaybackTime(), isPlaying: playerNode.isPlaying, realDuration: fileDuration()
+        )
     }
 
-    /// Refresca solo el tiempo transcurrido (y la duración si se conoce).
     func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) {
-        if let duration, duration.isFinite, duration > 0 {
-            nowPlayingBase[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
-        }
-        pushNowPlaying(elapsed: elapsed, isPlaying: playerNode.isPlaying)
+        nowPlaying.updateTime(
+            elapsed: elapsed, duration: duration,
+            isPlaying: playerNode.isPlaying, realDuration: fileDuration()
+        )
     }
 
-    /// Único punto que escribe en `MPNowPlayingInfoCenter`.
-    ///
-    /// El orden importa: primero `nowPlayingInfo` (para que iOS tenga el tiempo fresco) y
-    /// después `playbackState`. Al revés, iOS extrapola un frame desde el valor anterior.
+    /// Empuja el estado a `MPNowPlayingInfoCenter` (vía `NowPlayingCenter`).
     private func pushNowPlaying(elapsed: TimeInterval, isPlaying: Bool) {
-        var info = nowPlayingBase
-
-        let safeElapsed = elapsed.isFinite && elapsed >= 0 ? elapsed : 0
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: safeElapsed)
-        info[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: isPlaying ? 1.0 : 0.0)
-        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = NSNumber(value: 1.0)
-
-        // La duración real del archivo es más fiable que la metadata de la canción.
-        let realDuration = fileDuration()
-        if realDuration > 0 {
-            info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: realDuration)
-            nowPlayingBase[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: realDuration)
-        }
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-        MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
-
-        lastNowPlayingPush = CACurrentMediaTime()
+        nowPlaying.push(elapsed: elapsed, isPlaying: isPlaying, realDuration: fileDuration())
     }
 
     private func clearNowPlaying() {
-        nowPlayingBase = [:]
-        cachedArtworkData = nil
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        nowPlaying.clear()
     }
 }
