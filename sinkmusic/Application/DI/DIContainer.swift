@@ -105,8 +105,6 @@ final class DIContainer {
 
     private(set) lazy var playlistRepository: PlaylistRepositoryProtocol = makePlaylistRepository()
 
-    private(set) lazy var audioPlayerRepository: AudioPlayerRepositoryProtocol = makeAudioPlayerRepository()
-
     private(set) lazy var cloudStorageRepository: CloudStorageRepositoryProtocol = makeCloudStorageRepository()
 
     private(set) lazy var credentialsRepository: CredentialsRepositoryProtocol = makeCredentialsRepository()
@@ -190,10 +188,6 @@ final class DIContainer {
         )
     }
 
-    private func makeAudioPlayerRepository() -> AudioPlayerRepositoryProtocol {
-        AudioPlayerRepositoryImpl(audioPlayerService: audioPlayerService)
-    }
-
     private func makeCloudStorageRepository() -> CloudStorageRepositoryProtocol {
         let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
         let megaDataSource = MegaDataSource(eventBus: eventBus, backgroundSessionCompletion: backgroundSessionCompletionService)
@@ -218,7 +212,7 @@ final class DIContainer {
 
     private func makePlayerUseCases() -> PlayerUseCases {
         PlayerUseCases(
-            audioPlayerRepository: audioPlayerRepository,
+            audioPlayer: audioPlayerService,
             songRepository: songRepository,
             playbackStateRepository: playbackStateRepository,
             fileStore: downloadFileStore
@@ -226,7 +220,7 @@ final class DIContainer {
     }
 
     private func makeEqualizerUseCases() -> EqualizerUseCases {
-        EqualizerUseCases(audioPlayerRepository: audioPlayerRepository)
+        EqualizerUseCases(audioPlayer: audioPlayerService)
     }
 
     private func makeLibraryUseCases() -> LibraryUseCases {

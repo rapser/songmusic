@@ -1,5 +1,5 @@
 //
-//  MockAudioPlayerRepository.swift
+//  MockAudioPlayerService.swift
 //  sinkmusicTests
 //
 
@@ -7,7 +7,7 @@ import Foundation
 @testable import sinkmusic
 
 @MainActor
-final class MockAudioPlayerRepository: AudioPlayerRepositoryProtocol {
+final class MockAudioPlayerService: AudioPlayerServiceProtocol {
 
     var playCallCount = 0
     var resumeCallCount = 0
@@ -25,14 +25,14 @@ final class MockAudioPlayerRepository: AudioPlayerRepositoryProtocol {
     var lastEqualizerBands: [Float]?
 
     var isPlayingValue = false
-    var shouldThrowOnPlay = false
 
     /// Simula si el motor tiene una pista cargada que se pueda reanudar.
     /// `false` = arranque en frío, el UseCase debe caer a un `play` real.
     var canResumeValue = false
 
-    func play(songID: UUID, url: URL, startTime: TimeInterval) async throws {
-        if shouldThrowOnPlay { throw SongError.fileNotFound }
+    var isPlaying: Bool { isPlayingValue }
+
+    func play(songID: UUID, url: URL, startTime: TimeInterval) {
         playCallCount += 1
         lastPlayedSongID = songID
         lastPlayedURL = url
@@ -41,31 +41,29 @@ final class MockAudioPlayerRepository: AudioPlayerRepositoryProtocol {
         canResumeValue = true
     }
 
-    func resume() async -> Bool {
+    func resume() -> Bool {
         resumeCallCount += 1
         guard canResumeValue else { return false }
         isPlayingValue = true
         return true
     }
 
-    func pause() async {
+    func pause() {
         pauseCallCount += 1
         isPlayingValue = false
     }
 
-    func stop() async {
+    func stop() {
         stopCallCount += 1
         isPlayingValue = false
     }
 
-    func seek(to time: TimeInterval) async {
+    func seek(to time: TimeInterval) {
         seekCallCount += 1
         lastSeekTime = time
     }
 
-    func isPlaying() async -> Bool { isPlayingValue }
-
-    func updateEqualizer(bands: [Float]) async {
+    func updateEqualizer(bands: [Float]) {
         updateEqualizerCallCount += 1
         lastEqualizerBands = bands
     }
@@ -76,11 +74,11 @@ final class MockAudioPlayerRepository: AudioPlayerRepositoryProtocol {
         album: String?,
         duration: TimeInterval,
         artwork: Data?
-    ) async {
+    ) {
         setNowPlayingMetadataCallCount += 1
     }
 
-    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) async {
+    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) {
         updateNowPlayingTimeCallCount += 1
     }
 }

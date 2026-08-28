@@ -15,7 +15,7 @@ final class PlayerUseCases {
 
     // MARK: - Dependencies
 
-    private let audioPlayerRepository: AudioPlayerRepositoryProtocol
+    private let audioPlayer: AudioPlayerServiceProtocol
     private let songRepository: SongRepositoryProtocol
     private let playbackStateRepository: PlaybackStateRepositoryProtocol
     private let fileStore: DownloadFileStoreProtocol
@@ -37,12 +37,12 @@ final class PlayerUseCases {
     // MARK: - Initialization
 
     init(
-        audioPlayerRepository: AudioPlayerRepositoryProtocol,
+        audioPlayer: AudioPlayerServiceProtocol,
         songRepository: SongRepositoryProtocol,
         playbackStateRepository: PlaybackStateRepositoryProtocol,
         fileStore: DownloadFileStoreProtocol
     ) {
-        self.audioPlayerRepository = audioPlayerRepository
+        self.audioPlayer = audioPlayer
         self.songRepository = songRepository
         self.playbackStateRepository = playbackStateRepository
         self.fileStore = fileStore
@@ -66,7 +66,7 @@ final class PlayerUseCases {
 
         // Metadata primero: así el push de Now Playing que hace el servicio al arrancar
         // ya lleva título y artwork, sin un frame en blanco en la pantalla de bloqueo.
-        await audioPlayerRepository.setNowPlayingMetadata(
+        audioPlayer.setNowPlayingMetadata(
             title: songEntity.title,
             artist: songEntity.artist,
             album: songEntity.album,
@@ -74,7 +74,7 @@ final class PlayerUseCases {
             artwork: songEntity.artworkData
         )
 
-        try await audioPlayerRepository.play(songID: songID, url: localURL, startTime: startTime)
+        audioPlayer.play(songID: songID, url: localURL, startTime: startTime)
 
         currentSongID = songID
         currentSong = songEntity
@@ -91,7 +91,7 @@ final class PlayerUseCases {
     /// frío tras `restoreLastPlaybackState`), hace una reproducción real desde la posición
     /// guardada. Es idempotente: llamarlo estando ya reproduciendo no hace nada.
     func resume() async throws {
-        if await audioPlayerRepository.resume() {
+        if audioPlayer.resume() {
             pendingResumeTime = nil
             return
         }
@@ -103,19 +103,19 @@ final class PlayerUseCases {
 
     /// Pausa la reproducción
     func pause() async {
-        await audioPlayerRepository.pause()
+        audioPlayer.pause()
     }
 
     /// Detiene la reproducción
     func stop() async {
-        await audioPlayerRepository.stop()
+        audioPlayer.stop()
         currentSongID = nil
         currentSong = nil
     }
 
     /// Alterna entre play y pause consultando el estado real del motor de audio
     func togglePlayPause() async throws {
-        if await audioPlayerRepository.isPlaying() {
+        if audioPlayer.isPlaying {
             await pause()
         } else {
             try await resume()
@@ -124,7 +124,7 @@ final class PlayerUseCases {
 
     /// Busca a una posición específica en la canción
     func seek(to time: TimeInterval) async {
-        await audioPlayerRepository.seek(to: time)
+        audioPlayer.seek(to: time)
     }
 
     // MARK: - Playback State Persistence
@@ -185,7 +185,7 @@ final class PlayerUseCases {
 
     /// Estado real de reproducción, consultado al motor de audio (nunca cacheado aquí)
     func isPlaying() async -> Bool {
-        await audioPlayerRepository.isPlaying()
+        audioPlayer.isPlaying
     }
 }
 

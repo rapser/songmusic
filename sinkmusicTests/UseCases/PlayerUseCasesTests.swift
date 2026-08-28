@@ -10,17 +10,17 @@ import XCTest
 final class PlayerUseCasesTests: XCTestCase {
 
     private var sut: PlayerUseCases!
-    private var mockAudioPlayer: MockAudioPlayerRepository!
+    private var mockAudioPlayer: MockAudioPlayerService!
     private var mockSongRepo: MockSongRepository!
     private var mockPlaybackState: MockPlaybackStateRepository!
 
     override func setUp() {
         super.setUp()
-        mockAudioPlayer = MockAudioPlayerRepository()
+        mockAudioPlayer = MockAudioPlayerService()
         mockSongRepo = MockSongRepository()
         mockPlaybackState = MockPlaybackStateRepository()
         sut = PlayerUseCases(
-            audioPlayerRepository: mockAudioPlayer,
+            audioPlayer: mockAudioPlayer,
             songRepository: mockSongRepo,
             playbackStateRepository: mockPlaybackState,
             fileStore: DownloadFileStore()
