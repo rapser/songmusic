@@ -73,12 +73,15 @@ final class LibraryViewModelTests: XCTestCase {
 
     func test_sync_success_addsNewSongs() async {
         mockCredentials.hasGoogleDriveCredentialsValue = true
+        mockCredentials.selectedProvider = .googleDrive
         mockCloudStorage.remoteFiles = [CloudFile.make(id: "f1"), CloudFile.make(id: "f2")]
         mockSongRepo.songs = []
 
         await sut.syncLibraryWithCatalog()
 
-        XCTAssertEqual(mockSongRepo.createCallCount, 2)
+        // El sync inserta las canciones nuevas en una sola llamada por lotes.
+        XCTAssertEqual(mockSongRepo.createManyCallCount, 1)
+        XCTAssertEqual(mockSongRepo.songs.count, 2)
         XCTAssertNil(sut.syncError)
     }
 

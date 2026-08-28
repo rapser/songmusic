@@ -111,19 +111,21 @@ final class HomeReadStoreTests: XCTestCase {
         let context = container.mainContext
         let sut = makeSUT(context)
 
-        var received = 0
+        // Suscribirse ANTES de disparar el cambio: `changes()` registra la continuación de
+        // forma síncrona y el `AsyncStream` bufferiza, así que la señal no se pierde aunque
+        // el `Task` aún no haya empezado a iterar. Evita la carrera de los `Task.sleep`.
+        let stream = sut.changes()
+        let emitted = expectation(description: "changes() emite al insertar una playlist")
         let task = Task {
-            for await _ in sut.changes() {
-                received += 1
+            for await _ in stream {
+                emitted.fulfill()
                 break
             }
         }
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         try ReadStoreTestSupport.insertPlaylist(context)
-        try await Task.sleep(nanoseconds: 200_000_000)
-        task.cancel()
 
-        XCTAssertEqual(received, 1)
+        await fulfillment(of: [emitted], timeout: 2.0)
+        task.cancel()
     }
 }
