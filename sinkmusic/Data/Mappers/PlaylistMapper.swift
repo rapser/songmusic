@@ -26,31 +26,16 @@ enum PlaylistMapper {
         )
     }
 
-    /// Convierte DTO con sus canciones a Domain (mapea canciones también)
-    /// Aplica el orden guardado en songOrder para restaurar el orden manual del usuario.
-    /// SwiftData no garantiza orden en relaciones @Relationship — songOrder es la fuente de verdad.
+    /// Convierte DTO con sus canciones a Domain, en el orden de la relación `dto.songs`.
+    ///
+    /// El orden manual del usuario lo resuelve `PlaylistLocalDataSource.orderedSongs(for:)`
+    /// vía `PlaylistItemDTO` **antes** de llamar al mapper (ver `PlaylistRepositoryImpl`).
+    /// Este helper directo se usa en previews/tests donde el orden exacto da igual.
     static func toDomainWithSongs(_ dto: PlaylistDTO) -> Playlist {
-        let songMap = Dictionary(uniqueKeysWithValues: dto.songs.map { ($0.id, SongMapper.toDomain($0)) })
-
-        // Reconstruir en el orden guardado
-        let orderedIDs = dto.songOrder
-            .split(separator: ",")
-            .compactMap { UUID(uuidString: String($0)) }
-
-        var orderedSongs: [Song] = orderedIDs.compactMap { songMap[$0] }
-
-        // Añadir al final cualquier canción no presente en songOrder
-        // (por ejemplo, canciones añadidas antes de que existiera este campo)
-        let orderedIDSet = Set(orderedIDs)
-        let unordered = dto.songs
-            .filter { !orderedIDSet.contains($0.id) }
-            .map { SongMapper.toDomain($0) }
-        orderedSongs.append(contentsOf: unordered)
-
-        return toDomain(dto, songs: orderedSongs)
+        toDomain(dto, songs: dto.songs.map(SongMapper.toDomain))
     }
 
-    /// Convierte array de DTOs a Domain
+    /// Convierte array de DTOs a Domain (orden de relación; ver `toDomainWithSongs`).
     static func toDomain(_ dtos: [PlaylistDTO]) -> [Playlist] {
         dtos.map { toDomainWithSongs($0) }
     }

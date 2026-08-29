@@ -87,6 +87,42 @@ final class SwiftDataMigrationTests: XCTestCase {
         XCTAssertEqual(playlist.name, "Mi Playlist")
         XCTAssertEqual(playlist.songOrder, expectedOrder, "El orden (songOrder) no sobrevivió a la migración")
         XCTAssertEqual(playlist.songs.count, 3, "La relación playlist↔canciones no sobrevivió a la migración")
+
+        // P2.20: la entidad nueva PlaylistItemDTO se añade de forma aditiva (aún sin filas;
+        // el backfill desde songOrder lo hace PlaylistLocalDataSource en la primera lectura).
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<PlaylistItemDTO>()).count, 0)
+    }
+
+    /// P2.20 — el backfill perezoso convierte el `songOrder` legacy en filas `PlaylistItemDTO`
+    /// respetando el orden, sin depender de que la migración de esquema mueva datos.
+    func test_legacySongOrder_isBackfilledIntoPlaylistItems() async throws {
+        let container = try ModelContainer(
+            for: AppSchemaV1.schema,
+            migrationPlan: AppMigrationPlan.self,
+            configurations: ModelConfiguration(url: storeURL)
+        )
+        let ctx = container.mainContext
+
+        let songs = (0..<3).map { index in
+            SongDTO(title: "S\(index)", artist: "A", fileID: "f\(index)", isDownloaded: true)
+        }
+        songs.forEach { ctx.insert($0) }
+        let playlist = PlaylistDTO(name: "Legacy")
+        ctx.insert(playlist)
+        try ctx.save()
+        // Orden legacy: invertido respecto a la relación.
+        playlist.songs = songs
+        playlist.songOrder = [songs[2], songs[0], songs[1]].map(\.id.uuidString).joined(separator: ",")
+        try ctx.save()
+
+        let dataSource = PlaylistLocalDataSource(modelContext: ctx)
+        let ordered = try dataSource.orderedSongs(for: playlist)
+
+        XCTAssertEqual(ordered.map(\.id), [songs[2].id, songs[0].id, songs[1].id])
+
+        let items = try ctx.fetch(FetchDescriptor<PlaylistItemDTO>()).sorted { $0.position < $1.position }
+        XCTAssertEqual(items.map(\.songID), [songs[2].id, songs[0].id, songs[1].id])
+        XCTAssertEqual(items.map(\.position), [0, 1, 2])
     }
 
     func test_freshStoreWithMigrationPlan_opensEmpty() throws {

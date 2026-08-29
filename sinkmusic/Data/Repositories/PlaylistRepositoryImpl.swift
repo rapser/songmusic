@@ -34,12 +34,16 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
 
     func getAll() async throws -> [Playlist] {
         let dtos = try localDataSource.getAll()
-        return PlaylistMapper.toDomain(dtos)
+        return try dtos.map { dto in
+            let ordered = try localDataSource.orderedSongs(for: dto)
+            return PlaylistMapper.toDomain(dto, songs: SongMapper.toDomain(ordered))
+        }
     }
 
     func getByID(_ id: UUID) async throws -> Playlist? {
         guard let dto = try localDataSource.getByID(id) else { return nil }
-        return PlaylistMapper.toDomainWithSongs(dto)
+        let ordered = try localDataSource.orderedSongs(for: dto)
+        return PlaylistMapper.toDomain(dto, songs: SongMapper.toDomain(ordered))
     }
 
     // MARK: - Mutation Operations

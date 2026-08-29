@@ -33,11 +33,16 @@ Features      Auth (módulo feature-first; ver nota abajo)
 | Preferencias de UI triviales y estado efímero (última posición de reproducción, curación de Inicio) | UserDefaults (`*RepositoryImpl` en `Data/Repositories/`) — *candidatos a migrar a SwiftData por consistencia* |
 | Secretos (API keys, credenciales) | Keychain (`KeychainService`) |
 
-- Toda entidad nueva se añade al `ModelContainer(for:)` en `sinkmusicApp`, `PreviewData` y
-  `ReadStoreTestSupport.makeInMemoryContainer`.
-- **Cambios de esquema**: añadir una entidad nueva e independiente es una migración aditiva
-  segura. Modificar `SongDTO`/`PlaylistDTO` (tienen `@Attribute(.unique)`) es frágil con la
-  migración implícita — requiere `VersionedSchema` + `SchemaMigrationPlan` explícitos.
+- Toda entidad nueva se añade a `AppSchemaV1.models` (`Data/DTOs/Local/AppSchema.swift`) — es
+  el único sitio: `sinkmusicApp`, `PreviewData` y `ReadStoreTestSupport` construyen el
+  `ModelContainer` con `AppSchemaV1.schema` + `migrationPlan: AppMigrationPlan.self`.
+- **Cambios de esquema**: añadir una entidad nueva e independiente (keyed por UUID, sin
+  `@Relationship` a `SongDTO`/`PlaylistDTO`) es aditivo y seguro — se añade a `AppSchemaV1.models`.
+  Modificar `SongDTO` (`@Attribute(.unique)` en `id`/`fileID`) es frágil: requiere un
+  `AppSchemaV2` + `MigrationStage` en `AppMigrationPlan.stages`. Migraciones de datos (mover
+  contenido de un campo viejo a una entidad nueva) se hacen con **backfill perezoso en el
+  DataSource** en la primera lectura, no con `MigrationStage.custom` (ver `PlaylistItemDTO` /
+  `PlaylistLocalDataSource.syncedOrderItems`).
 
 ## Reactividad
 

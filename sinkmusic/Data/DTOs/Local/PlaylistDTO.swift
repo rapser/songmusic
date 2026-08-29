@@ -21,15 +21,15 @@ final class PlaylistDTO {
     /// Índice del color del placeholder (0 a N-1). nil = usar color por id.
     var placeholderColorIndex: Int?
 
-    // Relación con canciones (muchos a muchos)
-    // SwiftData no garantiza el orden de los arrays en relaciones @Relationship —
-    // internamente usa un Set de Core Data. El campo songOrder guarda los UUIDs
-    // como "uuid1,uuid2,uuid3" y se usa al leer para restablecer el orden correcto.
+    // Relación con canciones (muchos a muchos). SwiftData no garantiza el orden de los
+    // arrays en relaciones @Relationship — el orden manual vive ahora en `PlaylistItemDTO`.
     @Relationship(deleteRule: .nullify, inverse: \SongDTO.playlists)
     var songs: [SongDTO]
 
-    /// UUIDs de canciones en orden, separados por coma.
-    /// Fuente de verdad para el orden dentro de la playlist.
+    /// **Legacy.** Antes era la fuente de verdad del orden (CSV "uuid1,uuid2,..."). Sustituido
+    /// por `PlaylistItemDTO` (hallazgo N). Se conserva la columna solo como fuente del backfill
+    /// perezoso en `PlaylistLocalDataSource` y para no forzar una migración destructiva; ya no
+    /// se escribe ni se lee fuera de ese backfill.
     var songOrder: String = ""
 
     init(
