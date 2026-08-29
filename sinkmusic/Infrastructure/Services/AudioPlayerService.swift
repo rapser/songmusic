@@ -36,6 +36,10 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     /// Reacción a interrupciones de `AVAudioSession` (llamadas, Siri, otra app).
     private let interruptions: AudioInterruptionObserver
 
+    /// Token de `AVAudioEngineConfigurationChange`. No es Sendable y `removeObserver` es
+    /// seguro desde cualquier hilo, así que se accede sin el chequeo de aislamiento de actor.
+    private nonisolated(unsafe) var configChangeToken: NSObjectProtocol?
+
     // MARK: - Now Playing
 
     /// Última posición conocida. Mientras el nodo está pausado `playerTime(forNodeTime:)`
@@ -65,8 +69,15 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         super.init()
         setupAudioSession()
         setupAudioEngine()
+        observeConfigurationChange()
         nowPlaying.setupRemoteCommands()
         interruptions.start(delegate: self)
+    }
+
+    deinit {
+        if let configChangeToken {
+            NotificationCenter.default.removeObserver(configChangeToken)
+        }
     }
 
     private func setupAudioSession() {
@@ -81,6 +92,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             // Solicitar la mayor sample rate soportada por el hardware del dispositivo.
             // En iPhone con AirPods Pro / auriculares Lightning esto puede llegar a 48000 Hz.
             try audioSession.setPreferredSampleRate(audioSession.sampleRate)
+
+            // Fijar un buffer de IO estable (~20 ms). Sin esto, un componente externo
+            // (p. ej. el PHPicker al abrir su UI) puede renegociar el tamaño de buffer
+            // bajo el engine que está sonando → crujido.
+            try? audioSession.setPreferredIOBufferDuration(0.02)
 
             try audioSession.setActive(true)
         } catch {
@@ -102,6 +118,83 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         // Tidal Hi-Fi no aplica ningún procesamiento de señal por defecto.
         for index in 0..<eq.bands.count {
             eq.bands[index].bypass = true
+        }
+    }
+
+    // MARK: - Configuration Change
+
+    /// `AVAudioEngine` **se detiene solo** cuando cambia el formato de salida del hardware
+    /// (cambio de ruta, otra app/PHPicker que renegocia la sesión, cambio de sample rate).
+    /// Sin manejarlo, el engine queda parado o desajustado → crujido / silencio hasta que
+    /// algo lo reinicia. Aquí se rehace el grafo con el formato nuevo y se re-agenda la
+    /// pista desde la posición actual.
+    private func observeConfigurationChange() {
+        configChangeToken = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: audioEngine,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleConfigurationChange()
+            }
+        }
+    }
+
+    private func handleConfigurationChange() {
+        guard let audioFile, let songID = currentlyPlayingID, audioFile.length > 0 else { return }
+
+        let wasPlaying = playerNode.isPlaying
+        let resumeAt = currentPlaybackTime()
+
+        playerNode.stop()
+
+        let fileFormat = audioFile.processingFormat
+        let outFormat = AVAudioFormat(standardFormatWithSampleRate: fileFormat.sampleRate, channels: 2) ?? fileFormat
+        audioEngine.connect(playerNode, to: eq, format: fileFormat)
+        audioEngine.connect(eq, to: mixerNode, format: fileFormat)
+        audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
+        audioEngine.prepare()
+
+        let sampleRate = fileFormat.sampleRate
+        let startFrame = min(max(0, AVAudioFramePosition(resumeAt * sampleRate)), audioFile.length - 1)
+
+        let scheduleID = UUID()
+        currentScheduleID = scheduleID
+        playerNode.scheduleSegment(
+            audioFile,
+            startingFrame: startFrame,
+            frameCount: AVAudioFrameCount(audioFile.length - startFrame),
+            at: nil,
+            completionHandler: makeCompletionHandler(scheduleID)
+        )
+        seekOffset = Double(startFrame) / sampleRate
+        lastKnownTime = seekOffset
+
+        do {
+            if !audioEngine.isRunning {
+                try audioEngine.start()
+            }
+            if wasPlaying {
+                playerNode.play()
+                startPlaybackTimer()
+            }
+            pushNowPlaying(elapsed: lastKnownTime, isPlaying: wasPlaying)
+        } catch {
+            eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
+        }
+    }
+
+    /// Completion handler de una programación de reproducción: cuando el buffer de esa
+    /// programación (identificada por `scheduleID`) se agota, marca fin de pista.
+    private func makeCompletionHandler(_ scheduleID: UUID) -> @Sendable () -> Void {
+        { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.currentScheduleID == scheduleID,
+                      let currentID = self.currentlyPlayingID else { return }
+                self.handlePlaybackCompleted()
+                self.eventBus.emit(.songFinished(currentID))
+            }
         }
     }
 
@@ -151,17 +244,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
             let scheduleID = UUID()
             self.currentScheduleID = scheduleID
-
-            let onCompletion: @Sendable () -> Void = { [weak self] in
-                Task { @MainActor [weak self] in
-                    guard let self = self else { return }
-                    guard self.currentScheduleID == scheduleID else { return }
-                    guard let currentID = self.currentlyPlayingID else { return }
-
-                    self.handlePlaybackCompleted()
-                    self.eventBus.emit(.songFinished(currentID))
-                }
-            }
+            let onCompletion = makeCompletionHandler(scheduleID)
 
             // Una sola programación: si hay posición inicial se programa el segmento
             // directamente, en vez de programar el archivo entero y hacer seek después.
@@ -311,17 +394,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             audioFile,
             startingFrame: startFrame,
             frameCount: frameCount,
-            at: nil
-        ) { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                guard self.currentScheduleID == scheduleID else { return }
-                guard let currentID = self.currentlyPlayingID else { return }
-
-                self.handlePlaybackCompleted()
-                self.eventBus.emit(.songFinished(currentID))
-            }
-        }
+            at: nil,
+            completionHandler: makeCompletionHandler(scheduleID)
+        )
 
         let duration = fileDuration()
         eventBus.emit(.timeUpdated(current: time, duration: duration))
