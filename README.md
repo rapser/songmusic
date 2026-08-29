@@ -1,402 +1,264 @@
 # SinkMusic
 
-Una aplicación de música moderna para iOS con reproducción de audio de alta calidad, gestión de playlists, integración con CarPlay y sincronización con **Google Drive** o **MEGA**.
+Aplicación de música para iOS con reproducción de audio de alta calidad, ecualizador, playlists,
+descargas desde **Google Drive** o **MEGA**, reproducción en segundo plano, Live Activities y
+CarPlay.
+
+- **Swift 6** con *strict concurrency* (cero advertencias) · **SwiftUI** · **SwiftData** · `@Observable`
+- **Clean Architecture por capas** + **MVVM** + **Inyección de dependencias pura** (sin frameworks)
+- iOS **18.0+** · Xcode **26** · bundle id `com.rapser.musicaapp`
+
+---
+
+## Índice
+
+1. [Características](#características)
+2. [Arquitectura](#arquitectura)
+   - [Capas y regla de dependencia](#capas-y-regla-de-dependencia)
+   - [Estructura de carpetas](#estructura-de-carpetas)
+   - [Mapeo de 3 capas (DTO ↔ Domain ↔ UI)](#mapeo-de-3-capas-dto--domain--ui)
+   - [Flujo de datos: escritura vs. lectura reactiva](#flujo-de-datos-escritura-vs-lectura-reactiva)
+   - [Dependency Injection](#dependency-injection)
+   - [EventBus (solo eventos globales)](#eventbus-solo-eventos-globales)
+   - [ReadStore (lectura reactiva de listas)](#readstore-lectura-reactiva-de-listas)
+   - [Persistencia y migraciones](#persistencia-y-migraciones)
+   - [Módulo Auth (Facade + Strategy)](#módulo-auth-facade--strategy)
+   - [Concurrencia Swift 6](#concurrencia-swift-6)
+3. [SOLID](#solid)
+4. [Buenas prácticas aplicadas](#buenas-prácticas-aplicadas)
+5. [Tests](#tests)
+6. [Requisitos e instalación](#requisitos-e-instalación)
+7. [Distribución a TestFlight](#distribución-a-testflight)
+8. [Changelog · Autor · Licencia](#changelog--autor--licencia)
+
+---
 
 ## Características
 
 ### Reproducción de audio
-- Reproduccion con AVAudioEngine y ecualizador de 6 bandas
-- Controles de reproduccion avanzados (play/pause, siguiente, anterior)
-- Modo aleatorio y tres modos de repeticion (off, all, one)
-- Soporte para reproduccion en background
-- Integracion con Lock Screen y Control Center
-- Reanudacion automatica despues de llamadas telefonicas (comportamiento tipo Spotify)
-- Pausa automatica al desconectar auriculares
-- Manejo robusto de interrupciones de audio (llamadas, alarmas, Siri, etc.)
-- Reconexión transparente del engine ante cambios de ruta de hardware (`AVAudioEngineConfigurationChange`) — sin chasquidos al abrir teclado
+- `AVAudioEngine` + ecualizador de 6 bandas (60 Hz, 150 Hz, 400 Hz, 1 kHz, 2.4 kHz, 15 kHz) con presets
+- Play/pause, siguiente, anterior, modo aleatorio y tres modos de repetición (off / all / one)
+- Reproducción en segundo plano, Lock Screen y Control Center (`MPNowPlayingInfoCenter` + remote commands)
+- Reanudación automática tras llamadas / Siri / alarmas (manejo de `AVAudioSession.interruptionNotification`)
+- Pausa al desconectar auriculares; reconexión transparente del engine ante cambios de ruta de hardware
+- Persistencia de la última canción y posición de reproducción
 
 ### Live Activities & Dynamic Island
-- Reproductor en vivo con Dynamic Island (iPhone 14 Pro+)
-- Controles de reproduccion desde Lock Screen
-- Artwork y metadatos en tiempo real
+- Reproductor en vivo con Dynamic Island (iPhone 14 Pro+), controles desde Lock Screen, artwork y metadatos en tiempo real
 
 ### Almacenamiento en la nube (Google Drive / MEGA)
-- **Dos proveedores**: Google Drive o MEGA (selección en Configuración)
-- Sincronización a demanda con la carpeta configurada
-- **Descarga individual** por canción y **Descargar todo** (solo con MEGA)
-- Cola de descargas secuencial con límites por proveedor (Swift 6: actor + async/await)
-- Sincronización por lotes para reducir `save()` repetidos y hacer más fluida la actualización de la biblioteca
-- Aviso al usuario cuando se alcanza el límite de MEGA (5 GB/día) y limpieza de estado
-- Extracción automática de metadatos (ID3, artwork); escritura atómica del archivo para evitar errores de formato
-- Gestión de caché de imágenes (3 tamaños: 32×32, 64×64, full)
+- Dos proveedores seleccionables en Ajustes
+- Sincronización a demanda con la carpeta configurada; descarga individual y "Descargar todo" (MEGA)
+- Cola de descargas secuencial con límites por proveedor (actor + async/await); aviso al llegar al límite de MEGA (5 GB/día)
+- Extracción de metadatos (ID3, artwork), escritura atómica del archivo, caché de imágenes en 3 tamaños (32×32, 64×64, full)
+- Ruta local unificada en `DownloadFileStore` (`Documents/Music/<uuid>.m4a`, una sola definición)
 
 ### Playlists
-- Creacion y gestion de playlists personalizadas
-- Agregar/remover canciones con gestos intuitivos
-- **Reordenamiento manual** arrastrando canciones directamente (drag-to-reorder con handle `≡`)
-- Orden persistido de forma explícita (campo `songOrder` en SwiftData para orden determinista)
-- Actualización optimista del orden con rollback automático si falla la persistencia
-- Contador de reproducciones y ultimas canciones reproducidas
-- Grid view estilo Spotify con top songs carousel
-
-### Ecualizador
-- 6 bandas ajustables (60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 15kHz)
-- Presets predefinidos (Rock, Pop, Jazz, Clasica, etc.)
-- Aplicacion en tiempo real sin interrumpir reproduccion
+- Creación y gestión; agregar/quitar canciones con gestos
+- **Reordenamiento manual** arrastrando (drag-to-reorder), con actualización optimista y rollback si falla la persistencia
+- El orden se guarda en la entidad **`PlaylistItemDTO { playlistID, songID, position }`** — consultable e imposible de desincronizar (antes era un CSV de UUIDs en `PlaylistDTO.songOrder`, ya *legacy*)
+- Ranking "Canciones que más escuchas" con ventana de 7 días por canción (entidad `RankingWindowEntryDTO`)
+- Curación de qué playlists aparecen en Inicio ("Editar inicio")
 
 ### Mini player y reproductor
-- Color de fondo del mini player según la **carátula** de la canción (estilo Spotify)
-- Color dominante calculado la primera vez y guardado para siguientes reproducciones
-- Progreso de descarga fluido (throttle por tiempo) hasta 100%
-- Cambio de canción optimizado para reducir latencia entre pistas
-
-### Reactividad
-- UI reactiva con `@Observable` + `@MainActor` en los ViewModels
-- Read-stores reactivos basados en `ModelContext.didSave` para refrescar solo lo que cambió
-- Evita polling innecesario en Home, Library, Playlist y Search
+- Color de fondo según la carátula (estilo Spotify); color dominante calculado una vez y cacheado en `SongDTO`
+- Se oculta y limpia al borrar todas las descargas; progreso de descarga fluido (throttle por tiempo)
 
 ### Búsqueda
-- Búsqueda en tiempo real con debouncing (300 ms)
-- Filtrado por título, artista y álbum
-- Paginación progresiva (50 resultados iniciales, +30 por scroll)
-- Estados vacíos contextuales (sin resultados vs. sin descargas)
+- Tiempo real con *debounce* (300 ms), filtrado por título/artista/álbum, paginación progresiva, estados vacíos contextuales
+
+---
 
 ## Arquitectura
 
-Este proyecto implementa **Clean Architecture + MVVM** con **Dependency Injection pura** siguiendo los principios **SOLID** y usando **Swift 6** con **strict concurrency** verificada por el compilador.
-
-La capa de lectura usa `ReadStore` reactivos para conectar SwiftData con la UI sin acoplar la presentación al EventBus global. El EventBus queda reservado para eventos verdaderamente transversales como reproducción, descargas y autenticación.
-
-### Diagrama de Arquitectura
+**Clean Architecture + MVVM + DI pura**, un único target de Xcode; las capas son convención de
+carpetas. Compila en Swift 6 *strict concurrency* sin advertencias.
 
 ```
 +------------------------------------------------------------------+
-|                        PRESENTATION LAYER                         |
-|  +------------------+     +-----------------------------------+   |
-|  |      Views       |<----|           ViewModels              |   |
-|  |    (SwiftUI)     |     |   (@Observable + @MainActor)      |   |
-|  +------------------+     +----------------+------------------+   |
-+-----------------------------------|-------------------------------+
-                                    |
-                                    | UseCases
+|                        PRESENTATION                              |
+|   Views (SwiftUI)  <--  ViewModels (@Observable + @MainActor)    |
+|                         UIModels · Coordinators                  |
++-----------------------------------|------------------------------+
+                                    |  UseCases + ReadStoreProtocol
                                     v
 +------------------------------------------------------------------+
-|                         DOMAIN LAYER                              |
-|  +------------------+     +-----------------------------------+   |
-|  |     Entities     |     |            UseCases               |   |
-|  | (Business Models)|     |      (Business Logic)             |   |
-|  +------------------+     +----------------+------------------+   |
-|  +------------------+                      |                      |
-|  |    Protocols     |<---------------------+                      |
-|  | (Repository Abs) |                                             |
-|  +------------------+                                             |
-+-----------------------------------|-------------------------------+
-                                    |
-                                    | Repositories
+|                          DOMAIN                                  |
+|   Entities (value types puros)  ·  UseCases (lógica de negocio)  |
+|   RepositoryProtocols  ·  ReadStoreProtocols  ·  DurationFormatter|
+|   (solo Foundation — NADA de SwiftData / SwiftUI / Infra)        |
++-----------------------------------|------------------------------+
+                                    |  Repositories (impl)
                                     v
 +------------------------------------------------------------------+
-|                          DATA LAYER                               |
-|  +------------------+     +-----------------------------------+   |
-|  |      DTOs        |     |          Repositories             |   |
-|  | (Data Transfer)  |     |      (Implementations)            |   |
-|  +------------------+     +----------------+------------------+   |
-|  +------------------+                      |                      |
-|  |    DataSources   |<---------------------+                      |
-|  | (Local/Remote)   |                                             |
-|  +------------------+                                             |
-+------------------------------------------------------------------+
+|                           DATA                                   |
+|   DTOs (@Model SwiftData)  ·  DataSources (Local/Remote)         |
+|   Repositories  ·  Mappers  ·  ReadStores (impl)                 |
++-----------------------------------|------------------------------+
                                     |
                                     v
 +------------------------------------------------------------------+
-|                      INFRASTRUCTURE LAYER                         |
-|  +------------------+     +-----------------------------------+   |
-|  |    Services      |     |           Protocols               |   |
-|  | (AudioPlayer,    |     |    (Service Abstractions)         |   |
-|  |  Keychain, etc)  |     |                                   |   |
-|  +------------------+     +-----------------------------------+   |
-+------------------------------------------------------------------+
+|                      INFRASTRUCTURE                              |
+|   AudioPlayerService · NowPlayingCenter · AudioInterruptionObs.  |
+|   KeychainService · LiveActivityService · MetadataService        |
+|   DownloadFileStore · StorageManagementService                   |
++-----------------------------------|------------------------------+
                                     |
                                     v
 +------------------------------------------------------------------+
-|                      DEPENDENCY INJECTION                         |
-|  +------------------------------------------------------------+  |
-|  |                      DIContainer                            |  |
-|  |  (Unico punto de entrada - Crea todas las dependencias)    |  |
-|  +------------------------------------------------------------+  |
+|          APPLICATION  ·  DIContainer (composition root)          |
 +------------------------------------------------------------------+
 ```
 
-### Estructura de Carpetas
+### Capas y regla de dependencia
+
+- **Domain no conoce Data, Infrastructure, SwiftUI ni SwiftData.** Solo `Foundation`. Si un UseCase
+  necesita algo externo, se declara un `...Protocol` en Domain y se implementa en Data/Infrastructure.
+- **Nada de valores por defecto concretos en los `init`** (`= FooRepositoryImpl()`): rompería la
+  dirección de dependencias y crearía un camino de construcción paralelo al `DIContainer`.
+- **Presentation depende de Domain** (UseCases + ReadStores), nunca de Data directamente.
+- El único cruce entre capas son los **Mappers**.
+
+### Estructura de carpetas
 
 ```
 sinkmusic/
-|
-+-- Application/                    # Punto de entrada de la app
-|   +-- DI/
-|   |   +-- DIContainer.swift       # Contenedor principal de DI
-|   +-- sinkmusicApp.swift          # Entry point SwiftUI
-|
-+-- Core/                           # Utilidades compartidas
-|   +-- Errors/                     # Errores de dominio
-|   |   +-- AppError.swift
-|   |   +-- SyncError.swift
-|   +-- EventBus/                   # Bus de eventos SOLO para lo global/cross-cutting
-|   |   +-- EventBus.swift          # Implementacion
-|   |   +-- EventBusProtocol.swift  # Abstraccion
-|   |   +-- EventBusObservable.swift # Mixin para ViewModels que escuchan eventos globales
-|   |   +-- Events/
-|   |       +-- AuthEvent.swift
-|   |       +-- DownloadEvent.swift
-|   |       +-- PlaybackEvent.swift
-|   +-- Extensions/
-|   |   +-- Color+Extension.swift
-|   +-- Utils/
-|       +-- PreviewData.swift       # Datos para SwiftUI Previews
-|
-+-- Domain/                         # Capa de Dominio (Reglas de Negocio)
-|   +-- Entities/                   # Entidades de negocio puras
-|   |   +-- Cloud/
-|   |   |   +-- CloudFileEntity.swift
-|   |   +-- Song/
-|   |   |   +-- SongEntity.swift
-|   |   |   +-- SongError.swift
-|   |   +-- Playlist/
-|   |       +-- PlaylistEntity.swift
-|   |       +-- PlaylistError.swift
-|   +-- RepositoryProtocols/        # Abstracciones de repositorios
-|   |   +-- SongRepositoryProtocol.swift
-|   |   +-- PlaylistRepositoryProtocol.swift
-|   |   +-- AudioPlayerRepositoryProtocol.swift
-|   |   +-- CloudStorageRepositoryProtocol.swift
-|   |   +-- CredentialsRepositoryProtocol.swift
-|   |   +-- MetadataRepositoryProtocol.swift
-|   +-- ReadStores/                 # Protocolos de lectura reactiva (uno por dominio, ISP)
-|   |   +-- HomeReadStoreProtocol.swift
-|   |   +-- LibraryReadStoreProtocol.swift
-|   |   +-- PlaylistReadStoreProtocol.swift
-|   |   +-- SearchReadStoreProtocol.swift
-|   +-- UseCases/                   # Casos de uso
-|   |   +-- Player/
-|   |   |   +-- PlayerUseCases.swift
-|   |   +-- Library/
-|   |   |   +-- LibraryUseCases.swift
-|   |   +-- Playlist/
-|   |   |   +-- PlaylistUseCases.swift
-|   |   +-- Download/
-|   |   |   +-- DownloadUseCases.swift
-|   |   +-- Settings/
-|   |       +-- SettingsUseCases.swift
-|   +-- Interfaces/                 # Protocolos de servicios
-|       +-- AudioPlayerProtocol.swift
-|       +-- MetadataServiceProtocol.swift
-|
-+-- Data/                           # Capa de Datos
-|   +-- DTOs/                       # Data Transfer Objects
-|   |   +-- Local/
-|   |   |   +-- SongDTO.swift       # @Model SwiftData
-|   |   |   +-- PlaylistDTO.swift   # @Model SwiftData
-|   |   +-- Remote/
-|   |       +-- GoogleDriveFileDTO.swift
-|   +-- DataSources/                # Fuentes de datos
-|   |   +-- Local/
-|   |   |   +-- SongLocalDataSource.swift
-|   |   |   +-- PlaylistLocalDataSource.swift
-|   |   +-- Remote/
-|   |   |   +-- GoogleDriveDataSource.swift
-|   |   +-- Protocols/
-|   |       +-- GoogleDriveServiceProtocol.swift
-|   +-- ReadStores/                 # Implementaciones reactivas de los ReadStore
-|   |   +-- HomeReadStore.swift
-|   |   +-- LibraryReadStore.swift
-|   |   +-- PlaylistReadStore.swift
-|   |   +-- SearchReadStore.swift
-|   |   +-- Support/
-|   |       +-- ModelContextChangeObserver.swift  # Observa ModelContext.didSave
-|   +-- Mappers/                    # Conversores DTO <-> Entity
-|   |   +-- SongMapper.swift
-|   |   +-- PlaylistMapper.swift
-|   +-- Repositories/               # Implementaciones de repositorios
-|       +-- SongRepositoryImpl.swift
-|       +-- PlaylistRepositoryImpl.swift
-|       +-- AudioPlayerRepositoryImpl.swift
-|       +-- CloudStorageRepositoryImpl.swift
-|       +-- CredentialsRepositoryImpl.swift
-|       +-- MetadataRepositoryImpl.swift
-|
-+-- Infrastructure/                 # Servicios de infraestructura
-|   +-- Protocols/                  # Abstracciones de servicios
-|   |   +-- AudioPlayerServiceProtocol.swift
-|   |   +-- KeychainServiceProtocol.swift
-|   |   +-- LiveActivityServiceProtocol.swift
-|   +-- Services/                   # Implementaciones
-|       +-- AudioPlayerService.swift
-|       +-- KeychainService.swift
-|       +-- LiveActivityService.swift
-|       +-- MetadataService.swift
-|       +-- StorageManagementService.swift
-|
-+-- Presentation/                   # Capa de Presentacion
-|   +-- ViewModels/                 # ViewModels (@Observable)
-|   |   +-- Player/
-|   |   |   +-- PlayerViewModel.swift
-|   |   +-- Library/
-|   |   |   +-- LibraryViewModel.swift
-|   |   +-- Home/
-|   |   |   +-- HomeViewModel.swift
-|   |   +-- Playlist/
-|   |   |   +-- PlaylistViewModel.swift
-|   |   +-- Download/
-|   |   |   +-- DownloadViewModel.swift
-|   |   +-- Settings/
-|   |   |   +-- SettingsViewModel.swift
-|   |   +-- Search/
-|   |       +-- SearchViewModel.swift
-|   +-- Views/                      # Vistas SwiftUI
-|       +-- Main/
-|       |   +-- MainAppView.swift
-|       +-- Home/
-|       |   +-- HomeView.swift
-|       +-- Player/
-|       |   +-- PlayerView.swift
-|       |   +-- Components/
-|       +-- Library/
-|       |   +-- LibraryView.swift
-|       +-- Playlist/
-|       |   +-- PlaylistView.swift
-|       |   +-- PlaylistDetailView.swift
-|       +-- Settings/
-|       |   +-- SettingsView.swift
-|       +-- Login/
-|           +-- LoginView.swift
-|
-+-- Features/                       # Modulos de funcionalidad aislados
-    +-- Auth/                       # Modulo de Autenticacion (Facade + Strategy)
-        +-- AuthState.swift         # Estados, AuthUser, AuthProvider, AuthError
-        +-- AuthStrategy.swift      # Protocol + AppleAuthStrategy
-        +-- AuthFacade.swift        # Facade principal (orquesta todo)
-        +-- AuthEnvironment.swift   # Configuracion de ambientes (dev/qa/prod)
-        +-- AuthStrategyFactory.swift # Factory para crear estrategias
-        +-- AuthViewModel.swift     # ViewModel simplificado para SwiftUI
-        +-- AuthLoginView.swift     # Vista de login con Sign In with Apple
+├── Application/                     # Composition root
+│   ├── DI/DIContainer.swift         # Único singleton — arma todo el grafo
+│   ├── sinkmusicApp.swift           # Entry point; crea el ModelContainer
+│   └── StorageErrorView.swift       # Pantalla si SwiftData no abre (en vez de fatalError)
+│
+├── Core/                            # Utilidades transversales
+│   ├── Concurrency/ReactiveReload.swift   # Helper del bucle changesTask
+│   ├── Errors/                      # AppError, SyncError (con userMessage)
+│   ├── EventBus/                    # EventBus + Protocol + Observable + Events/
+│   ├── Extensions/Color+Extension.swift   # Análisis de color dominante de carátula
+│   └── Utils/ · Utilities/          # PreviewData, ViewModelLoadHelper, PlaceholderColors
+│
+├── Domain/                          # Reglas de negocio — SOLO Foundation
+│   ├── Entities/                    # Song, Playlist (value types), *Error
+│   ├── Formatting/DurationFormatter.swift # mm:ss / Xh Ym — único formateador
+│   ├── RepositoryProtocols/         # Song, Playlist, CloudStorage, Credentials, Metadata,
+│   │                                #   DownloadFileStore, RankingWindow, HomePlaylistLayout,
+│   │                                #   PlaybackState
+│   ├── ReadStores/                  # Home/Library/Playlist/Search ReadStoreProtocol (ISP)
+│   ├── Interfaces/                  # AudioPlayerProtocol, MetadataServiceProtocol
+│   └── UseCases/                    # Player, Library, Playlist, Download, Settings, Equalizer, Search
+│
+├── Data/
+│   ├── DTOs/Local/                  # SongDTO, PlaylistDTO, PlaylistItemDTO,
+│   │                                #   RankingWindowEntryDTO, AppSchema (VersionedSchema)
+│   ├── DataSources/
+│   │   ├── Local/                   # SongLocalDataSource, PlaylistLocalDataSource,
+│   │   │                            #   RankingWindowLocalDataSource
+│   │   ├── Remote/                  # GoogleDriveDataSource, MegaDataSource (+ APIClient,
+│   │   │                            #   Crypto, DownloadSession, FolderMapper)
+│   │   └── Protocols/               # GoogleDriveServiceProtocol, MegaServiceProtocol
+│   ├── ReadStores/                  # Home/Library/Playlist/SearchReadStore + Support/
+│   │   └── Support/ModelContextChangeObserver.swift  # Observa ModelContext.didSave (+ debounce)
+│   ├── Mappers/                     # SongMapper, PlaylistMapper (DTO ↔ Domain ↔ UI)
+│   └── Repositories/                # *RepositoryImpl + SyncErrorMapping (clasificación tipada)
+│
+├── Infrastructure/                  # Servicios de plataforma
+│   ├── Protocols/                   # AudioPlayerServiceProtocol, Keychain, LiveActivity
+│   └── Services/
+│       ├── AudioPlayerService.swift        # Engine + EQ + timers de progreso
+│       ├── NowPlayingCenter.swift          # MPNowPlayingInfo + remote commands
+│       ├── AudioInterruptionObserver.swift # Pausa/reanuda ante interrupciones (delegate)
+│       ├── DownloadFileStore.swift         # Única definición de Documents/Music/<uuid>.m4a
+│       ├── KeychainService · LiveActivityService · MetadataService
+│       └── ImageCompressionService · StorageManagementService · BackgroundSessionCompletion
+│
+├── Presentation/
+│   ├── ViewModels/                  # Home, Library, Player, Playlist, Download, Search,
+│   │                                #   Settings/{SettingsViewModel, HomePlaylistLayoutViewModel}
+│   ├── UIModels/                    # SongUI, PlaylistUI (ya formateados para la vista)
+│   ├── Coordinators/               # PlayerCoordinator
+│   └── Views/                       # SwiftUI por feature
+│
+└── Features/
+    └── Auth/                        # Feature-first (Facade + Strategy) — ver sección
 ```
 
-### Flujo de Datos
+### Mapeo de 3 capas (DTO ↔ Domain ↔ UI)
 
-Escrituras y lecturas puntuales van por el camino clásico (UseCase → Repository → DataSource).
-La reactividad de listas (Home/Library/Playlist/Search) **no** pasa por EventBus: el ViewModel
-lee de su `ReadStore`, que se entera solo cuando SwiftData guarda algo relevante.
+Patrón fijo (ver `SongMapper` / `PlaylistMapper`). Cada capa tiene su tipo y el `Mapper` es el
+**único** sitio donde se cruza:
+
+| Capa | Tipo | Ejemplo |
+|------|------|---------|
+| Data | `@Model` SwiftData | `SongDTO` — `@Attribute(.unique)` en `id`/`fileID` |
+| Domain | value type puro | `Song` — con `with(...)` / `clearingLocalArtwork()` para copias inmutables |
+| Presentation | value type ya formateado | `SongUI` — `duration: "03:45"`, `backgroundColor` resuelto (no se recalcula por render); `==`/`hash` no comparan los blobs de imagen |
+
+### Flujo de datos: escritura vs. lectura reactiva
 
 ```
-Escritura:
-+-------+     +----------+     +----------+     +------------+     +------------+
-| View  | --> | ViewModel| --> | UseCase  | --> | Repository | --> | DataSource |
-+-------+     +----------+     +----------+     +------------+     +-----+------+
-                                                                          |
-                                                                          v
-                                                                 ModelContext.save()
+ESCRITURA (y consultas puntuales)
+ View → ViewModel → UseCase → Repository → DataSource → ModelContext.save()
 
-Lectura reactiva:
-+-------+     +----------+     +-----------+     +----------+
-| View  | <-- | ViewModel| <-- | ReadStore | <-- | UseCase  |  (mismo UseCase de arriba, solo lectura)
-+-------+     +----------+     +-----+-----+     +----------+
-                                      ^
-                                      | ModelContext.didSave (NotificationCenter)
-                                      +---------------------------------------------+
-                                                                                     |
-                                                                          ModelContext.save()
+LECTURA REACTIVA DE LISTAS (Home / Library / Playlist / Search)
+ ModelContext.save()
+        │  ModelContext.didSave (NotificationCenter)
+        ▼
+ ModelContextChangeObserver  ── filtra por nombre de entidad + debounce 120 ms ──►  AsyncStream<Void>
+        ▼
+ ReadStore.changes()  →  ViewModel (ReactiveReload.loop)  →  vuelve a leer del mismo UseCase
+        ▼                                                       (queries targeted, no getAll()+filter)
+ View se re-renderiza
 
-Eventos globales (Auth/Playback/Download) siguen usando EventBus, sin relación con lo anterior.
+EVENTOS GLOBALES (login/logout, progreso de descarga, remote control)
+ → EventBus (AsyncStream tipado) — sin relación con lo anterior
 ```
 
-1. **View** llama acción en **ViewModel**
-2. **ViewModel** ejecuta **UseCase** para escrituras y consultas puntuales
-3. **UseCase** coordina **Repositories** → **DataSources** → `ModelContext.save()`
-4. Cada **ReadStore** (uno por dominio: Home/Library/Playlist/Search) observa `ModelContext.didSave`
-   y, si la entidad afectada le importa, emite una señal `AsyncStream<Void>`
-5. El **ViewModel** suscrito a esa señal vuelve a leer del **ReadStore** (que delega al mismo
-   **UseCase**, con queries targeted) y actualiza su estado
-6. **View** se re-renderiza automáticamente
-7. Para lo genuinamente global (login/logout, progreso de descarga, remote control) el flujo
-   sigue siendo **EventBus** — ver sección siguiente
+Los DataSources **no** notifican a la UI a mano: la reactividad "sale gratis" del `didSave`.
 
 ### Dependency Injection
 
-El proyecto usa **Inyeccion de Dependencias pura** sin frameworks externos.
-
-**DIContainer** es el unico singleton permitido y actua como punto de entrada:
+DI **pura**, sin frameworks. `DIContainer` (`Application/DI/`) es el único singleton y el
+*composition root*:
 
 ```swift
 @MainActor
 final class DIContainer {
-    static let shared = DIContainer()
+    static private(set) var shared: DIContainer!
 
-    // Core Services (creados una vez)
-    var eventBus: EventBusProtocol
-    var keychainService: KeychainServiceProtocol
-    var audioPlayerService: AudioPlayerServiceProtocol
+    static func createShared() -> DIContainer      // 1) en sinkmusicApp.init
+    func configure(with modelContext: ModelContext) // 2) cuando el ModelContainer está listo
 
-    // Auth Module (Facade + Strategy)
-    var authViewModel: AuthViewModel  // Singleton compartido
-
-    // Repositories (lazy)
-    var songRepository: SongRepositoryProtocol
-    var playlistRepository: PlaylistRepositoryProtocol
-    // ...
-
-    // UseCases (lazy)
-    var playerUseCases: PlayerUseCases
-    var libraryUseCases: LibraryUseCases
-    // ...
-
-    // ViewModel Factories
+    // Core services (una vez) · Repositories y UseCases (lazy) · factories make*ViewModel()
     func makePlayerViewModel() -> PlayerViewModel
     func makeLibraryViewModel() -> LibraryViewModel
-    func makeAuthViewModel() -> AuthViewModel  // Retorna singleton
     // ...
 }
 ```
 
-### EventBus (solo eventos globales/cross-cutting)
+Ningún `init` de Domain/Presentation trae dependencias concretas por defecto: **todo** se arma en
+los `make*` del contenedor (o en `PreviewData` para los previews).
 
-El EventBus **no** se usa para la reactividad de listas — eso lo cubren los `ReadStore`
-(ver sección siguiente). Queda acotado a lo que es genuinamente transversal a toda la app:
-autenticación, reproducción (Live Activity, remote control) y descargas.
+### EventBus (solo eventos globales)
+
+Acotado a lo genuinamente transversal: **Auth**, **Playback** (Live Activity, remote control) y
+**Download**. No se usa para reactividad de listas.
 
 ```swift
-// Protocolo para DI
 protocol EventBusProtocol {
-    func emit(_ event: AuthEvent)
-    func emit(_ event: PlaybackEvent)
-    func emit(_ event: DownloadEvent)
-
-    func authEvents() -> AsyncStream<AuthEvent>
-    func playbackEvents() -> AsyncStream<PlaybackEvent>
-    func downloadEvents() -> AsyncStream<DownloadEvent>
-}
-
-// Uso en ViewModel (solo los que reaccionan a eventos globales: Player, Download)
-final class DownloadViewModel: EventBusObservable {
-    var eventBus: EventBusProtocol
-    private var downloadEventTask: Task<Void, Never>?
-
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
-        self.eventBus = eventBus
-        downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
-                                          handler: { [weak self] in await self?.handleDownloadEvent($0) })
-    }
+    func emit(_ event: AuthEvent);  func authEvents() -> AsyncStream<AuthEvent>
+    func emit(_ event: PlaybackEvent); func playbackEvents() -> AsyncStream<PlaybackEvent>
+    func emit(_ event: DownloadEvent); func downloadEvents() -> AsyncStream<DownloadEvent>
 }
 ```
+
+Los ViewModels que escuchan eventos globales (Player, Download) adoptan `EventBusObservable` y
+cancelan su task en `deinit`.
 
 ### ReadStore (lectura reactiva de listas)
 
-Home, Library, Playlist y Search **no** dependen del EventBus para reactividad: cada uno tiene
-su propio `ReadStoreProtocol` (ISP — protocolos pequeños por dominio, no uno genérico) cuya
-implementación observa `ModelContext.didSave` de SwiftData directamente y emite una señal
-`AsyncStream<Void>` cuando cambia algo relevante para ese dominio. El ViewModel simplemente
-vuelve a preguntar al mismo `UseCase` (con queries targeted, no `getAll()+filter`).
+Cada dominio tiene su **propio** `ReadStoreProtocol` pequeño (ISP — no uno genérico). La
+implementación observa `ModelContext.didSave`, filtra por entidad relevante, y emite
+`AsyncStream<Void>`. El ViewModel se re-suscribe con `ReactiveReload.loop` y cancela en `deinit`.
 
 ```swift
-// Domain/ReadStores/LibraryReadStoreProtocol.swift
 @MainActor
 protocol LibraryReadStoreProtocol: AnyObject {
     func allSongs() async throws -> [Song]
@@ -404,268 +266,303 @@ protocol LibraryReadStoreProtocol: AnyObject {
     func changes() -> AsyncStream<Void>
 }
 
-// Uso en ViewModel
-init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
-    self.libraryUseCases = libraryUseCases
-    self.readStore = readStore
-    changesTask = Task { [weak self] in
-        guard let self else { return }
-        for await _ in readStore.changes() {
-            await self.loadSongs()
-        }
-    }
+// En el ViewModel:
+changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
+    await self?.loadSongs()
 }
 ```
 
-**Por qué no `@Query` de SwiftUI:** los ViewModels son `@Observable` puros (no Views), así que
-`@Query` no aplica. `ModelContextChangeObserver` (`Data/ReadStores/Support/`) hace ese mismo
-trabajo a nivel de ViewModel, filtrando por nombre de entidad (`SongDTO`, `PlaylistDTO`) para no
-notificar cambios irrelevantes.
+**Por qué no `@Query`:** los ViewModels son `@Observable` puros, no Views. `ModelContextChangeObserver`
+hace ese trabajo a nivel de ViewModel.
 
-### Modulo Auth (Facade + Strategy Pattern)
+### Persistencia y migraciones
 
-Modulo simplificado usando **Facade + Strategy** en lugar de Clean Architecture completa:
+| Dato | Tecnología |
+|------|-----------|
+| Datos de dominio (canciones, playlists, orden, contadores, ranking) | **SwiftData** (`@Model` en `Data/DTOs/Local/`) |
+| Preferencias de UI triviales (última posición de reproducción, curación de Inicio) | UserDefaults (`*RepositoryImpl`) |
+| Secretos (API keys, credenciales) | Keychain (`KeychainService`) |
+
+**Esquema versionado.** `AppSchema.swift` define `AppSchemaV1: VersionedSchema` y
+`AppMigrationPlan: SchemaMigrationPlan`. Los 4 `ModelContainer` (`sinkmusicApp`, `PreviewData` ×2,
+`ReadStoreTestSupport`) se construyen con `AppSchemaV1.schema` + `migrationPlan: AppMigrationPlan.self`.
+Registrar una entidad nueva = añadirla a **`AppSchemaV1.models`** (único sitio).
+
+**Reglas de cambio de esquema:**
+- Entidad nueva e **independiente** (keyed por `UUID`, sin `@Relationship` a `SongDTO`/`PlaylistDTO`)
+  → aditiva y segura (así entraron `RankingWindowEntryDTO` y `PlaylistItemDTO`).
+- Modificar `SongDTO` (tiene `@Attribute(.unique)`) → frágil: requiere `AppSchemaV2` + un
+  `MigrationStage` en `AppMigrationPlan.stages`.
+- **Migración de datos** (mover contenido de un campo viejo a una entidad nueva) → *backfill
+  perezoso* en el DataSource en la primera lectura, **no** `MigrationStage.custom`.
+  Ejemplo: `PlaylistLocalDataSource.syncedOrderItems` convierte el `songOrder` (CSV legacy) en
+  filas `PlaylistItemDTO` la primera vez que se lee la playlist, y reconcilia el orden con la
+  relación en cada acceso.
+
+### Módulo Auth (Facade + Strategy)
+
+`Features/Auth/` está organizado **feature-first** (todo junto) a diferencia del resto de la app
+(*layer-first*). Es deliberado: Auth es un subsistema con estrategias intercambiables
+(Apple hoy; Firebase/Supabase/REST previstas).
 
 ```
-Auth Module (7 archivos)
-+-- AuthState.swift           # Estados (unknown, checking, authenticated, unauthenticated)
-|                             # AuthUser (modelo unico Codable)
-|                             # AuthProvider (apple, google, supabase, restAPI)
-|                             # AuthError (errores tipados)
-|
-+-- AuthStrategy.swift        # Protocol AuthStrategy
-|                             # AppleAuthStrategy (Sign In with Apple)
-|                             # (Extensible: GoogleStrategy, SupabaseStrategy, etc.)
-|
-+-- AuthFacade.swift          # Facade principal
-|                             # Coordina: Strategy + Storage + EventBus
-|                             # API simple: signIn(), signOut(), checkAuth()
-|
-+-- AuthEnvironment.swift     # AppEnvironment (dev, qa, staging, prod)
-|                             # Configuraciones por proveedor
-|
-+-- AuthStrategyFactory.swift # Factory que crea estrategias segun ambiente
-|
-+-- AuthViewModel.swift       # ViewModel delgado (@Observable)
-|                             # Delega a AuthFacade
-|                             # Expone: isAuthenticated, displayName, etc.
-|
-+-- AuthLoginView.swift       # Vista SwiftUI con SignInWithAppleButton
+AuthState  ·  AuthStrategy (protocol + AppleAuthStrategy)  ·  AuthFacade (orquesta)
+AuthEnvironment (dev/qa/prod)  ·  AuthStrategyFactory  ·  AuthViewModel  ·  AuthLoginView
 ```
 
-**Ventajas sobre Clean Architecture:**
-- 7 archivos vs 12 archivos (42% reduccion)
-- Sin mappers (modelo unico AuthUser)
-- Sin capas de abstraccion innecesarias
-- Extensible via nuevas Strategies
+### Concurrencia Swift 6
 
-### Concurrencia Swift 6 — Patrones Utilizados
+Compila con **cero advertencias** en *strict concurrency*. Cada tipo declara su aislamiento:
 
-El proyecto compila con cero advertencias en Swift 6 strict concurrency mode. Cada tipo tiene su aislamiento declarado explícitamente:
+| Patrón | Dónde | Por qué |
+|--------|-------|---------|
+| `@MainActor class` | ViewModels, servicios de audio, DataSources | Estado de UI y de audio en el main thread |
+| `private actor State` | `MegaDownloadState`, `GoogleDriveDownloadState` | Estado mutable de descargas concurrentes sin locks |
+| `nonisolated func` | Delegates de AVFoundation / URLSession / NotificationCenter | El sistema los llama en threads arbitrarios |
+| `Task { @MainActor [weak self] in }` | Dentro de callbacks `nonisolated` | Puente de vuelta al main actor |
+| `nonisolated(unsafe) var token` | Tokens de `NotificationCenter` | No `Sendable`; `removeObserver` es seguro desde cualquier hilo |
+| `[weak self]` en todos los `Task` | Todos los closures concurrentes | Evita retención de ciclos; requerido por Swift 6 |
 
-| Patrón | Donde se usa | Por qué |
-|--------|-------------|---------|
-| `@MainActor class` | ViewModels, AudioPlayerService, DataSources | Todo el estado de UI y servicios de audio se accede desde el main thread |
-| `private actor State` | `MegaDownloadState`, `GoogleDriveDownloadState` | Estado mutable de descargas concurrentes — exclusividad garantizada por el compilador |
-| `nonisolated func` | Delegates de AVFoundation, URLSession, NotificationCenter | El sistema llama estos métodos en threads arbitrarios — no pueden ser `@MainActor` |
-| `Task { @MainActor [weak self] in }` | Dentro de callbacks `nonisolated` | Puente de regreso al main actor para emitir eventos y actualizar estado |
-| `await MainActor.run { }` | Dentro de Tasks en actors | Emitir eventos al EventBus (`@MainActor`) desde contexto de actor |
-| `[self]` / `[weak self]` | Todos los Task closures | Swift 6 requiere listas de captura explícitas en todos los closures concurrentes |
+---
 
-```swift
-// Ejemplo: NSObject + @MainActor + nonisolated delegates
-@MainActor
-final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlayerProtocol {
+## SOLID
 
-    // ✅ Todos los métodos son @MainActor por defecto
-    func play(songID: UUID, url: URL) { ... }
+| Principio | Cómo se aplica aquí |
+|-----------|---------------------|
+| **S**ingle Responsibility | Una responsabilidad por tipo. `AudioPlayerService` se partió en engine + `NowPlayingCenter` (MPNowPlayingInfo + remote commands) + `AudioInterruptionObserver` (interrupciones). La curación de Inicio salió de `PlaylistViewModel` a `HomePlaylistLayoutViewModel`. |
+| **O**pen/Closed | Extensión vía protocolos: nuevos proveedores de nube (`GoogleDriveServiceProtocol`/`MegaServiceProtocol`), nuevas estrategias de auth (`AuthStrategy`), sin tocar el código existente. |
+| **L**iskov Substitution | Toda implementación es intercambiable por su protocolo; los tests inyectan mocks sin condicionales. |
+| **I**nterface Segregation | Protocolos pequeños y por dominio: 4 `ReadStoreProtocol` distintos (no uno genérico), `DownloadFileStoreProtocol` con 2 métodos, `AudioInterruptionDelegate` con lo justo. |
+| **D**ependency Inversion | Todas las dependencias se inyectan por constructor desde el `DIContainer`. Domain declara `...Protocol`; Data/Infrastructure implementan. Domain no importa SwiftData/SwiftUI. |
 
-    // ✅ nonisolated para callbacks del sistema (llamados desde threads arbitrarios)
-    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
-                                didFinishDownloadingTo location: URL) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.eventBus.emit(.songFinished(self.currentlyPlayingID!))
-        }
-    }
-}
+**Además (patrones):** Repository, Mapper, Facade + Strategy (Auth), Coordinator (`PlayerCoordinator`),
+Observer (`ModelContextChangeObserver`), Composition Root (`DIContainer`).
 
-// Ejemplo: actor para estado mutable concurrente
-private actor MegaDownloadState {
-    var activeTasks: [Int: MegaDownloadTaskInfo] = [:]
-    // Acceso exclusivo garantizado — sin NSLock, sin data races
-    func addTask(_ info: MegaDownloadTaskInfo, for id: Int) { activeTasks[id] = info }
-}
-```
+---
 
-### Principios SOLID
+## Buenas prácticas aplicadas
 
-| Principio | Implementacion |
-|-----------|----------------|
-| **Single Responsibility** | Cada clase tiene una unica responsabilidad (ViewModel, UseCase, Repository, DataSource) |
-| **Open/Closed** | Extension via protocolos sin modificar codigo existente |
-| **Liskov Substitution** | Todas las implementaciones son intercambiables via protocolos |
-| **Interface Segregation** | Protocolos pequenos y especificos (AudioPlayerProtocol, y los 4 `ReadStoreProtocol` — uno por dominio en vez de uno genérico) |
-| **Dependency Inversion** | Todas las dependencias se inyectan via constructor, dependiendo de abstracciones |
+- **Higiene de código:** sin `try!`, sin `as!`, sin `print(` (verificado). SwiftLint activo
+  (`.swiftlint.yml`: `file_length`, `type_body_length`, `cyclomatic_complexity`… en `warning`).
+- **Sin `fatalError` en el arranque:** si el `ModelContainer` no abre se muestra `StorageErrorView`
+  (antes: crash-loop). El `fatalError` restante en `DIContainer` es un *guard* de error de
+  programador (llamar a un factory antes de `configure`), inalcanzable en el path de fallo real.
+- **Sin dependencias concretas por defecto en los `init`** — todo pasa por el `DIContainer`.
+- **Value types inmutables en Domain:** `Song.with(...)` en vez de reconstruir con 14 argumentos.
+- **Un solo punto de verdad para cada cosa transversal:**
+  - Formato de duración → `DurationFormatter` (antes 6 implementaciones).
+  - Ruta del archivo descargado → `DownloadFileStore` (antes 3 copias + `switch` por proveedor).
+  - Copiado de `SongDTO` en `update()` → `SongDTO.apply(from:)` (antes 15 campos a mano).
+  - Bucle de suscripción reactiva → `ReactiveReload.loop` (antes boilerplate ×4).
+- **Errores tipados en la frontera de Data:** `SyncError` (con `userMessage`) mapea
+  `URLError`/HTTP status → casos concretos, en vez de `error.localizedDescription.contains("401")`.
+- **Rendimiento del read-side:** `ModelContextChangeObserver` filtra por entidad y hace *debounce*
+  (120 ms) para colapsar ráfagas de `save()`; los ViewModels usan guardas de asignación
+  (`if x != new { x = new }`) para no re-renderizar listas sin cambios; `SongUI` no lleva
+  `playCount` (contador volátil) ni compara blobs de imagen en `==`.
+- **Queries targeted** en los ReadStore (no `getAll()` + filtro en memoria).
 
-## Tecnologias
+---
 
-### Core
-- **Swift 6** con concurrencia moderna (async/await)
-- **SwiftUI** para UI declarativa
-- **SwiftData** para persistencia (@Model)
-- **@Observable** macro para estado reactivo
+## Tests
 
-### Audio & Media
-- **AVFoundation** y **AVAudioEngine** para reproduccion
-- **MediaPlayer** para integracion con sistema
-- **ActivityKit** para Live Activities
-
-### Cloud & Storage
-- **Google Drive API** para sincronizacion
-- **Keychain Services** para almacenamiento seguro
-
-### Concurrencia (Swift 6 Strict Mode — cero advertencias)
-- **@MainActor** para aislamiento al main thread en ViewModels y servicios
-- **actor** para estado mutable compartido en DataSources (`MegaDownloadState`, `GoogleDriveDownloadState`)
-- **Task API** para concurrencia estructurada (reemplaza GCD/DispatchQueue)
-- **AsyncStream** para el sistema de eventos reactivo (EventBus)
-- **nonisolated** en callbacks de sistema (AVFoundation, URLSession, NotificationCenter)
-- `@unchecked Sendable` solo en `ActiveTasksManager` (interno de `DownloadViewModel`, accedido exclusivamente desde `@MainActor`)
-
-## Requisitos
-
-- **iOS 18.0+**
-- **Xcode 16.0+** (Swift 6)
-- **Proveedor de nube**: Google Drive (API en Cloud Console) **o** MEGA (URL de carpeta pública)
-- **Dispositivo físico** recomendado para Live Activities y Dynamic Island
-
-## Instalación
-
-1. Clona el repositorio:
-```bash
-git clone https://github.com/rapser/sinkmusic.git
-cd sinkmusic
-```
-
-2. Configura el almacenamiento en la nube:
-   - **Google Drive**: API en [Google Cloud Console](https://console.cloud.google.com/) y credenciales en la app
-   - **MEGA**: URL de carpeta pública (o escáner QR) en Configuración
-
-3. Abre el proyecto en Xcode
-```bash
-open sinkmusic.xcodeproj
-```
-
-4. Configura el equipo de desarrollo en Signing & Capabilities
-
-5. Compila y ejecuta (Cmd+R)
-
-## Testing
-
-El target `sinkmusicTests` cubre los 7 use cases de la capa de dominio con **mocks en memoria** — sin SwiftData, sin red, sin filesystem. Cada mock implementa el protocolo de repositorio correspondiente y expone contadores/resultados configurables para hacer asserts precisos.
-
-### Estructura
+`sinkmusicTests/` — **~373 tests**, todos `@MainActor` (Swift 6 strict concurrency).
 
 ```
 sinkmusicTests/
-├── Helpers/
-│   └── TestFixtures.swift          — Song.make(), Playlist.make(), CloudFile.make()
-├── Mocks/
-│   ├── MockSongRepository.swift
-│   ├── MockPlaylistRepository.swift
-│   ├── MockAudioPlayerRepository.swift
-│   ├── MockCloudStorageRepository.swift
-│   ├── MockCredentialsRepository.swift
-│   ├── MockMetadataRepository.swift
-│   ├── MockEventBus.swift          — solo Auth/Playback/Download (ya no DataChangeEvent)
-│   ├── MockHomeReadStore.swift
-│   ├── MockLibraryReadStore.swift
-│   ├── MockPlaylistReadStore.swift
-│   └── MockSearchReadStore.swift
-├── UseCases/
-│   ├── PlayerUseCasesTests.swift    — 14 tests
-│   ├── LibraryUseCasesTests.swift   — 22 tests
-│   ├── PlaylistUseCasesTests.swift  — 26 tests
-│   ├── SearchUseCasesTests.swift    — 19 tests
-│   ├── DownloadUseCasesTests.swift  — 24 tests
-│   ├── EqualizerUseCasesTests.swift — 10 tests
-│   └── SettingsUseCasesTests.swift  — 34 tests
-├── ViewModels/                      — Home/Library/Playlist/Search migrados a mocks de ReadStore
-└── ReadStores/                      — integración real, con ModelContainer en memoria (sin mocks)
-    ├── ReadStoreTestSupport.swift   — helpers: makeInMemoryContainer(), insertSong(), insertPlaylist()
-    ├── ModelContextChangeObserverTests.swift
-    ├── HomeReadStoreTests.swift
-    ├── LibraryReadStoreTests.swift
-    ├── PlaylistReadStoreTests.swift
-    ├── SearchReadStoreTests.swift
-    └── ReactiveFlowTests.swift      — 4 flujos end-to-end (descarga, borrado, playlist, búsqueda)
+├── Helpers/TestFixtures.swift          — Song.make(), Playlist.make(), CloudFile.make()
+├── Mocks/                              — un mock por protocolo, con contadores/resultados configurables
+│   ├── MockSongRepository · MockPlaylistRepository · MockCloudStorageRepository
+│   ├── MockAudioPlayerService (síncrono) · MockLiveActivityService · MockMetadataRepository
+│   ├── MockCredentialsRepository · MockEventBus (Auth/Playback/Download)
+│   ├── MockHomePlaylistLayoutRepository · MockPlaybackStateRepository
+│   └── Mock{Home,Library,Playlist,Search}ReadStore
+├── UseCases/                           — lógica de dominio con mocks en memoria (sin SwiftData/red/FS)
+│   Player 29 · Library 25 · Playlist 34 · Search 21 · Download 25 · Equalizer 10 · Settings 41
+├── ViewModels/                         — Home, Library, Player, Playlist, Download, Search,
+│   Settings, Equalizer, HomePlaylistLayout (10)
+├── Infrastructure/                     — AudioPlayerService (10) · NowPlayingCenter (6) ·
+│   AudioInterruptionObserver (6)   [Now Playing real vía MPNowPlayingInfoCenter.default()]
+├── Data/                               — SwiftDataMigration (3) · PlaylistOrderPersistence (5) ·
+│   RankingWindowRepositoryImpl (5) · MegaFolderMapper
+├── Coordinators/PlayerCoordinatorTests
+├── Core/DownloadFailureClassifierTests
+└── ReadStores/                         — integración SwiftData REAL en memoria (sin mocks)
+    ├── ReadStoreTestSupport.swift      — makeInMemoryContainer() (usa AppSchemaV1.schema),
+    │                                     insertSong(), insertPlaylist()
+    ├── {Home,Library,Playlist,Search}ReadStoreTests
+    ├── ModelContextChangeObserverTests
+    └── ReactiveFlowTests               — flujos end-to-end (descarga, borrado, playlist, búsqueda)
 ```
 
-> **Nota sobre `ModelContainer` en tests**: `ModelContext` no retiene fuerte a su `ModelContainer`.
-> `ReadStoreTestSupport.makeInMemoryContainer()` devuelve el `ModelContainer` (no solo su
-> `.mainContext`) — el test debe quedarse con esa referencia (`let container = ...`) durante toda
-> su ejecución, o el contexto queda apuntando a memoria liberada.
+**Convenciones:**
+- UseCases/ViewModels → mocks. ReadStores/Data → `ModelContainer` real en memoria.
+- Los tests reactivos toman el `stream` **antes** de disparar el cambio y esperan con
+  `fulfillment(of:timeout:)` — nunca `Task.sleep`.
+- `ModelContext` no retiene fuerte a su `ModelContainer`: el test debe guardar
+  `let container = try ReadStoreTestSupport.makeInMemoryContainer()` durante toda su ejecución.
+- Migración: `SwiftDataMigrationTests` abre un store "heredado" (sin plan), lo reabre con
+  `AppMigrationPlan` y verifica que no se pierden canciones, playlists ni el orden.
 
-### Patrón de mocks
+**Ejecutar:**
 
-Todos los mocks son `@MainActor final class` para cumplir con Swift 6 strict concurrency:
+```bash
+# Xcode
+Cmd+U
 
-```swift
-@MainActor
-final class MockSongRepository: SongRepositoryProtocol {
-    var songs: [Song] = []
-    var createCallCount = 0
+# CLI
+xcodebuild test -scheme sinkmusic \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
 
-    func getAll() async throws -> [Song] { songs }
-    func create(_ song: Song) async throws {
-        createCallCount += 1
-        songs.append(song)
-    }
-    // ...
-}
+# Lint
+brew install swiftlint   # una vez
+swiftlint                 # desde la raíz del repo
 ```
 
-### Patrón de test
+---
 
-Clases de test `@MainActor` con `setUp`/`tearDown` síncronos y métodos `async`:
+## Requisitos e instalación
 
-```swift
-@MainActor
-final class PlayerUseCasesTests: XCTestCase {
-    private var sut: PlayerUseCases!
-    private var mockAudioPlayer: MockAudioPlayerRepository!
+- **iOS 18.0+**, **Xcode 26** (Swift 6)
+- Cuenta de Apple Developer (para firmar y para TestFlight)
+- Proveedor de nube: Google Drive (credenciales de API en Cloud Console) **o** MEGA (URL de carpeta pública)
+- Dispositivo físico recomendado para Live Activities / Dynamic Island
 
-    override func setUp() {
-        super.setUp()
-        mockAudioPlayer = MockAudioPlayerRepository()
-        sut = PlayerUseCases(audioPlayerRepository: mockAudioPlayer, songRepository: MockSongRepository())
-    }
-
-    func test_play_songNotFound_throwsSongNotFound() async {
-        do {
-            try await sut.play(songID: UUID())
-            XCTFail("Expected PlayerError.songNotFound")
-        } catch PlayerError.songNotFound { }
-    }
-}
+```bash
+git clone https://github.com/rapser/sinkmusic.git
+cd sinkmusic
+open sinkmusic.xcodeproj
 ```
 
-### Ejecutar tests
+1. **Signing & Capabilities** → selecciona tu *Team*.
+2. Configura el proveedor de nube en Ajustes de la app (credenciales Google Drive o URL MEGA / escáner QR).
+3. Compila y ejecuta (`Cmd+R`).
 
+---
+
+## Distribución a TestFlight
+
+### 0. Prerrequisitos (una vez)
+
+1. En [App Store Connect](https://appstoreconnect.apple.com/) → **Apps** → **+** → crea la app
+   con el bundle id `com.rapser.musicaapp`.
+2. En Xcode, target `sinkmusic` → **Signing & Capabilities**: *Automatically manage signing*,
+   *Team* correcto. Verifica que las *capabilities* (Background Modes: Audio, Push si aplica,
+   App Groups para la Live Activity extension) coinciden con el perfil de App Store.
+3. (Para subir por CLI) crea una **App Store Connect API Key**:
+   App Store Connect → **Users and Access** → **Integrations** → **App Store Connect API** →
+   genera una clave con rol *App Manager*. Descarga `AuthKey_XXXXXXXXXX.p8` y guárdala en
+   `~/.appstoreconnect/private_keys/`. Anota el **Key ID** y el **Issuer ID**.
+
+### 1. Sube el número de build
+
+Cada envío a TestFlight necesita un **build único** para la misma versión:
+
+- **Version** (`MARKETING_VERSION`) — visible al usuario, p. ej. `1.2.0`. Solo cambia en releases.
+- **Build** (`CURRENT_PROJECT_VERSION`) — incrementa **siempre** (`22` → `23` → …).
+
+En Xcode: target → **General** → *Identity*. O por CLI:
+
+```bash
+xcrun agvtool next-version -all          # incrementa el build
+xcrun agvtool new-marketing-version 1.2.0  # (solo si cambias la versión)
 ```
-Cmd+U  (Xcode) — corre todos los tests del target sinkmusicTests
+
+Haz commit del bump (`chore: set version`).
+
+### 2A. Ruta recomendada — Xcode Organizer (GUI)
+
+1. Selecciona el destino **Any iOS Device (arm64)** (no un simulador).
+2. **Product → Archive**. Al terminar se abre el **Organizer**.
+3. Selecciona el archive → **Distribute App** → **App Store Connect** → **Upload**.
+4. Opciones: deja *Upload your app's symbols* y *Manage Version and Build Number* si quieres que
+   Xcode gestione el build; firma con *Automatically manage signing*.
+5. **Upload**. Cuando termine, el build aparece en App Store Connect → tu app → **TestFlight**
+   en estado *Processing* (5–30 min).
+
+### 2B. Ruta CLI (para CI o scripts)
+
+```bash
+# 1) Archive
+xcodebuild -scheme sinkmusic -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath build/sinkmusic.xcarchive \
+  clean archive
+
+# 2) Exportar el .ipa  (necesita ExportOptions.plist, ver abajo)
+xcodebuild -exportArchive \
+  -archivePath build/sinkmusic.xcarchive \
+  -exportOptionsPlist ExportOptions.plist \
+  -exportPath build/export
+
+# 3) Subir a TestFlight con la API Key
+xcrun altool --upload-app -f build/export/sinkmusic.ipa -t ios \
+  --apiKey XXXXXXXXXX --apiIssuer 11111111-2222-3333-4444-555555555555
+# (alternativa moderna: xcrun notarytool no aplica a iOS App Store;
+#  también puedes usar la app Transporter o `fastlane pilot upload`)
 ```
 
-## Changelog
+`ExportOptions.plist` mínimo:
 
-Para ver el historial completo de cambios, consulta [CHANGELOG.md](./CHANGELOG.md)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>            <string>app-store-connect</string>
+    <key>teamID</key>            <string>TU_TEAM_ID</string>
+    <key>uploadSymbols</key>     <true/>
+    <key>signingStyle</key>      <string>automatic</string>
+</dict>
+</plist>
+```
 
-## Autor
+> En Xcode &lt; 15 el `method` es `app-store`. Desde Xcode 15/16 se usa `app-store-connect`.
 
-**Miguel Tomairo (rapser)**
-- GitHub: [@rapser](https://github.com/rapser)
+### 2C. fastlane (opcional)
 
-## Licencia
+```ruby
+# fastlane/Fastfile
+lane :beta do
+  increment_build_number(xcodeproj: "sinkmusic.xcodeproj")
+  build_app(scheme: "sinkmusic", export_method: "app-store")
+  upload_to_testflight(
+    api_key_path: "fastlane/asc_key.json",   # Key ID + Issuer ID + .p8
+    skip_waiting_for_build_processing: true
+  )
+end
+```
 
-Este proyecto es privado y pertenece a **rapser**.
+### 3. Tras la subida (en App Store Connect → TestFlight)
+
+1. Espera a que el build pase de *Processing* a listo.
+2. **Export Compliance**: responde el cuestionario de cifrado (esta app usa HTTPS estándar y el
+   cifrado de MEGA; normalmente califica para exención — si añades
+   `ITSAppUsesNonExemptEncryption = NO` en el `Info.plist` no te lo vuelve a preguntar).
+3. **Testers internos** (hasta 100, miembros del equipo): añade el build al grupo interno →
+   disponible en minutos, sin revisión.
+4. **Testers externos**: crea un grupo, añade emails o un *public link*, adjunta el build →
+   requiere una **Beta App Review** (suele ser < 24 h la primera vez).
+5. Rellena *What to Test* y la información de contacto beta.
+
+### Problemas frecuentes
+
+| Síntoma | Causa / arreglo |
+|--------|-----------------|
+| "No suitable application records were found" | La app no existe en App Store Connect con ese bundle id → créala primero. |
+| El build no aparece en TestFlight | Sigue *Processing*; revisa el email de Apple por *Invalid Binary* (símbolos, íconos, `Info.plist`). |
+| "Missing Compliance" | Contesta el cuestionario de export compliance o añade `ITSAppUsesNonExemptEncryption`. |
+| Rechazo por *Missing Purpose String* | Falta una key `NS...UsageDescription` en el `Info.plist` (micrófono, red local, etc.). |
+| Build duplicado | No incrementaste `CURRENT_PROJECT_VERSION`. |
+
+---
+
+## Changelog · Autor · Licencia
+
+- Historial completo: [CHANGELOG.md](./CHANGELOG.md)
+- Guía de arquitectura para colaboradores/agentes: [CLAUDE.md](./CLAUDE.md)
+
+**Miguel Tomairo (rapser)** — GitHub [@rapser](https://github.com/rapser)
+
+Proyecto privado. Todos los derechos reservados.
