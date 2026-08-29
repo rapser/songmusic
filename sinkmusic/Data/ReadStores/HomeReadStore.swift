@@ -48,4 +48,8 @@ final class HomeReadStore: HomeReadStoreProtocol {
     func changes() -> AsyncStream<Void> {
         observer.stream()
     }
+
+    func setReactiveReloads(suspended: Bool) {
+        suspended ? observer.suspend() : observer.resume()
+    }
 }

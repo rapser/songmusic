@@ -91,11 +91,15 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
         self.eventBus = eventBus
         self.completionService = completionService
         super.init()
+        // Sesión background: la transferencia continúa si la app pasa a segundo plano.
+        // El coste es que el SO la programa a su ritmo (no está optimizada para latencia).
         let config = URLSessionConfiguration.background(withIdentifier: kMegaBackgroundSessionIdentifier)
         config.sessionSendsLaunchEvents = true
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.timeoutIntervalForRequest = 600
+        // 120 s (antes 600): un socket medio-abierto se revela como error en 2 min, no en 10.
+        config.timeoutIntervalForRequest = 120
+        config.timeoutIntervalForResource = 3600
         config.isDiscretionary = false
         session = URLSession(configuration: config, delegate: self, delegateQueue: OperationQueue())
     }
@@ -109,7 +113,7 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
         decryptAndSave: @escaping MegaDecryptAndSaveHandler
     ) {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 600
+        request.timeoutInterval = 120
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
         let task = session.downloadTask(with: request)

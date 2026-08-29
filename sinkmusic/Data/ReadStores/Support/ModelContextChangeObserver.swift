@@ -30,6 +30,11 @@ final class ModelContextChangeObserver {
     private let debounce: Duration
     private var pendingNotify: Task<Void, Never>?
 
+    /// Mientras está suspendido (p. ej. durante "Descargar todo"), los `save()` no disparan
+    /// recargas: se acumulan en `pendingWhileSuspended` y se emite **una** señal al reanudar.
+    private var isSuspended = false
+    private var pendingWhileSuspended = false
+
     init(modelContext: ModelContext, relevantEntityNames: Set<String>, debounce: Duration = .milliseconds(120)) {
         self.debounce = debounce
         token = NotificationCenter.default.addObserver(
@@ -48,11 +53,29 @@ final class ModelContextChangeObserver {
 
     /// Reprograma la emisión: si llegan más `save()` dentro de `debounce`, se colapsan en uno.
     private func scheduleNotify() {
+        guard !isSuspended else {
+            pendingWhileSuspended = true
+            return
+        }
         pendingNotify?.cancel()
         pendingNotify = Task { [weak self] in
             try? await Task.sleep(for: self?.debounce ?? .milliseconds(120))
             guard !Task.isCancelled, let self else { return }
             self.notifyContinuations()
+        }
+    }
+
+    /// Pausa las emisiones (los cambios se acumulan). Reentrante vía el `ReactiveReloadGate`.
+    func suspend() {
+        isSuspended = true
+    }
+
+    /// Reanuda; si hubo algún cambio mientras estaba pausado, emite una única señal.
+    func resume() {
+        isSuspended = false
+        if pendingWhileSuspended {
+            pendingWhileSuspended = false
+            scheduleNotify()
         }
     }
 

@@ -162,6 +162,12 @@ final class DIContainer {
         modelContext: requireModelContext()
     )
 
+    /// Pausa la reactividad de las 4 listas durante "Descargar todo" (una recarga al final,
+    /// no una por canción). Ver `ReactiveReloadGate`.
+    private(set) lazy var bulkReloadGate: BulkReloadGate = ReactiveReloadGate([
+        homeReadStore, libraryReadStore, playlistReadStore, searchReadStore
+    ])
+
     // MARK: - Shared DataSources
 
     /// Instancia única de SongLocalDataSource compartida entre todos los repositorios
@@ -325,7 +331,8 @@ final class DIContainer {
     func makeDownloadViewModel() -> DownloadViewModel {
         DownloadViewModel(
             downloadUseCases: downloadUseCases,
-            eventBus: eventBus
+            eventBus: eventBus,
+            bulkReloadGate: bulkReloadGate
         )
     }
 
