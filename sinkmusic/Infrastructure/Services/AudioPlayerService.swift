@@ -36,9 +36,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     /// Reacción a interrupciones de `AVAudioSession` (llamadas, Siri, otra app).
     private let interruptions: AudioInterruptionObserver
 
-    /// Token de `AVAudioEngineConfigurationChange`. No es Sendable y `removeObserver` es
-    /// seguro desde cualquier hilo, así que se accede sin el chequeo de aislamiento de actor.
+    /// Tokens de `AVAudioEngineConfigurationChange` y `AVAudioSession.routeChange`. No son
+    /// Sendable y `removeObserver` es seguro desde cualquier hilo, así que se acceden sin el
+    /// chequeo de aislamiento de actor.
     private nonisolated(unsafe) var configChangeToken: NSObjectProtocol?
+    private nonisolated(unsafe) var routeChangeToken: NSObjectProtocol?
 
     // MARK: - Now Playing
 
@@ -77,6 +79,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     deinit {
         if let configChangeToken {
             NotificationCenter.default.removeObserver(configChangeToken)
+        }
+        if let routeChangeToken {
+            NotificationCenter.default.removeObserver(routeChangeToken)
         }
     }
 
@@ -123,11 +128,13 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
     // MARK: - Configuration Change
 
-    /// `AVAudioEngine` **se detiene solo** cuando cambia el formato de salida del hardware
-    /// (cambio de ruta, otra app/PHPicker que renegocia la sesión, cambio de sample rate).
+    /// `AVAudioEngine` **se detiene solo** cuando cambia el formato de salida del hardware:
+    /// cambio de ruta, o **otro proceso que renegocia la `AVAudioSession` compartida** — el
+    /// `PHPicker` al abrir su UI, y el proceso del teclado al aparecer por primera vez.
     /// Sin manejarlo, el engine queda parado o desajustado → crujido / silencio hasta que
     /// algo lo reinicia. Aquí se rehace el grafo con el formato nuevo y se re-agenda la
-    /// pista desde la posición actual.
+    /// pista desde la posición actual. Se escucha también `routeChange` porque no todas las
+    /// perturbaciones emiten `AVAudioEngineConfigurationChange`.
     private func observeConfigurationChange() {
         configChangeToken = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
@@ -135,16 +142,48 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             queue: nil
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.handleConfigurationChange()
+                self?.recoverEngineIfStopped()
+            }
+        }
+        routeChangeToken = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: nil
+        ) { [weak self] note in
+            // `Notification` no es Sendable: se extrae el valor primitivo antes del hop.
+            let reasonRaw = (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt) ?? 0
+            Task { @MainActor [weak self] in
+                self?.handleRouteChange(reasonRaw: reasonRaw)
             }
         }
     }
 
-    private func handleConfigurationChange() {
-        guard let audioFile, let songID = currentlyPlayingID, audioFile.length > 0 else { return }
+    private func handleRouteChange(reasonRaw: UInt) {
+        if AVAudioSession.RouteChangeReason(rawValue: reasonRaw) == .oldDeviceUnavailable {
+            // El dispositivo de salida se retiró (p. ej. auriculares): iOS detiene el audio.
+            // NO reanudar en el altavoz — solo dejar el estado consistente y en pausa.
+            guard playbackTimer != nil else { return }
+            lastKnownTime = currentPlaybackTime()
+            playbackTimer?.invalidate()
+            playbackTimer = nil
+            pushNowPlaying(elapsed: lastKnownTime, isPlaying: false)
+            eventBus.emit(.stateChanged(isPlaying: false, songID: currentlyPlayingID))
+            return
+        }
+        recoverEngineIfStopped()
+    }
 
-        let wasPlaying = playerNode.isPlaying
-        let resumeAt = currentPlaybackTime()
+    /// Si el engine se detuvo (perturbación de sesión / cambio de formato) pero seguimos con
+    /// una pista cargada, rehace el grafo y re-agenda desde la posición actual. Si el engine
+    /// sigue corriendo (perturbación benigna) no toca nada — evita meter un glitch propio.
+    private func recoverEngineIfStopped() {
+        guard let audioFile, let songID = currentlyPlayingID, audioFile.length > 0 else { return }
+        guard !audioEngine.isRunning else { return }
+
+        // El `playbackTimer` solo vive mientras suena (se invalida en pause/stop/fin de pista),
+        // así que es la señal fiable de "estábamos reproduciendo" ahora que el nodo ya no reporta.
+        let wasPlaying = playbackTimer != nil
+        let resumeAt = lastKnownTime
 
         playerNode.stop()
 
