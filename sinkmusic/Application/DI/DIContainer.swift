@@ -189,13 +189,22 @@ final class DIContainer {
     }
 
     private func makeCloudStorageRepository() -> CloudStorageRepositoryProtocol {
-        let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
-        let megaDataSource = MegaDataSource(eventBus: eventBus, backgroundSessionCompletion: backgroundSessionCompletionService)
+        let googleDriveDataSource = GoogleDriveDataSource(
+            keychainService: keychainService,
+            eventBus: eventBus,
+            fileStore: downloadFileStore
+        )
+        let megaDataSource = MegaDataSource(
+            eventBus: eventBus,
+            backgroundSessionCompletion: backgroundSessionCompletionService,
+            fileStore: downloadFileStore
+        )
         return CloudStorageRepositoryImpl(
             googleDriveDataSource: googleDriveDataSource,
             megaDataSource: megaDataSource,
             songLocalDataSource: songLocalDataSource,
-            credentialsRepository: credentialsRepository
+            credentialsRepository: credentialsRepository,
+            fileStore: downloadFileStore
         )
     }
 

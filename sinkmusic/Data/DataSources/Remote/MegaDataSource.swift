@@ -24,26 +24,27 @@ final class MegaDataSource: MegaServiceProtocol {
     private let apiClient: MegaAPIClient
     private let downloadSession: MegaDownloadSession
     private let backgroundSessionCompletion: BackgroundSessionCompletionServiceProtocol
+    /// Único punto de la app que conoce la ruta `Documents/Music/<uuid>.m4a` (P1.6).
+    private let fileStore: DownloadFileStoreProtocol
 
     // MARK: - State
 
-    private let musicDirectory: URL
     /// Handle de la carpeta pública; se guarda al listar y se usa al obtener URL de descarga
     private var publicFolderHandle: String?
 
     // MARK: - Initialization
 
-    init(eventBus: EventBusProtocol, backgroundSessionCompletion: BackgroundSessionCompletionServiceProtocol) {
+    init(
+        eventBus: EventBusProtocol,
+        backgroundSessionCompletion: BackgroundSessionCompletionServiceProtocol,
+        fileStore: DownloadFileStoreProtocol
+    ) {
         self.eventBus = eventBus
         self.backgroundSessionCompletion = backgroundSessionCompletion
+        self.fileStore = fileStore
         self.crypto = MegaCrypto()
         self.apiClient = MegaAPIClient()
         self.downloadSession = MegaDownloadSession(eventBus: eventBus, completionService: backgroundSessionCompletion)
-
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        self.musicDirectory = documents.appendingPathComponent("Music")
-
-        try? FileManager.default.createDirectory(at: musicDirectory, withIntermediateDirectories: true)
     }
 
     deinit {
@@ -88,7 +89,7 @@ final class MegaDataSource: MegaServiceProtocol {
         }
     }
 
-    /// Desencripta los datos y los guarda en musicDirectory.
+    /// Desencripta los datos y los guarda en la ruta canónica (`DownloadFileStore`).
     /// No emite .completed: el pipeline sigue (metadata + guardado en SwiftData) y ese
     /// evento lo emite DownloadUseCases cuando la canción está realmente disponible.
     private func decryptAndSave(encryptedData: Data, file: MegaFile, songID: UUID) async throws -> URL {
@@ -96,7 +97,7 @@ final class MegaDataSource: MegaServiceProtocol {
               let decrypted = crypto.decryptFile(encryptedData: encryptedData, fileKey: keyData) else {
             throw MegaError.decryptionFailed
         }
-        let localURL = musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
+        let localURL = fileStore.fileURL(for: songID)
         // Escritura atómica: evita que se lea el archivo antes de que esté completo en disco
         try decrypted.write(to: localURL, options: [.atomic])
         return localURL
@@ -105,8 +106,7 @@ final class MegaDataSource: MegaServiceProtocol {
     // MARK: - MegaServiceProtocol: Local File Management
 
     func localURL(for songID: UUID) -> URL? {
-        let fileURL = musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
-        return FileManager.default.fileExists(atPath: fileURL.path) ? fileURL : nil
+        fileStore.existingFileURL(for: songID)
     }
 
     func getDuration(for url: URL) -> TimeInterval? {
@@ -119,8 +119,7 @@ final class MegaDataSource: MegaServiceProtocol {
     }
 
     func deleteDownload(for songID: UUID) throws {
-        let fileURL = musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
-        if FileManager.default.fileExists(atPath: fileURL.path) {
+        if let fileURL = fileStore.existingFileURL(for: songID) {
             try FileManager.default.removeItem(at: fileURL)
         }
     }

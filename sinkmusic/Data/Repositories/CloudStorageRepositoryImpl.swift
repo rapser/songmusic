@@ -20,6 +20,7 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     private let megaDataSource: MegaServiceProtocol
     private let songLocalDataSource: SongLocalDataSource
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let fileStore: DownloadFileStoreProtocol
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "CloudStorage")
 
@@ -34,12 +35,14 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
         googleDriveDataSource: GoogleDriveServiceProtocol,
         megaDataSource: MegaServiceProtocol,
         songLocalDataSource: SongLocalDataSource,
-        credentialsRepository: CredentialsRepositoryProtocol
+        credentialsRepository: CredentialsRepositoryProtocol,
+        fileStore: DownloadFileStoreProtocol
     ) {
         self.googleDriveDataSource = googleDriveDataSource
         self.megaDataSource = megaDataSource
         self.songLocalDataSource = songLocalDataSource
         self.credentialsRepository = credentialsRepository
+        self.fileStore = fileStore
     }
 
     // MARK: - CloudStorageRepositoryProtocol
@@ -139,14 +142,9 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     }
 
     func localURL(for songID: UUID) -> URL? {
-        let provider = credentialsRepository.getSelectedCloudProvider()
-
-        switch provider {
-        case .googleDrive:
-            return googleDriveDataSource.localURL(for: songID)
-        case .mega:
-            return megaDataSource.localURL(for: songID)
-        }
+        // La ruta ya no depende del proveedor: ambos DataSources escriben en la misma
+        // ubicación canónica (`DownloadFileStore`). Antes esto hacía un switch por proveedor.
+        fileStore.existingFileURL(for: songID)
     }
 }
 

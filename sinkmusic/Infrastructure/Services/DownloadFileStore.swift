@@ -20,8 +20,13 @@ final class DownloadFileStore: DownloadFileStoreProtocol {
         return base.appendingPathComponent(Self.musicFolderName)
     }
 
+    /// Devuelve la ruta del archivo y, de paso, garantiza que exista `Documents/Music/`.
+    /// El crear el directorio aquí (best-effort, como hacía cada DataSource por su cuenta antes
+    /// de unificarse en P1.6) permite que la ruta se use directo como destino de escritura.
     func fileURL(for songID: UUID) -> URL {
-        musicDirectory
+        let directory = musicDirectory
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
             .appendingPathComponent(songID.uuidString)
             .appendingPathExtension(Self.fileExtension)
     }
