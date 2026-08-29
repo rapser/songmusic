@@ -121,7 +121,7 @@ final class DownloadUseCases {
             )
         } else {
             // Metadata extraction falló, solo marcar como descargada
-            let duration = cloudStorageRepository.getDuration(for: localURL)
+            let duration = await cloudStorageRepository.getDuration(for: localURL)
             song = song.with(isDownloaded: true, duration: duration)
         }
 

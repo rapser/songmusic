@@ -8,6 +8,7 @@
 
 import Foundation
 import os
+import AVFoundation
 
 /// Implementación del repositorio de Cloud Storage
 /// Usa patrón Strategy para soportar múltiples proveedores (Google Drive, Mega)
@@ -119,15 +120,16 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
         }
     }
 
-    func getDuration(for url: URL) -> TimeInterval? {
-        let provider = credentialsRepository.getSelectedCloudProvider()
-
-        switch provider {
-        case .googleDrive:
-            return googleDriveDataSource.getDuration(for: url)
-        case .mega:
-            return megaDataSource.getDuration(for: url)
-        }
+    /// La lectura del archivo (`AVAudioFile`) se hace en un hilo de background: antes corría
+    /// en el MainActor dentro del pipeline de descarga. El proveedor ya no importa aquí
+    /// (ambos DataSources hacían exactamente la misma lectura).
+    nonisolated func getDuration(for url: URL) async -> TimeInterval? {
+        await Task.detached(priority: .utility) {
+            guard let file = try? AVAudioFile(forReading: url) else { return nil }
+            let sampleRate = file.processingFormat.sampleRate
+            guard sampleRate > 0 else { return nil }
+            return Double(file.length) / sampleRate
+        }.value
     }
 
     func deleteDownload(for songID: UUID) throws {

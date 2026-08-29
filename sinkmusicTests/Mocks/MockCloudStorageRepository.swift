@@ -40,7 +40,7 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
         return url
     }
 
-    func getDuration(for url: URL) -> TimeInterval? {
+    func getDuration(for url: URL) async -> TimeInterval? {
         durations[url]
     }
 
