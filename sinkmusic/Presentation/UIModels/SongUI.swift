@@ -21,6 +21,8 @@ struct SongUI: Identifiable, Hashable, Sendable {
     let artworkSmallThumbnail: Data? // Thumbnail pequeño para Live Activity (32x32)
     let isDownloaded: Bool
     let dominantColor: Color?
+    /// Color de fondo del reproductor, ya resuelto en el mapper (no se recalcula en cada render).
+    let backgroundColor: Color
     let artistAlbumInfo: String // Ya formateado (ej: "Artist • Album")
 
     // MARK: - Computed Properties para UI
@@ -33,14 +35,6 @@ struct SongUI: Identifiable, Hashable, Sendable {
     /// Indica si tiene artwork para mostrar
     var hasArtwork: Bool {
         artworkThumbnail != nil
-    }
-
-    /// Color de fondo derivado del artwork (carátula) o default.
-    /// Si no hay color en caché, se calcula a partir del artwork para que cada canción tenga su propio color.
-    var backgroundColor: Color {
-        if let cached = dominantColor { return cached }
-        guard artworkThumbnail != nil else { return .appPurple }
-        return Color.dominantColor(from: artworkThumbnail)
     }
 
     /// Copia la canción con un nuevo color dominante (para actualizar en lista tras persistir).
@@ -56,6 +50,7 @@ struct SongUI: Identifiable, Hashable, Sendable {
             artworkSmallThumbnail: artworkSmallThumbnail,
             isDownloaded: isDownloaded,
             dominantColor: newColor,
+            backgroundColor: newColor ?? backgroundColor,
             artistAlbumInfo: artistAlbumInfo
         )
     }
