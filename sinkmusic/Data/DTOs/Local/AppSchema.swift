@@ -15,7 +15,7 @@ import SwiftData
 
 /// Esquema actual. `models` debe coincidir con el `for:` de todos los `ModelContainer(for:)`.
 enum AppSchemaV1: VersionedSchema {
-    static var versionIdentifier = Schema.Version(1, 0, 0)
+    static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
     static var models: [any PersistentModel.Type] {
         [SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self]
