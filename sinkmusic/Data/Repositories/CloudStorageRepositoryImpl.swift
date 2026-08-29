@@ -8,6 +8,7 @@
 
 import Foundation
 import os
+import AVFoundation
 
 /// Implementación del repositorio de Cloud Storage
 /// Usa patrón Strategy para soportar múltiples proveedores (Google Drive, Mega)
@@ -20,6 +21,7 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     private let megaDataSource: MegaServiceProtocol
     private let songLocalDataSource: SongLocalDataSource
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let fileStore: DownloadFileStoreProtocol
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "CloudStorage")
 
@@ -34,12 +36,14 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
         googleDriveDataSource: GoogleDriveServiceProtocol,
         megaDataSource: MegaServiceProtocol,
         songLocalDataSource: SongLocalDataSource,
-        credentialsRepository: CredentialsRepositoryProtocol
+        credentialsRepository: CredentialsRepositoryProtocol,
+        fileStore: DownloadFileStoreProtocol
     ) {
         self.googleDriveDataSource = googleDriveDataSource
         self.megaDataSource = megaDataSource
         self.songLocalDataSource = songLocalDataSource
         self.credentialsRepository = credentialsRepository
+        self.fileStore = fileStore
     }
 
     // MARK: - CloudStorageRepositoryProtocol
@@ -47,25 +51,31 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     func fetchSongsFromFolder() async throws -> [CloudFile] {
         let provider = credentialsRepository.getSelectedCloudProvider()
 
-        switch provider {
-        case .googleDrive:
-            let source = googleDriveDataSource
-            let googleDriveFiles = try await source.fetchSongsFromFolder()
-            return CloudFileMapper.toDomain(from: googleDriveFiles)
+        do {
+            switch provider {
+            case .googleDrive:
+                let source = googleDriveDataSource
+                let googleDriveFiles = try await source.fetchSongsFromFolder()
+                return CloudFileMapper.toDomain(from: googleDriveFiles)
 
-        case .mega:
-            let folderURL = credentialsRepository.loadMegaFolderURL()
-            guard !folderURL.isEmpty else {
-                throw CloudStorageError.credentialsNotConfigured
+            case .mega:
+                let folderURL = credentialsRepository.loadMegaFolderURL()
+                guard !folderURL.isEmpty else {
+                    throw CloudStorageError.credentialsNotConfigured
+                }
+
+                let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
+
+                // Cachear archivos para tener acceso a la clave de desencriptación
+                megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
+                logger.debug("MEGA Cache actualizado con \(self.megaFilesCache.count) archivos")
+
+                return CloudFileMapper.toDomain(from: megaFiles)
             }
-
-            let megaFiles = try await megaDataSource.fetchFilesFromFolder(folderURL: folderURL)
-
-            // Cachear archivos para tener acceso a la clave de desencriptación
-            megaFilesCache = Dictionary(uniqueKeysWithValues: megaFiles.map { ($0.id, $0) })
-            logger.debug("MEGA Cache actualizado con \(self.megaFilesCache.count) archivos")
-
-            return CloudFileMapper.toDomain(from: megaFiles)
+        } catch {
+            // Frontera de la capa Data: el resto de la app recibe un `SyncError` tipado,
+            // no un `URLError`/`NSError` crudo que haya que clasificar por texto.
+            throw SyncError.from(error)
         }
     }
 
@@ -110,15 +120,16 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
         }
     }
 
-    func getDuration(for url: URL) -> TimeInterval? {
-        let provider = credentialsRepository.getSelectedCloudProvider()
-
-        switch provider {
-        case .googleDrive:
-            return googleDriveDataSource.getDuration(for: url)
-        case .mega:
-            return megaDataSource.getDuration(for: url)
-        }
+    /// La lectura del archivo (`AVAudioFile`) se hace en un hilo de background: antes corría
+    /// en el MainActor dentro del pipeline de descarga. El proveedor ya no importa aquí
+    /// (ambos DataSources hacían exactamente la misma lectura).
+    nonisolated func getDuration(for url: URL) async -> TimeInterval? {
+        await Task.detached(priority: .utility) {
+            guard let file = try? AVAudioFile(forReading: url) else { return nil }
+            let sampleRate = file.processingFormat.sampleRate
+            guard sampleRate > 0 else { return nil }
+            return Double(file.length) / sampleRate
+        }.value
     }
 
     func deleteDownload(for songID: UUID) throws {
@@ -133,14 +144,9 @@ final class CloudStorageRepositoryImpl: CloudStorageRepositoryProtocol {
     }
 
     func localURL(for songID: UUID) -> URL? {
-        let provider = credentialsRepository.getSelectedCloudProvider()
-
-        switch provider {
-        case .googleDrive:
-            return googleDriveDataSource.localURL(for: songID)
-        case .mega:
-            return megaDataSource.localURL(for: songID)
-        }
+        // La ruta ya no depende del proveedor: ambos DataSources escriben en la misma
+        // ubicación canónica (`DownloadFileStore`). Antes esto hacía un switch por proveedor.
+        fileStore.existingFileURL(for: songID)
     }
 }
 

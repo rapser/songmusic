@@ -41,4 +41,9 @@ protocol PlaylistRepositoryProtocol: Sendable {
     /// Reordena las canciones en una playlist
     func updateSongsOrder(playlistID: UUID, songIDs: [UUID]) async throws
 
+    /// Elimina una canción de todas las playlists que la referencian.
+    /// Se usa cuando una canción deja de existir o de estar descargada, para que las
+    /// playlists no sigan mostrando canciones fantasma (el playlist en sí no se toca).
+    func removeSongFromAllPlaylists(songID: UUID) async throws
+
 }

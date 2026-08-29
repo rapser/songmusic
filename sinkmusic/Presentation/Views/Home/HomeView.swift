@@ -6,6 +6,8 @@ struct HomeView: View {
     @Environment(PlayerViewModel.self) private var playerViewModel
     @Environment(LibraryViewModel.self) private var libraryViewModel
 
+    @State private var didLoadInitially = false
+
     var topSongs: [SongUI] {
         // Ya viene ordenado por playCount desde el ViewModel
         Array(viewModel.mostPlayedSongs.prefix(6))
@@ -36,8 +38,8 @@ struct HomeView: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 .padding()
                         } else {
-                            // Playlists Grid
-                            PlaylistGridView(playlists: Array(viewModel.playlists.prefix(4)))
+                            // Playlists Grid — ya viene curada (orden + visibilidad) desde Ajustes
+                            PlaylistGridView(playlists: viewModel.playlists)
 
                             // Top Songs Carousel
                             TopSongsCarousel(songs: topSongs)
@@ -59,6 +61,13 @@ struct HomeView: View {
         .task {
             // Cargar datos al aparecer la vista
             await viewModel.loadData()
+            didLoadInitially = true
+        }
+        .onAppear {
+            // Al volver a la pestaña Inicio (p. ej. tras curar playlists en Ajustes),
+            // refrescar en silencio. El `.task` de arriba ya cubre la primera aparición.
+            guard didLoadInitially else { return }
+            Task { await viewModel.refreshQuietly() }
         }
     }
 }

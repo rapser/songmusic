@@ -1,0 +1,81 @@
+# SwiftLint — configuración inicial (todo como warning, sin romper el build).
+# Objetivo: frenar el crecimiento de god objects y funciones enormes.
+# Subir a `error` sección por sección cuando el código esté por debajo del umbral.
+
+included:
+  - sinkmusic
+  - sinkmusicTests
+
+excluded:
+  - sinkmusic/Core/Utils/PreviewData.swift   # datos de preview, ruido
+  - "**/*.generated.swift"
+
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - contains_over_first_not_nil
+  - last_where
+  - sorted_first_last
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - redundant_nil_coalescing
+  - closure_spacing
+  - explicit_init
+  - fatal_error_message
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - prohibited_super_call
+  - vertical_whitespace_closing_braces
+  - yoda_condition
+
+disabled_rules:
+  - trailing_comma
+  - todo                     # ya se rastrean fuera del código
+  - line_length              # se controla con SwiftFormat/editor, no aquí
+
+# --- Umbrales: warnings hoy, techo duro alto para lo que ya existe ---
+
+type_body_length:
+  warning: 250
+  error: 700                 # AudioPlayerService (~625) todavía cabe; bajar tras P2.13
+
+file_length:
+  warning: 300
+  error: 800
+
+function_body_length:
+  warning: 50
+  error: 120
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+cyclomatic_complexity:
+  warning: 12
+  error: 25
+
+nesting:
+  type_level: 2
+
+identifier_name:
+  min_length: 2
+  excluded: [id, x, y, r, g, b, vm, ok, a, b, c]
+
+force_unwrapping:
+  severity: warning
+
+force_cast:
+  severity: warning
+
+large_tuple:
+  warning: 3
+  error: 4
+
+reporter: "xcode"

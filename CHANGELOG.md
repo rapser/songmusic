@@ -5,6 +5,126 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (22) - 2026-08-28
+
+Rama `feature/player-persistence-and-settings-redesign`: persistencia del reproductor,
+rediseño de Ajustes, ranking "más escuchadas" con ventana viva, remediación de deuda
+técnica (auditoría completa), y refactor del pipeline de descargas para que el tiempo por
+canción sea constante.
+
+### 🎵 UX — reproducción, ranking y curación de Inicio
+
+- El reproductor **recuerda la última canción y su posición**: al reabrir la app arranca
+  donde quedó, con Now Playing y artwork restaurados
+- Nuevo ranking **"Canciones que más escuchas"** en Inicio con **ventana de 7 días por
+  canción**: al entrar al top, el contador de esa canción vive 7 días y luego se resetea a
+  0, para que la lista se mantenga fresca y no se quede una canción fija en el puesto 1
+  (entidad SwiftData independiente `RankingWindowEntryDTO`)
+- Al tocar una canción del ranking se encola **su playlist de origen**, no "las más
+  escuchadas": termina esa canción y sigue la siguiente de su playlist
+- Pantalla **"Editar inicio"**: el usuario elige qué playlists aparecen en Inicio y en qué
+  orden; se persiste
+- Ajustes rediseñado con **layout propio** (ScrollView + tarjetas, no `List`), secciones y
+  filas más compactas
+- El mini-reproductor siempre visible ya no tapa "Cerrar sesión" en Ajustes (espacio inferior)
+- Al terminar de descargar una canción dentro de una playlist, **se oculta el icono de
+  descarga** en esa misma pantalla
+- Al eliminar todas las descargas se **limpia y oculta el mini-reproductor**
+
+### ⚡ Performance — descargas de tiempo constante
+
+Antes: unas canciones descargaban rápido y otras lento sin patrón. Causas y arreglos:
+
+- **Desencriptado de Mega** pasa de un bucle en Swift (un `CCCrypt` por bloque de 16 B + XOR
+  byte a byte, en el MainActor, tras cargar todo el archivo a RAM) a **una pasada de
+  CommonCrypto en modo CTR, en streaming (256 KB), en un hilo de background** — de segundos
+  de congelación proporcional al tamaño a milisegundos
+- **Thumbnails de carátula** con downsampling al decodificar (`CGImageSourceCreateThumbnailAtIndex`
+  + `kCGImageSourceThumbnailMaxPixelSize`): coste independiente de la resolución de la portada
+  embebida (antes se decodificaba la portada completa dos veces + hasta 10 re-encodes JPEG)
+- **Extracción de metadata con timeout (8 s)**: un MP3 VBR/malformado ya no cuelga la
+  descarga ni la cola; `getDuration` (`AVAudioFile`) sale del MainActor
+- **Descarga en lote en paralelo real** (acotada por `DownloadQueueManager`: Mega 3, Google
+  Drive 1): antes "Descargar todo" era estrictamente secuencial y una canción lenta bloqueaba
+  a las siguientes
+- Durante "Descargar todo" se **pausa la reactividad de las listas** (`BulkReloadGate`): una
+  sola recarga al terminar en vez de una recarga O(nº canciones) por cada canción
+- Timeouts de red de Mega: `timeoutIntervalForRequest` 600 → 120 s
+
+### ⚡ Performance — read-side reactivo
+
+- `ModelContextChangeObserver` **coalescing con debounce (120 ms)**: una ráfaga de `save()`
+  produce una sola recarga en los ViewModels
+- Guardas de asignación en los ViewModels (`if x != new { x = new }`): reproducir una canción
+  ya no re-renderiza listas que no muestran el contador
+- `SongUI` deja de llevar `playCount` (contador volátil) y su `Hashable`/`Equatable` manual
+  ya no compara los blobs de imagen en cada diff de `ForEach`; `backgroundColor` se resuelve
+  una vez en el mapper, no en cada render
+
+### 🏗️ Arquitectura — remediación de deuda técnica
+
+- **Plan de migración SwiftData versionado**: `AppSchemaV1: VersionedSchema` +
+  `AppMigrationPlan: SchemaMigrationPlan`; los 4 `ModelContainer` se construyen con
+  `migrationPlan:`. Sustituye la migración implícita, frágil con `@Attribute(.unique)`
+- **Orden de playlist en entidad** `PlaylistItemDTO { playlistID, songID, position }` en vez
+  del CSV de UUIDs `songOrder` (no consultable, se desincronizaba); backfill perezoso desde
+  el CSV legacy en la primera lectura
+- **`DownloadFileStore`**: única definición de la ruta `Documents/Music/<uuid>.m4a`; el I/O de
+  `FileManager` sale de las entidades `Song`/`SongDTO` y de los 3 DataSources
+- `AudioPlayerService` (625 L) partido: **`NowPlayingCenter`** (MPNowPlayingInfo + remote
+  commands) + **`AudioInterruptionObserver`** (interrupciones, con delegate); + 23 tests nuevos
+- Curación de Inicio extraída de `PlaylistViewModel` a **`HomePlaylistLayoutViewModel`**
+- `AudioPlayerRepositoryImpl` (passthrough 1:1) eliminado; `PlayerUseCases` depende del
+  servicio de Infraestructura directamente
+- Dirección de dependencias restaurada: fuera los `= FooRepositoryImpl()` por defecto en los
+  `init`; wiring solo por `DIContainer`
+- **`DurationFormatter`** único (elimina 6 implementaciones de `mm:ss` / `Xh Ym`)
+- `Song.with(...)` / `clearingLocalArtwork()` (no reconstruir con 14 argumentos);
+  `SongDTO.apply(from:)` como único copiado para `update()`
+- **`SyncError` tipado** en la frontera de Data (`URLError`/HTTP status → casos concretos) en
+  vez de `error.localizedDescription.contains("401")`
+- `ReactiveReload.loop` encapsula el boilerplate de `changesTask` (×4)
+
+### 🐛 Fixes
+
+- **Reproducción rota** tras un intento fallido de añadir campos a `SongDTO`: la migración
+  implícita sobre la entidad con `@Attribute(.unique)` corrompía el `ModelContext` y toda
+  lectura fallaba. Revertido; el ranking se movió a una entidad separada
+- Playlists: toques perdidos / canción equivocada al reproducir desde el detalle (la lista se
+  re-renderizaba en cada `save()`)
+- Búsqueda por álbum: crash de `#Predicate` (`ForcedUnwrap` no soportado por SwiftData) →
+  se filtra en memoria
+- `fatalError` de arranque si SwiftData no abre el store → **`StorageErrorView`** (no más
+  crash-loop)
+- Crujido de audio al abrir "crear playlist" con música sonando: el `PhotosPicker` inline y
+  el proceso del teclado renegocian la `AVAudioSession` compartida bajo el engine. Ahora el
+  `PhotosPicker` solo se monta al tocar la portada (`.photosPicker(isPresented:)`),
+  `setPreferredIOBufferDuration(0.02)` fija el buffer de IO, y se observa
+  `AVAudioEngineConfigurationChange` + `routeChange` para reconstruir el grafo y re-agendar
+  desde la posición actual si el engine se detiene. `routeChange` por auriculares retirados
+  ya no reanuda en el altavoz
+
+### 🧪 Tests
+
+- `SwiftDataMigrationTests`, `PlaylistOrderPersistenceTests` (backfill/reorder/remove),
+  `HomePlaylistLayoutViewModelTests`, `RankingWindowRepositoryImplTests`
+- `AudioPlayerServiceTests`, `NowPlayingCenterTests`, `AudioInterruptionObserverTests`
+- `MegaCryptoTests` (known-answer test NIST SP 800-38A F.5.1 para el AES-CTR, round-trip de
+  3 MB, streaming == en memoria), `ImageCompressionServiceTests`,
+  `ModelContextChangeObserverTests` ampliado (`suspend()`/`resume()`)
+- Tests reactivos: `stream` tomado antes de disparar el cambio + `fulfillment(of:timeout:)`
+  en vez de `Task.sleep`
+
+### 📝 Tooling / Docs
+
+- **SwiftLint** (`.swiftlint.yml`): `file_length`, `type_body_length`,
+  `cyclomatic_complexity`… en `warning`
+- **`CLAUDE.md`**: guía de arquitectura por capas, regla de persistencia (SwiftData para
+  dominio, UserDefaults para prefs triviales, Keychain para secretos), reactividad, DI,
+  nota sobre `Features/Auth`, convenciones de test
+- **`README.md`** reescrito: arquitectura, SOLID con ejemplos, buenas prácticas, estructura
+  de carpetas real, guía de distribución a TestFlight
+
 ## [1.0.0] (24) - 2026-07-05
 
 ### ⚡ Performance — sincronización por lotes y menos refrescos

@@ -24,8 +24,9 @@ protocol CloudStorageRepositoryProtocol: Sendable {
         songID: UUID
     ) async throws -> URL
 
-    /// Obtiene la duración de un archivo de audio local
-    @MainActor func getDuration(for url: URL) -> TimeInterval?
+    /// Obtiene la duración de un archivo de audio local.
+    /// `async` + fuera del MainActor: `AVAudioFile(forReading:)` lee cabeceras de disco.
+    func getDuration(for url: URL) async -> TimeInterval?
 
     /// Elimina el archivo descargado localmente
     @MainActor func deleteDownload(for songID: UUID) throws

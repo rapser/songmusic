@@ -81,9 +81,8 @@ enum SongMapper {
             artworkThumbnail: song.artworkMediumThumbnail,
             artworkSmallThumbnail: song.artworkThumbnail,
             isDownloaded: song.isDownloaded,
-            playCount: song.playCount,
-            playCountText: song.playCountText,
             dominantColor: toSwiftUIColor(song.dominantColor),
+            backgroundColor: resolveBackgroundColor(song.dominantColor, thumbnail: song.artworkMediumThumbnail),
             artistAlbumInfo: song.artistAlbumInfo
         )
     }
@@ -123,5 +122,14 @@ enum SongMapper {
     private static func toSwiftUIColor(_ rgbColor: RGBColor?) -> Color? {
         guard let rgb = rgbColor else { return nil }
         return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
+    /// Color de fondo del reproductor: el dominante guardado si existe; si no, se analiza
+    /// la carátula UNA vez aquí (antes era un computed property de `SongUI` que re-decodificaba
+    /// la imagen en cada render — p. ej. al arrastrar la barra de progreso).
+    private static func resolveBackgroundColor(_ rgbColor: RGBColor?, thumbnail: Data?) -> Color {
+        if let cached = toSwiftUIColor(rgbColor) { return cached }
+        guard thumbnail != nil else { return .appPurple }
+        return Color.dominantColor(from: thumbnail)
     }
 }

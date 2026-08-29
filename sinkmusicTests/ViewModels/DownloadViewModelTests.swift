@@ -31,7 +31,11 @@ final class DownloadViewModelTests: XCTestCase {
             credentialsRepository: mockCredentials,
             eventBus: mockEventBus
         )
-        sut = DownloadViewModel(downloadUseCases: downloadUseCases, eventBus: mockEventBus)
+        sut = DownloadViewModel(
+            downloadUseCases: downloadUseCases,
+            eventBus: mockEventBus,
+            bulkReloadGate: ReactiveReloadGate([])
+        )
     }
 
     override func tearDown() {

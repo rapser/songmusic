@@ -15,30 +15,30 @@ final class EqualizerUseCases {
 
     // MARK: - Dependencies
 
-    private let audioPlayerRepository: AudioPlayerRepositoryProtocol
+    private let audioPlayer: AudioPlayerServiceProtocol
 
     // MARK: - Initialization
 
-    init(audioPlayerRepository: AudioPlayerRepositoryProtocol) {
-        self.audioPlayerRepository = audioPlayerRepository
+    init(audioPlayer: AudioPlayerServiceProtocol) {
+        self.audioPlayer = audioPlayer
     }
 
     // MARK: - Equalizer Control
 
     /// Actualiza las bandas del ecualizador
     func updateBands(_ bands: [Float]) async {
-        await audioPlayerRepository.updateEqualizer(bands: bands)
+        audioPlayer.updateEqualizer(bands: bands)
     }
 
     /// Aplica un preset predefinido
     func applyPreset(_ preset: EqualizerPreset) async {
-        await audioPlayerRepository.updateEqualizer(bands: preset.bands)
+        audioPlayer.updateEqualizer(bands: preset.bands)
     }
 
     /// Resetea el ecualizador a valores planos (0.0)
     func reset() async {
         let flatBands = Array(repeating: Float(0.0), count: 6)
-        await audioPlayerRepository.updateEqualizer(bands: flatBands)
+        audioPlayer.updateEqualizer(bands: flatBands)
     }
 }
 

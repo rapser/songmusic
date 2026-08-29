@@ -13,6 +13,7 @@ final class PlaylistViewModelTests: XCTestCase {
     private var mockPlaylistRepo: MockPlaylistRepository!
     private var mockSongRepo: MockSongRepository!
     private var mockReadStore: MockPlaylistReadStore!
+    private var mockHomeLayoutRepo: MockHomePlaylistLayoutRepository!
     private var playlistUseCases: PlaylistUseCases!
 
     override func setUp() {
@@ -20,9 +21,11 @@ final class PlaylistViewModelTests: XCTestCase {
         mockPlaylistRepo = MockPlaylistRepository()
         mockSongRepo = MockSongRepository()
         mockReadStore = MockPlaylistReadStore()
+        mockHomeLayoutRepo = MockHomePlaylistLayoutRepository()
         playlistUseCases = PlaylistUseCases(
             playlistRepository: mockPlaylistRepo,
-            songRepository: mockSongRepo
+            songRepository: mockSongRepo,
+            homePlaylistLayoutRepository: mockHomeLayoutRepo
         )
         sut = PlaylistViewModel(playlistUseCases: playlistUseCases, readStore: mockReadStore)
     }
@@ -33,6 +36,7 @@ final class PlaylistViewModelTests: XCTestCase {
         mockPlaylistRepo = nil
         mockSongRepo = nil
         mockReadStore = nil
+        mockHomeLayoutRepo = nil
         super.tearDown()
     }
 
@@ -149,5 +153,21 @@ final class PlaylistViewModelTests: XCTestCase {
         try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(sut.playlists.count, 2)
+    }
+
+    /// Al terminar una descarga (o borrarla) mientras el detalle de la playlist está abierto,
+    /// `songsInPlaylist` debe refrescarse aunque no se haya pasado por `selectPlaylist`.
+    func test_readStoreChanges_reloadsOpenPlaylistDetail() async {
+        let songID = UUID()
+        let playlistID = UUID()
+        mockReadStore.songsInPlaylistValue = [Song.make(id: songID, isDownloaded: false)]
+        await sut.loadSongsInPlaylist(playlistID)
+        XCTAssertEqual(sut.songsInPlaylist.first?.isDownloaded, false)
+
+        mockReadStore.songsInPlaylistValue = [Song.make(id: songID, isDownloaded: true)]
+        mockReadStore.simulateChange()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(sut.songsInPlaylist.first?.isDownloaded, true)
     }
 }

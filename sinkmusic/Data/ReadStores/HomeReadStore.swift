@@ -26,7 +26,7 @@ final class HomeReadStore: HomeReadStoreProtocol {
     }
 
     func playlists() async throws -> [Playlist] {
-        try await playlistUseCases.getAllPlaylists()
+        try await playlistUseCases.getHomePlaylistLayout().shown
     }
 
     func mostPlayedPlaylists(limit: Int) async throws -> [Playlist] {
@@ -47,5 +47,9 @@ final class HomeReadStore: HomeReadStoreProtocol {
 
     func changes() -> AsyncStream<Void> {
         observer.stream()
+    }
+
+    func setReactiveReloads(suspended: Bool) {
+        suspended ? observer.suspend() : observer.resume()
     }
 }

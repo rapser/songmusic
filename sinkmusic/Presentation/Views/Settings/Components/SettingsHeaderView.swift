@@ -9,12 +9,12 @@ import SwiftUI
 
 struct SettingsHeaderView: View {
     var body: some View {
-        Text("Configuración")
-            .font(.largeTitle)
+        Text("Ajustes")
+            .font(.title)
             .fontWeight(.bold)
             .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.top, 20)
-            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
     }
 }

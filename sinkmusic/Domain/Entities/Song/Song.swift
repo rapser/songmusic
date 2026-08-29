@@ -36,30 +36,9 @@ struct Song: Identifiable, Hashable, Sendable {
 
     // MARK: - Computed Properties (Lógica de Dominio)
 
-    /// URL local del archivo descargado
-    var localURL: URL? {
-        guard isDownloaded else { return nil }
-
-        let fileManager = FileManager.default
-        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let musicDirectory = documentsDirectory.appendingPathComponent("Music")
-        let fileURL = musicDirectory.appendingPathComponent("\(id.uuidString).m4a")
-
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
-
-        return fileURL
-    }
-
     /// Duración formateada (mm:ss)
     var formattedDuration: String {
-        guard let duration = duration else { return "--:--" }
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+        DurationFormatter.clock(duration)
     }
 
     /// Información del artista y álbum para UI
@@ -85,5 +64,52 @@ struct Song: Identifiable, Hashable, Sendable {
         default:
             return "\(playCount) reproducciones"
         }
+    }
+}
+
+// MARK: - Copias con cambios
+
+extension Song {
+
+    /// Devuelve una copia cambiando solo los campos indicados.
+    /// Un argumento `nil` significa "no tocar este campo" — para *vaciar* un campo opcional
+    /// (artwork, color) usar `clearingLocalArtwork()`.
+    func with(
+        title: String? = nil,
+        artist: String? = nil,
+        album: String? = nil,
+        author: String? = nil,
+        isDownloaded: Bool? = nil,
+        duration: TimeInterval? = nil,
+        playCount: Int? = nil,
+        lastPlayedAt: Date? = nil,
+        dominantColor: RGBColor? = nil
+    ) -> Song {
+        Song(
+            id: id,
+            title: title ?? self.title,
+            artist: artist ?? self.artist,
+            album: album ?? self.album,
+            author: author ?? self.author,
+            fileID: fileID,
+            isDownloaded: isDownloaded ?? self.isDownloaded,
+            duration: duration ?? self.duration,
+            artworkData: artworkData,
+            artworkThumbnail: artworkThumbnail,
+            artworkMediumThumbnail: artworkMediumThumbnail,
+            playCount: playCount ?? self.playCount,
+            lastPlayedAt: lastPlayedAt ?? self.lastPlayedAt,
+            dominantColor: dominantColor ?? self.dominantColor
+        )
+    }
+
+    /// Copia sin artwork ni color dominante en local (se conserva `isDownloaded`).
+    func clearingLocalArtwork() -> Song {
+        Song(
+            id: id, title: title, artist: artist, album: album, author: author,
+            fileID: fileID, isDownloaded: isDownloaded, duration: duration,
+            artworkData: nil, artworkThumbnail: nil, artworkMediumThumbnail: nil,
+            playCount: playCount, lastPlayedAt: lastPlayedAt, dominantColor: nil
+        )
     }
 }

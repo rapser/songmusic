@@ -15,11 +15,17 @@ import Foundation
 /// SOLID: Interface Segregation - Solo métodos de playback básico
 @MainActor
 protocol AudioPlaybackProtocol {
-    /// Reproduce una canción desde una URL
+    /// Carga y reproduce una canción desde una URL
     /// - Parameters:
     ///   - songID: Identificador único de la canción
     ///   - url: URL local del archivo de audio
-    func play(songID: UUID, url: URL)
+    ///   - startTime: Posición inicial en segundos (0 = desde el principio)
+    func play(songID: UUID, url: URL, startTime: TimeInterval)
+
+    /// Continúa la canción ya cargada sin reprogramarla ni reiniciar su posición
+    /// - Returns: `false` si no hay ninguna pista cargada y hace falta un `play` real
+    @discardableResult
+    func resume() -> Bool
 
     /// Pausa la reproducción actual
     func pause()
@@ -30,6 +36,13 @@ protocol AudioPlaybackProtocol {
     /// Busca una posición específica en la canción
     /// - Parameter time: Tiempo en segundos
     func seek(to time: TimeInterval)
+}
+
+extension AudioPlaybackProtocol {
+    /// Conveniencia para reproducir desde el inicio
+    func play(songID: UUID, url: URL) {
+        play(songID: songID, url: url, startTime: 0)
+    }
 }
 
 /// Protocolo para control del ecualizador
@@ -47,15 +60,20 @@ protocol AudioEqualizerProtocol {
 /// Nota: Los eventos de estado y controles remotos se emiten via EventBus
 @MainActor
 protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioEqualizerProtocol {
-    /// Actualiza la información de Now Playing en el sistema (REQUERIDO)
+    /// Fija la metadata de la canción actual en Now Playing (una vez por canción)
     /// - Parameters:
     ///   - title: Título de la canción
     ///   - artist: Artista
     ///   - album: Álbum (opcional)
     ///   - duration: Duración total
-    ///   - currentTime: Tiempo actual de reproducción
     ///   - artwork: Datos de la imagen del artwork (opcional)
-    func updateNowPlayingInfo(title: String, artist: String, album: String?, duration: TimeInterval, currentTime: TimeInterval, artwork: Data?)
+    func setNowPlayingMetadata(title: String, artist: String, album: String?, duration: TimeInterval, artwork: Data?)
+
+    /// Refresca solo el tiempo transcurrido de Now Playing
+    /// - Parameters:
+    ///   - elapsed: Tiempo actual de reproducción
+    ///   - duration: Duración total, si se conoce
+    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?)
 }
 
 // MARK: - Extensión con métodos avanzados de audio (opcionales)

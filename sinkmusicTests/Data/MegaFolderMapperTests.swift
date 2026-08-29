@@ -126,6 +126,14 @@ final class MegaFolderMapperTests: XCTestCase {
         return buffer.prefix(numBytesEncrypted)
     }
 
+    /// Cifra con padding PKCS7 (`kCCOptionPKCS7Padding`), a diferencia del `CCOptions(0)` que usa
+    /// `MegaCrypto.decryptAESCBC` en producción para desencriptar. Son compatibles: producción
+    /// exige el texto cifrado ya alineado a bloque y le quita el padding PKCS7 a mano después de
+    /// desencriptar, así que aquí necesitamos generar exactamente eso — CCCrypt con esta opción
+    /// hace el padding automáticamente. Sin esto, cualquier texto plano cuya longitud no sea
+    /// múltiplo de 16 (como el JSON de atributos usado en el test) hace que CCCrypt falle con
+    /// error de alineación, devuelva `nil` y crashee el proceso de tests entero en el `!` de la
+    /// función que llama a este helper — no relacionado con si el código de producción es correcto.
     private func aesCBCEncrypt(plaintext: Data, key: Data) -> Data? {
         guard key.count == kCCKeySizeAES128 || key.count == kCCKeySizeAES256 else { return nil }
 
@@ -141,7 +149,7 @@ final class MegaFolderMapperTests: XCTestCase {
                         CCCrypt(
                             CCOperation(kCCEncrypt),
                             CCAlgorithm(kCCAlgorithmAES),
-                            CCOptions(0),
+                            CCOptions(kCCOptionPKCS7Padding),
                             keyPtr.baseAddress,
                             key.count,
                             ivPtr.baseAddress,

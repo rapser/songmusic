@@ -19,6 +19,7 @@ final class LibraryUseCases {
     private let songRepository: SongRepositoryProtocol
     private let cloudStorageRepository: CloudStorageRepositoryProtocol
     private let credentialsRepository: CredentialsRepositoryProtocol
+    private let playlistRepository: PlaylistRepositoryProtocol
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Library")
 
     // MARK: - Initialization
@@ -26,11 +27,13 @@ final class LibraryUseCases {
     init(
         songRepository: SongRepositoryProtocol,
         cloudStorageRepository: CloudStorageRepositoryProtocol,
-        credentialsRepository: CredentialsRepositoryProtocol
+        credentialsRepository: CredentialsRepositoryProtocol,
+        playlistRepository: PlaylistRepositoryProtocol
     ) {
         self.songRepository = songRepository
         self.cloudStorageRepository = cloudStorageRepository
         self.credentialsRepository = credentialsRepository
+        self.playlistRepository = playlistRepository
     }
 
     // MARK: - Library Access
@@ -135,29 +138,17 @@ final class LibraryUseCases {
     func updateDominantColor(songID: UUID, red: Double, green: Double, blue: Double) async throws {
         guard let existing = try await songRepository.getByID(songID) else { return }
         let color = RGBColor(red: red, green: green, blue: blue)
-        let updated = Song(
-            id: existing.id,
-            title: existing.title,
-            artist: existing.artist,
-            album: existing.album,
-            author: existing.author,
-            fileID: existing.fileID,
-            isDownloaded: existing.isDownloaded,
-            duration: existing.duration,
-            artworkData: existing.artworkData,
-            artworkThumbnail: existing.artworkThumbnail,
-            artworkMediumThumbnail: existing.artworkMediumThumbnail,
-            playCount: existing.playCount,
-            lastPlayedAt: existing.lastPlayedAt,
-            dominantColor: color
-        )
-        try await songRepository.update(updated)
+        try await songRepository.update(existing.with(dominantColor: color))
     }
 
     /// Elimina una canción de la biblioteca
     func deleteSong(_ id: UUID) async throws {
         // Eliminar archivo descargado si existe
         try? cloudStorageRepository.deleteDownload(for: id)
+
+        // Quitarla de cualquier playlist que la referencie: los playlists se mantienen,
+        // pero no debe quedar una canción fantasma que ya no existe en la biblioteca.
+        try? await playlistRepository.removeSongFromAllPlaylists(songID: id)
 
         // Eliminar de la base de datos
         try await songRepository.delete(id)
@@ -218,9 +209,7 @@ struct LibraryStats: Sendable {
     let uniqueAlbums: Int
 
     var formattedDuration: String {
-        let hours = Int(totalDuration) / 3600
-        let minutes = (Int(totalDuration) % 3600) / 60
-        return "\(hours)h \(minutes)m"
+        DurationFormatter.hoursMinutes(totalDuration, style: .compactAlways)
     }
 }
 

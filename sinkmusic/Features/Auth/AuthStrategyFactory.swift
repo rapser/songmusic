@@ -62,7 +62,7 @@ enum AuthStrategyFactory {
     // MARK: - Private Factories
 
     private static func makeFirebaseStrategy(config: FirebaseAuthConfig) -> AuthStrategy {
-        // TODO: Implementar cuando se agregue Firebase
+        // NOTA (no implementado): estrategia Firebase prevista; hoy cae a Apple. Rastreado fuera del código.
         // FirebaseApp.configure(options: FirebaseOptions(contentsOfFile: config.plistName))
         // return FirebaseGoogleAuthStrategy()
 
@@ -72,7 +72,7 @@ enum AuthStrategyFactory {
     }
 
     private static func makeSupabaseStrategy(config: SupabaseAuthConfig) -> AuthStrategy {
-        // TODO: Implementar cuando se agregue Supabase
+        // NOTA (no implementado): estrategia Supabase prevista; hoy cae a Apple. Rastreado fuera del código.
         // return SupabaseAuthStrategy(url: config.url, key: config.anonKey)
 
         // Fallback a Apple
@@ -81,7 +81,7 @@ enum AuthStrategyFactory {
     }
 
     private static func makeRESTAPIStrategy(config: RESTAPIAuthConfig) -> AuthStrategy {
-        // TODO: Implementar cuando se agregue REST API
+        // NOTA (no implementado): estrategia REST API prevista; hoy cae a Apple. Rastreado fuera del código.
         // return RESTAPIAuthStrategy(baseURL: config.fullBaseURL, keychain: ...)
 
         // Fallback a Apple

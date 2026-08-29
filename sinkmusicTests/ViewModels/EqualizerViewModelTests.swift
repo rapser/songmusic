@@ -10,13 +10,13 @@ import XCTest
 final class EqualizerViewModelTests: XCTestCase {
 
     private var sut: EqualizerViewModel!
-    private var mockAudioPlayer: MockAudioPlayerRepository!
+    private var mockAudioPlayer: MockAudioPlayerService!
     private var equalizerUseCases: EqualizerUseCases!
 
     override func setUp() {
         super.setUp()
-        mockAudioPlayer = MockAudioPlayerRepository()
-        equalizerUseCases = EqualizerUseCases(audioPlayerRepository: mockAudioPlayer)
+        mockAudioPlayer = MockAudioPlayerService()
+        equalizerUseCases = EqualizerUseCases(audioPlayer: mockAudioPlayer)
         sut = EqualizerViewModel(equalizerUseCases: equalizerUseCases)
     }
 

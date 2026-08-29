@@ -26,7 +26,8 @@ final class SettingsViewModelTests: XCTestCase {
         settingsUseCases = SettingsUseCases(
             credentialsRepository: mockCredentials,
             songRepository: mockSongRepo,
-            cloudStorageRepository: mockCloudStorage
+            cloudStorageRepository: mockCloudStorage,
+            playlistRepository: MockPlaylistRepository()
         )
         downloadUseCases = DownloadUseCases(
             songRepository: mockSongRepo,

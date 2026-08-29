@@ -165,6 +165,18 @@ final class DownloadUseCasesTests: XCTestCase {
         XCTAssertFalse(mockSongRepo.lastUpdatedSong?.isDownloaded == true)
     }
 
+    /// Quitar la descarga NO saca la canción de las playlists: sigue en la biblioteca,
+    /// vuelve a aparecer en "Descargar música" y se puede rebajar desde la propia playlist.
+    func test_deleteDownload_keepsSongInPlaylists() async throws {
+        let song = Song.make(isDownloaded: true)
+        mockSongRepo.songs = [song]
+
+        try await sut.deleteDownload(song.id)
+
+        XCTAssertFalse(mockSongRepo.lastUpdatedSong?.isDownloaded == true)
+        XCTAssertEqual(mockSongRepo.deleteCallCount, 0, "La canción no debe borrarse de la biblioteca")
+    }
+
     // MARK: - isDownloaded()
 
     func test_isDownloaded_returnsTrue_forDownloadedSong() async throws {

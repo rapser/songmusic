@@ -15,15 +15,14 @@ struct StorageSectionView: View {
     let onDeleteAll: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Storage Used Row
+        Group {
             SettingsRowView(
                 icon: "internaldrive.fill",
+                iconColor: .gray,
                 title: "Espacio usado",
                 value: totalStorage
             )
 
-            // Delete All Downloads Button
             DeleteAllDownloadsButton(
                 downloadedCount: downloadedCount,
                 isEnabled: downloadedCount > 0,
@@ -42,15 +41,12 @@ private struct DeleteAllDownloadsButton: View {
 
     var body: some View {
         Button(action: onDelete) {
-            HStack {
-                Image(systemName: "trash.circle.fill")
-                    .foregroundColor(.red)
-                    .frame(width: 24, height: 24)
+            HStack(spacing: 12) {
+                SettingsIconBadge(systemName: "trash.fill", color: .red)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Eliminar todas las descargas")
-                        .font(.body)
-                        .foregroundColor(.white)
+                        .foregroundColor(.red)
 
                     if downloadedCount > 0 {
                         Text("\(downloadedCount) canciones descargadas")
@@ -61,9 +57,7 @@ private struct DeleteAllDownloadsButton: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.appGray)
+            .padding(.vertical, 2)
         }
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1.0 : 0.6)

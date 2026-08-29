@@ -16,55 +16,56 @@ struct DownloadsSectionView: View {
     let settingsViewModel: SettingsViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Download Music Button
+        Group {
             NavigationLink(destination: DownloadMusicView()) {
-                HStack(spacing: 16) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.textGray)
-                        .frame(width: 24)
+                HStack(spacing: 10) {
+                    SettingsIconBadge(systemName: "arrow.down.circle.fill", color: .appPurple)
 
                     Text("Descargar música")
                         .foregroundColor(.white)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
                     if pendingCount > 0 {
                         PendingBadgeView(count: pendingCount)
                     }
 
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.textGray)
-                        .font(.caption)
+                    Chevron()
                 }
-                .padding(16)
-                .background(Color.appGray)
+                .frame(minHeight: 46)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            // Cloud Storage Config Button
             NavigationLink(destination: CloudStorageConfigView()) {
-                HStack(spacing: 16) {
-                    Image(systemName: "cloud.fill")
-                        .foregroundColor(.textGray)
-                        .frame(width: 24)
+                HStack(spacing: 10) {
+                    SettingsIconBadge(systemName: "cloud.fill", color: .blue)
 
-                    Text("Configurar Almacenamiento")
+                    Text("Configurar almacenamiento")
                         .foregroundColor(.white)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
-                    // Mostrar badge del proveedor seleccionado
                     ProviderBadgeView(provider: settingsViewModel.selectedProvider,
                                       isConfigured: settingsViewModel.hasCurrentProviderCredentials)
 
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.textGray)
-                        .font(.caption)
+                    Chevron()
                 }
-                .padding(16)
-                .background(Color.appGray)
+                .frame(minHeight: 46)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
+    }
+}
+
+// MARK: - Chevron
+
+private struct Chevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(.textGray.opacity(0.6))
     }
 }
 
@@ -78,7 +79,7 @@ private struct PendingBadgeView: View {
             .foregroundColor(.white)
             .font(.subheadline)
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 3)
             .background(Color.appPurple)
             .cornerRadius(12)
     }

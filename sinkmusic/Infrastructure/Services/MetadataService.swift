@@ -15,24 +15,36 @@ import OSLog
 /// Servicio para extraer metadatos de archivos de audio
 /// Implementa MetadataServiceProtocol cumpliendo con SOLID
 final class MetadataService: MetadataServiceProtocol {
-    private let logger = Logger(subsystem: "com.sinkmusic.app", category: "MetadataService")
+
+    private static let logger = Logger(subsystem: "com.sinkmusic.app", category: "MetadataService")
+
+    /// Límite de tiempo para leer metadata. `AVURLAsset.load(.duration)` sobre un MP3 VBR
+    /// sin cabecera fuerza un escaneo del archivo entero, y un archivo malformado puede
+    /// colgar indefinidamente — lo que antes bloqueaba `downloadSong` y toda la cola.
+    private static let timeout: Duration = .seconds(8)
 
     /// Extrae los metadatos de un archivo de audio local.
-    /// Si el archivo no es un formato válido o falla la lectura, retorna nil sin propagar error.
+    /// Si el archivo no es válido, la lectura falla, o excede el timeout → retorna `nil`
+    /// (la canción se guarda igual como descargada, con duración de fallback).
     func extractMetadata(from url: URL) async -> SongMetadata? {
-        let asset = AVURLAsset(url: url)
-
-        // Cargar duración y metadata; cualquier fallo de formato se ignora y retornamos nil
-        let durationSeconds: Double
-        let metadata: [AVMetadataItem]
         do {
-            let duration = try await asset.load(.duration)
-            durationSeconds = CMTimeGetSeconds(duration)
-            metadata = try await asset.load(.metadata)
+            return try await Self.withTimeout(Self.timeout) {
+                try await Self.parse(from: url)
+            }
         } catch {
-            logger.warning("No se pudo cargar asset (\(url.lastPathComponent)): \(String(describing: error))")
+            Self.logger.warning("Metadata no disponible (\(url.lastPathComponent)): \(String(describing: error))")
             return nil
         }
+    }
+
+    // MARK: - Parsing (nonisolated: corre fuera del MainActor)
+
+    private nonisolated static func parse(from url: URL) async throws -> SongMetadata {
+        let asset = AVURLAsset(url: url)
+
+        let duration = try await asset.load(.duration)
+        let durationSeconds = CMTimeGetSeconds(duration)
+        let metadata = try await asset.load(.metadata)
 
         var title: String?
         var artist: String?
@@ -41,7 +53,8 @@ final class MetadataService: MetadataServiceProtocol {
         var artwork: Data?
 
         for item in metadata {
-            // Intentar con commonKey primero
+            try Task.checkCancellation()
+
             if let keyRawValue = item.commonKey?.rawValue {
                 switch keyRawValue {
                 case AVMetadataKey.commonKeyTitle.rawValue:
@@ -57,7 +70,6 @@ final class MetadataService: MetadataServiceProtocol {
                     author = try? await item.load(.stringValue)
 
                 case AVMetadataKey.commonKeyArtwork.rawValue:
-                    // Extraer artwork como Data
                     if let imageData = try? await item.load(.dataValue) {
                         artwork = imageData
                     }
@@ -67,9 +79,8 @@ final class MetadataService: MetadataServiceProtocol {
                 }
             }
 
-            // También buscar en metadatos específicos de formato (iTunes/ID3)
+            // Metadatos específicos de formato (iTunes/ID3)
             if let keyString = item.key as? String {
-                // iTunes metadata keys
                 if keyString == "©ART" && artist == nil {
                     artist = try? await item.load(.stringValue)
                 }
@@ -85,17 +96,17 @@ final class MetadataService: MetadataServiceProtocol {
             }
         }
 
-        // Si no se encontró título en metadatos, usar nombre del archivo
         let finalTitle = title ?? url.deletingPathExtension().lastPathComponent
         let finalArtist = artist ?? "Artista Desconocido"
         let finalAlbum = album ?? "Álbum Desconocido"
 
-        // Generar thumbnails si hay artwork
+        // Downsampling al decodificar: coste independiente de la resolución de la portada.
         var thumbnail: Data?
         var mediumThumbnail: Data?
         if let artworkData = artwork {
-            thumbnail = ImageCompressionService.createThumbnail(from: artworkData)
-            mediumThumbnail = ImageCompressionService.createMediumThumbnail(from: artworkData)
+            let thumbs = ImageCompressionService.makeThumbnails(from: artworkData)
+            thumbnail = thumbs.small
+            mediumThumbnail = thumbs.medium
         }
 
         return SongMetadata(
@@ -108,5 +119,26 @@ final class MetadataService: MetadataServiceProtocol {
             artworkThumbnail: thumbnail,
             artworkMediumThumbnail: mediumThumbnail
         )
+    }
+
+    // MARK: - Timeout
+
+    private struct TimedOutError: Error {}
+
+    /// Corre `operation` con un límite de tiempo; cancela la operación si expira.
+    private nonisolated static func withTimeout<T: Sendable>(
+        _ duration: Duration,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(for: duration)
+                throw TimedOutError()
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else { throw TimedOutError() }
+            return result
+        }
     }
 }
