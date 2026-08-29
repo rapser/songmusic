@@ -172,81 +172,111 @@ struct MegaCrypto {
         return decryptAESCTR(data: encryptedData, key: aesKey, nonce: nonce)
     }
 
-    /// Desencripta datos usando AES-128-CTR
+    /// Desencripta datos con AES-128-CTR (contador big-endian, como usa Mega).
+    ///
+    /// Antes esto era un bucle en Swift: un `CCCrypt` (ECB) por bloque de 16 bytes + XOR
+    /// byte a byte con `Data` subscript + incremento de contador byte a byte — O(n) con una
+    /// constante enorme, y corría en el MainActor. Ahora es una única pasada de CommonCrypto
+    /// en modo CTR (`CCCryptorUpdate` sobre todo el buffer). La firma se mantiene por compat.
     func decryptAESCTR(data: Data, key: Data, nonce: Data) -> Data? {
-        guard key.count == 16, nonce.count == 16 else {
-            return nil
-        }
+        guard key.count == 16, nonce.count == 16 else { return nil }
+        guard !data.isEmpty else { return Data() }
 
-        var result = Data(count: data.count)
-        var counter = nonce
+        guard let cryptor = Self.makeCTRCryptor(key: key, counter: nonce) else { return nil }
+        defer { CCCryptorRelease(cryptor) }
 
-        let blockSize = 16
-        let blockCount = (data.count + blockSize - 1) / blockSize
-
-        for blockIndex in 0..<blockCount {
-            // Encriptar el contador para obtener el keystream
-            guard let keystream = encryptAESECB(data: counter, key: key) else {
-                return nil
+        var output = Data(count: data.count)
+        var moved = 0
+        let ok = output.withUnsafeMutableBytes { outPtr -> Bool in
+            data.withUnsafeBytes { inPtr -> Bool in
+                CCCryptorUpdate(
+                    cryptor,
+                    inPtr.baseAddress, data.count,
+                    outPtr.baseAddress, outPtr.count,
+                    &moved
+                ) == kCCSuccess
             }
-
-            // XOR del keystream con el bloque de datos
-            let dataStart = blockIndex * blockSize
-            let dataEnd = min(dataStart + blockSize, data.count)
-
-            for i in dataStart..<dataEnd {
-                result[i] = data[i] ^ keystream[i - dataStart]
-            }
-
-            // Incrementar contador
-            incrementCounter(&counter)
         }
-
-        return result
+        guard ok, moved == data.count else { return nil }
+        return output
     }
 
-    /// Encripta datos usando AES-ECB (para generar keystream en CTR)
-    private func encryptAESECB(data: Data, key: Data) -> Data? {
-        guard key.count == kCCKeySizeAES128 else {
-            return nil
+    /// Desencripta un archivo AES-128-CTR **en streaming**, archivo → archivo, sin cargar
+    /// todo en RAM. Pensado para llamarse desde un hilo de background (ver `MegaDataSource`).
+    /// - Parameters:
+    ///   - encryptedURL: archivo cifrado en disco.
+    ///   - outputURL: destino del archivo descifrado (se sobreescribe si existe).
+    ///   - fileKey: clave del archivo de Mega (>= 24 bytes: 0-15 clave, 16-23 nonce).
+    func decryptFile(at encryptedURL: URL, to outputURL: URL, fileKey: Data) throws {
+        guard fileKey.count >= 24 else { throw MegaError.invalidFileKey }
+
+        let aesKey = deriveAESKey(from: fileKey)
+        guard aesKey.count == 16 else { throw MegaError.decryptionFailed }
+
+        var counter = Data(count: 16)
+        let nonceData = fileKey[min(16, fileKey.count)..<min(24, fileKey.count)]
+        for (i, byte) in nonceData.enumerated() where i < 8 { counter[i] = byte }
+
+        guard let cryptor = Self.makeCTRCryptor(key: aesKey, counter: counter) else {
+            throw MegaError.decryptionFailed
+        }
+        defer { CCCryptorRelease(cryptor) }
+
+        let fm = FileManager.default
+        if fm.fileExists(atPath: outputURL.path) { try fm.removeItem(at: outputURL) }
+        guard fm.createFile(atPath: outputURL.path, contents: nil) else {
+            throw MegaError.decryptionFailed
         }
 
-        let bufferSize = data.count + kCCBlockSizeAES128
-        var buffer = Data(count: bufferSize)
-        var numBytesEncrypted: size_t = 0
+        let input = try FileHandle(forReadingFrom: encryptedURL)
+        defer { try? input.close() }
+        let output = try FileHandle(forWritingTo: outputURL)
+        defer { try? output.close() }
 
-        let status = buffer.withUnsafeMutableBytes { bufferPtr in
-            data.withUnsafeBytes { dataPtr in
-                key.withUnsafeBytes { keyPtr in
-                    CCCrypt(
-                        CCOperation(kCCEncrypt),
-                        CCAlgorithm(kCCAlgorithmAES),
-                        CCOptions(kCCOptionECBMode),
-                        keyPtr.baseAddress, key.count,
-                        nil,
-                        dataPtr.baseAddress, data.count,
-                        bufferPtr.baseAddress, bufferSize,
-                        &numBytesEncrypted
-                    )
+        let chunkSize = 256 * 1024
+        var outBuffer = [UInt8](repeating: 0, count: chunkSize)
+
+        while true {
+            let chunk = try input.read(upToCount: chunkSize) ?? Data()
+            if chunk.isEmpty { break }
+            var moved = 0
+            let ok = chunk.withUnsafeBytes { inPtr -> Bool in
+                outBuffer.withUnsafeMutableBytes { outPtr -> Bool in
+                    CCCryptorUpdate(
+                        cryptor,
+                        inPtr.baseAddress, chunk.count,
+                        outPtr.baseAddress, outPtr.count,
+                        &moved
+                    ) == kCCSuccess
                 }
             }
+            guard ok, moved == chunk.count else { throw MegaError.decryptionFailed }
+            try output.write(contentsOf: Data(outBuffer[0..<moved]))
         }
-
-        guard status == kCCSuccess else {
-            return nil
-        }
-
-        return buffer.prefix(numBytesEncrypted)
+        // CTR es un cifrado de flujo: no hay bloque final ni padding que volcar.
     }
 
-    /// Incrementa el contador de 128 bits (big-endian)
-    private func incrementCounter(_ counter: inout Data) {
-        for i in (0..<counter.count).reversed() {
-            counter[i] = counter[i] &+ 1
-            if counter[i] != 0 {
-                break
+    /// Crea un `CCCryptorRef` en modo AES-CTR con contador big-endian.
+    private static func makeCTRCryptor(key: Data, counter: Data) -> CCCryptorRef? {
+        var cryptor: CCCryptorRef?
+        let status = key.withUnsafeBytes { keyPtr in
+            counter.withUnsafeBytes { ivPtr in
+                CCCryptorCreateWithMode(
+                    CCOperation(kCCEncrypt),          // CTR: cifrar == descifrar
+                    CCMode(kCCModeCTR),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCPadding(ccNoPadding),
+                    ivPtr.baseAddress,
+                    keyPtr.baseAddress, key.count,
+                    nil, 0,
+                    0,
+                    CCModeOptions(kCCModeOptionCTR_BE),
+                    &cryptor
+                )
             }
         }
+        guard status == kCCSuccess else { return nil }
+        return cryptor
     }
 
     // MARK: - Attributes Decryption

@@ -12,8 +12,9 @@
 import Foundation
 
 /// Handler para desencriptar y guardar un archivo descargado.
-/// @MainActor + @Sendable: se ejecuta siempre en el MainActor y es seguro cruzar actores.
-typealias MegaDecryptAndSaveHandler = @MainActor @Sendable (Data) async throws -> URL
+/// Recibe la URL del archivo **cifrado ya movido a staging** (no los bytes en RAM) y devuelve
+/// la URL del archivo descifrado final. `@Sendable`: el desencriptado corre fuera del MainActor.
+typealias MegaDecryptAndSaveHandler = @Sendable (URL) async throws -> URL
 
 /// Información de una descarga en curso
 struct MegaDownloadTaskInfo: Sendable {
@@ -167,18 +168,34 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
         didFinishDownloadingTo location: URL
     ) {
         let key = TaskKey(downloadTask)
-        // Leer el archivo aquí de forma síncrona: el temp file solo existe durante este callback.
-        // Si lo leemos dentro del Task, el callback ya habrá retornado y el sistema puede haber borrado el archivo.
-        let dataResult = Result { try Data(contentsOf: location) }
+        // El temp file solo existe durante este callback: hay que sacarlo de aquí YA.
+        // Se mueve a staging (mover en el mismo volumen es O(1)); si el move fallara
+        // (volumen distinto), se cae a copiar vía RAM como antes. No se lee a `Data` en
+        // el caso normal — el desencriptado luego lee en streaming desde staging.
+        let stagedResult: Result<URL, Error> = Result {
+            let fm = FileManager.default
+            let dir = fm.temporaryDirectory.appendingPathComponent("mega-staging", isDirectory: true)
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let staged = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension("enc")
+            do {
+                try fm.moveItem(at: location, to: staged)
+            } catch {
+                try Data(contentsOf: location).write(to: staged, options: .atomic)
+            }
+            return staged
+        }
 
         Task { [weak self] in
             guard let self else { return }
-            guard let info = await self.state.removeTask(for: key) else { return }
+            guard let info = await self.state.removeTask(for: key) else {
+                if case .success(let staged) = stagedResult { try? FileManager.default.removeItem(at: staged) }
+                return
+            }
 
-            let encryptedData: Data
-            switch dataResult {
-            case .success(let data):
-                encryptedData = data
+            let encryptedURL: URL
+            switch stagedResult {
+            case .success(let url):
+                encryptedURL = url
             case .failure(let error):
                 await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
                 info.continuation.resume(throwing: error)
@@ -188,11 +205,12 @@ final class MegaDownloadSession: NSObject, URLSessionDownloadDelegate, URLSessio
             // Fase de desencriptado (la red terminó en 90%)
             await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.92)) }
             do {
-                let localURL = try await info.decryptAndSave(encryptedData)
+                let localURL = try await info.decryptAndSave(encryptedURL)
                 // Archivo en disco; faltan metadata y guardado en SwiftData (DownloadUseCases)
                 await MainActor.run { self.eventBus.emit(.progress(songID: info.songID, progress: 0.95)) }
                 info.continuation.resume(returning: localURL)
             } catch {
+                try? FileManager.default.removeItem(at: encryptedURL)
                 await MainActor.run { self.eventBus.emit(.failed(songID: info.songID, failure: DownloadFailure(error: error))) }
                 info.continuation.resume(throwing: error)
             }
