@@ -37,6 +37,36 @@ struct SongUI: Identifiable, Hashable, Sendable {
         artworkThumbnail != nil
     }
 
+    // MARK: - Hashable / Equatable
+
+    /// Conformidad manual: **excluye los blobs de imagen** de `==` y `hash`.
+    ///
+    /// `SongUI` se usa como elemento de `ForEach`; con la síntesis automática, cada diff de
+    /// lista hacía `memcmp` de `artworkThumbnail` + `artworkSmallThumbnail` (varios KB) por
+    /// fila (hallazgo E de la auditoría). Aquí se compara identidad + campos escalares de
+    /// presentación; para detectar "apareció/cambió la carátula" sin comparar los bytes se
+    /// usa `count` como proxy O(1) (una colisión de tamaño se auto-corrige en el siguiente diff).
+    static func == (lhs: SongUI, rhs: SongUI) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.title == rhs.title &&
+        lhs.artist == rhs.artist &&
+        lhs.album == rhs.album &&
+        lhs.duration == rhs.duration &&
+        lhs.durationSeconds == rhs.durationSeconds &&
+        lhs.isDownloaded == rhs.isDownloaded &&
+        lhs.dominantColor == rhs.dominantColor &&
+        lhs.backgroundColor == rhs.backgroundColor &&
+        lhs.artistAlbumInfo == rhs.artistAlbumInfo &&
+        lhs.artworkThumbnail?.count == rhs.artworkThumbnail?.count &&
+        lhs.artworkSmallThumbnail?.count == rhs.artworkSmallThumbnail?.count
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(isDownloaded)
+        hasher.combine(artworkThumbnail?.count)
+    }
+
     /// Copia la canción con un nuevo color dominante (para actualizar en lista tras persistir).
     func with(dominantColor newColor: Color?) -> SongUI {
         SongUI(
