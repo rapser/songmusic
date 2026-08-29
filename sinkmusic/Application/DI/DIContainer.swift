@@ -105,13 +105,23 @@ final class DIContainer {
 
     private(set) lazy var playlistRepository: PlaylistRepositoryProtocol = makePlaylistRepository()
 
-    private(set) lazy var audioPlayerRepository: AudioPlayerRepositoryProtocol = makeAudioPlayerRepository()
-
     private(set) lazy var cloudStorageRepository: CloudStorageRepositoryProtocol = makeCloudStorageRepository()
 
     private(set) lazy var credentialsRepository: CredentialsRepositoryProtocol = makeCredentialsRepository()
 
     private(set) lazy var metadataRepository: MetadataRepositoryProtocol = makeMetadataRepository()
+
+    private(set) lazy var playbackStateRepository: PlaybackStateRepositoryProtocol = PlaybackStateRepositoryImpl()
+
+    private(set) lazy var downloadFileStore: DownloadFileStoreProtocol = DownloadFileStore()
+
+    private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
+
+    /// Ranking de Inicio ("Canciones que más escuchas") con ventana de 7 días,
+    /// persistido en su propia entidad SwiftData (`RankingWindowEntryDTO`).
+    private(set) lazy var rankingWindowRepository: RankingWindowRepositoryProtocol = RankingWindowRepositoryImpl(
+        dataSource: RankingWindowLocalDataSource(modelContext: requireModelContext())
+    )
 
     // MARK: - Use Cases (Lazy initialization)
 
@@ -152,6 +162,12 @@ final class DIContainer {
         modelContext: requireModelContext()
     )
 
+    /// Pausa la reactividad de las 4 listas durante "Descargar todo" (una recarga al final,
+    /// no una por canción). Ver `ReactiveReloadGate`.
+    private(set) lazy var bulkReloadGate: BulkReloadGate = ReactiveReloadGate([
+        homeReadStore, libraryReadStore, playlistReadStore, searchReadStore
+    ])
+
     // MARK: - Shared DataSources
 
     /// Instancia única de SongLocalDataSource compartida entre todos los repositorios
@@ -163,7 +179,10 @@ final class DIContainer {
     // MARK: - Repository Factories
 
     private func makeSongRepository() -> SongRepositoryProtocol {
-        SongRepositoryImpl(localDataSource: songLocalDataSource)
+        SongRepositoryImpl(
+            localDataSource: songLocalDataSource,
+            rankingWindowRepository: rankingWindowRepository
+        )
     }
 
     private func makePlaylistRepository() -> PlaylistRepositoryProtocol {
@@ -175,18 +194,23 @@ final class DIContainer {
         )
     }
 
-    private func makeAudioPlayerRepository() -> AudioPlayerRepositoryProtocol {
-        AudioPlayerRepositoryImpl(audioPlayerService: audioPlayerService)
-    }
-
     private func makeCloudStorageRepository() -> CloudStorageRepositoryProtocol {
-        let googleDriveDataSource = GoogleDriveDataSource(keychainService: keychainService, eventBus: eventBus)
-        let megaDataSource = MegaDataSource(eventBus: eventBus, backgroundSessionCompletion: backgroundSessionCompletionService)
+        let googleDriveDataSource = GoogleDriveDataSource(
+            keychainService: keychainService,
+            eventBus: eventBus,
+            fileStore: downloadFileStore
+        )
+        let megaDataSource = MegaDataSource(
+            eventBus: eventBus,
+            backgroundSessionCompletion: backgroundSessionCompletionService,
+            fileStore: downloadFileStore
+        )
         return CloudStorageRepositoryImpl(
             googleDriveDataSource: googleDriveDataSource,
             megaDataSource: megaDataSource,
             songLocalDataSource: songLocalDataSource,
-            credentialsRepository: credentialsRepository
+            credentialsRepository: credentialsRepository,
+            fileStore: downloadFileStore
         )
     }
 
@@ -203,27 +227,31 @@ final class DIContainer {
 
     private func makePlayerUseCases() -> PlayerUseCases {
         PlayerUseCases(
-            audioPlayerRepository: audioPlayerRepository,
-            songRepository: songRepository
+            audioPlayer: audioPlayerService,
+            songRepository: songRepository,
+            playbackStateRepository: playbackStateRepository,
+            fileStore: downloadFileStore
         )
     }
 
     private func makeEqualizerUseCases() -> EqualizerUseCases {
-        EqualizerUseCases(audioPlayerRepository: audioPlayerRepository)
+        EqualizerUseCases(audioPlayer: audioPlayerService)
     }
 
     private func makeLibraryUseCases() -> LibraryUseCases {
         LibraryUseCases(
             songRepository: songRepository,
             cloudStorageRepository: cloudStorageRepository,
-            credentialsRepository: credentialsRepository
+            credentialsRepository: credentialsRepository,
+            playlistRepository: playlistRepository
         )
     }
 
     private func makePlaylistUseCases() -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: playlistRepository,
-            songRepository: songRepository
+            songRepository: songRepository,
+            homePlaylistLayoutRepository: homePlaylistLayoutRepository
         )
     }
 
@@ -245,7 +273,8 @@ final class DIContainer {
         SettingsUseCases(
             credentialsRepository: credentialsRepository,
             songRepository: songRepository,
-            cloudStorageRepository: cloudStorageRepository
+            cloudStorageRepository: cloudStorageRepository,
+            playlistRepository: playlistRepository
         )
     }
 
@@ -253,7 +282,11 @@ final class DIContainer {
 
     /// Factory para PlayerViewModel
     func makePlayerViewModel() -> PlayerViewModel {
-        PlayerViewModel(playerUseCases: playerUseCases, eventBus: eventBus)
+        PlayerViewModel(
+            playerUseCases: playerUseCases,
+            eventBus: eventBus,
+            liveActivityService: liveActivityService
+        )
     }
 
     /// Factory para LibraryViewModel
@@ -264,6 +297,11 @@ final class DIContainer {
     /// Factory para PlaylistViewModel
     func makePlaylistViewModel() -> PlaylistViewModel {
         PlaylistViewModel(playlistUseCases: playlistUseCases, readStore: playlistReadStore)
+    }
+
+    /// Factory para HomePlaylistLayoutViewModel (pantalla "Editar inicio")
+    func makeHomePlaylistLayoutViewModel() -> HomePlaylistLayoutViewModel {
+        HomePlaylistLayoutViewModel(playlistUseCases: playlistUseCases)
     }
 
     /// Factory para SearchViewModel
@@ -293,7 +331,8 @@ final class DIContainer {
     func makeDownloadViewModel() -> DownloadViewModel {
         DownloadViewModel(
             downloadUseCases: downloadUseCases,
-            eventBus: eventBus
+            eventBus: eventBus,
+            bulkReloadGate: bulkReloadGate
         )
     }
 

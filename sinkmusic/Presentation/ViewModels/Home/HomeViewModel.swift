@@ -45,15 +45,10 @@ final class HomeViewModel {
 
     init(readStore: HomeReadStoreProtocol) {
         self.readStore = readStore
-        changesTask = Task { [weak self] in
-            guard let self else { return }
-            for await _ in readStore.changes() {
-                guard !Task.isCancelled else { break }
-                // Recarga en segundo plano, sin isLoading: esto se dispara con cambios
-                // menores como incrementar playCount al reproducir una canción, y no debe
-                // reemplazar el contenido visible por un spinner (ver reloadAllSections()).
-                await self.reloadAllSections()
-            }
+        // Recarga en segundo plano (sin `isLoading`): se dispara con cambios menores; las
+        // secciones solo se reasignan si su contenido cambió (ver `reloadAllSections`).
+        changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
+            await self?.reloadAllSections()
         }
         Task {
             await loadData()
@@ -67,6 +62,12 @@ final class HomeViewModel {
         isLoading = true
         await reloadAllSections()
         isLoading = false
+    }
+
+    /// Recarga sin spinner. Se usa al volver a la pestaña Inicio (p. ej. tras curar las
+    /// playlists desde Ajustes) para que el listado se actualice sin un parpadeo de carga.
+    func refreshQuietly() async {
+        await reloadAllSections()
     }
 
     /// Recarga las secciones de Home sin tocar `isLoading`.
@@ -87,7 +88,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.playlists() },
             map: { $0.map(PlaylistMapper.toUI) },
-            assign: { playlists = $0 },
+            assign: { if playlists != $0 { playlists = $0 } },
             onError: { [self] in logger.error("Error al cargar playlists: \($0)") }
         )
     }
@@ -97,7 +98,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.mostPlayedPlaylists(limit: 10) },
             map: { $0.map(PlaylistMapper.toUI) },
-            assign: { mostPlayedPlaylists = $0 },
+            assign: { if mostPlayedPlaylists != $0 { mostPlayedPlaylists = $0 } },
             onError: { [self] in logger.error("Error al cargar playlists más escuchadas: \($0)") }
         )
     }
@@ -107,7 +108,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.recentlyPlayedSongs(limit: 10) },
             map: { $0.map(SongMapper.toUI) },
-            assign: { recentSongs = $0 },
+            assign: { if recentSongs != $0 { recentSongs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones recientes: \($0)") }
         )
     }
@@ -117,7 +118,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.mostPlayedSongs(limit: 10) },
             map: { $0.map(SongMapper.toUI) },
-            assign: { mostPlayedSongs = $0 },
+            assign: { if mostPlayedSongs != $0 { mostPlayedSongs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones más reproducidas: \($0)") }
         )
     }
@@ -127,7 +128,7 @@ final class HomeViewModel {
         await loadAndAssign(
             fetch: { try await readStore.downloadedSongs() },
             map: { $0.map(SongMapper.toUI) },
-            assign: { downloadedSongs = $0 },
+            assign: { if downloadedSongs != $0 { downloadedSongs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones descargadas: \($0)") }
         )
     }

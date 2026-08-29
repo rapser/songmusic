@@ -18,6 +18,8 @@ final class MockPlaylistRepository: PlaylistRepositoryProtocol {
     var removeSongCallCount = 0
     var updateSongsOrderCallCount = 0
     var lastUpdatedSongsOrder: [UUID]?
+    var removeSongFromAllPlaylistsCallCount = 0
+    var lastRemovedFromAllPlaylistsSongID: UUID?
 
     var shouldThrowOnCreate = false
 
@@ -65,5 +67,20 @@ final class MockPlaylistRepository: PlaylistRepositoryProtocol {
     func updateSongsOrder(playlistID: UUID, songIDs: [UUID]) async throws {
         updateSongsOrderCallCount += 1
         lastUpdatedSongsOrder = songIDs
+    }
+
+    func removeSongFromAllPlaylists(songID: UUID) async throws {
+        removeSongFromAllPlaylistsCallCount += 1
+        lastRemovedFromAllPlaylistsSongID = songID
+        for index in playlists.indices {
+            let p = playlists[index]
+            guard p.songs.contains(where: { $0.id == songID }) else { continue }
+            playlists[index] = Playlist(
+                id: p.id, name: p.name, description: p.description,
+                createdAt: p.createdAt, updatedAt: Date(),
+                coverImageData: p.coverImageData, placeholderColorIndex: p.placeholderColorIndex,
+                songs: p.songs.filter { $0.id != songID }
+            )
+        }
     }
 }

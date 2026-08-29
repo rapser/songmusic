@@ -8,7 +8,7 @@ import Foundation
 /// Read-side reactivo para búsqueda.
 /// SOLID: Interface Segregation — expone solo lo que SearchViewModel consume.
 @MainActor
-protocol SearchReadStoreProtocol: AnyObject {
+protocol SearchReadStoreProtocol: ReactiveReloadControllable {
     func search(
         query: String?,
         artist: String?,

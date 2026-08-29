@@ -25,7 +25,17 @@ enum PlaybackEvent: Sendable {
 }
 
 /// Comandos remotos de reproducción
+///
+/// `play` y `pause` son intenciones **explícitas e idempotentes**: las envía iOS desde la
+/// pantalla de bloqueo / Centro de Control según el estado que él cree que tenemos. Deben
+/// honrarse tal cual — nunca traducirse a un toggle, o el espejo con el widget nativo se
+/// invierte y ya no se recupera.
+///
+/// `playPause` queda solo para superficies que sí son un botón de alternar de verdad:
+/// el botón central de los AirPods (`togglePlayPauseCommand`) y la Live Activity.
 enum RemoteCommand: Sendable, Equatable {
+    case play
+    case pause
     case playPause
     case next
     case previous

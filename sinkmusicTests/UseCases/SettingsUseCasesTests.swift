@@ -13,16 +13,19 @@ final class SettingsUseCasesTests: XCTestCase {
     private var mockCredentials: MockCredentialsRepository!
     private var mockSongRepo: MockSongRepository!
     private var mockCloudStorage: MockCloudStorageRepository!
+    private var mockPlaylistRepo: MockPlaylistRepository!
 
     override func setUp() {
         super.setUp()
         mockCredentials = MockCredentialsRepository()
         mockSongRepo = MockSongRepository()
         mockCloudStorage = MockCloudStorageRepository()
+        mockPlaylistRepo = MockPlaylistRepository()
         sut = SettingsUseCases(
             credentialsRepository: mockCredentials,
             songRepository: mockSongRepo,
-            cloudStorageRepository: mockCloudStorage
+            cloudStorageRepository: mockCloudStorage,
+            playlistRepository: mockPlaylistRepo
         )
     }
 
@@ -31,6 +34,7 @@ final class SettingsUseCasesTests: XCTestCase {
         mockCredentials = nil
         mockSongRepo = nil
         mockCloudStorage = nil
+        mockPlaylistRepo = nil
         super.tearDown()
     }
 
@@ -305,6 +309,18 @@ final class SettingsUseCasesTests: XCTestCase {
 
         XCTAssertEqual(mockCloudStorage.deleteDownloadCallCount, 0)
         XCTAssertEqual(mockSongRepo.deleteCallCount, 0)
+    }
+
+    func test_deleteAllSongs_removesEachSongFromAllPlaylists() async throws {
+        let songs = [
+            Song.make(isDownloaded: true),
+            Song.make(isDownloaded: false)
+        ]
+        mockSongRepo.songs = songs
+
+        try await sut.deleteAllSongs()
+
+        XCTAssertEqual(mockPlaylistRepo.removeSongFromAllPlaylistsCallCount, 2)
     }
 
     func test_deleteAllSongs_onlyCallsCloudDeleteForDownloadedSongs() async throws {

@@ -66,4 +66,8 @@ final class SearchReadStore: SearchReadStoreProtocol {
     func changes() -> AsyncStream<Void> {
         observer.stream()
     }
+
+    func setReactiveReloads(suspended: Bool) {
+        suspended ? observer.suspend() : observer.resume()
+    }
 }

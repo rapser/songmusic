@@ -43,12 +43,8 @@ final class LibraryViewModel {
     init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
         self.libraryUseCases = libraryUseCases
         self.readStore = readStore
-        changesTask = Task { [weak self] in
-            guard let self else { return }
-            for await _ in readStore.changes() {
-                guard !Task.isCancelled else { break }
-                await self.reloadLibrary()
-            }
+        changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
+            await self?.reloadLibrary()
         }
         Task {
             await loadSongs()
@@ -63,7 +59,7 @@ final class LibraryViewModel {
         await loadAndAssign(
             fetch: { try await readStore.allSongs() },
             map: { $0.map(SongMapper.toUI) },
-            assign: { songs = $0 },
+            assign: { if songs != $0 { songs = $0 } },
             onError: { [self] in logger.error("Error al cargar canciones: \($0)") }
         )
     }
@@ -117,21 +113,13 @@ final class LibraryViewModel {
             logger.info("Sincronización completada: \(newSongsCount) nuevas canciones. Total: \(self.songs.count)")
 
         } catch {
-            let errorString = error.localizedDescription.lowercased()
-
-            if errorString.contains("401") || errorString.contains("403") || errorString.contains("unauthorized") {
-                syncError = .invalidCredentials
-                syncErrorMessage = "Las credenciales son inválidas o han expirado"
-            } else if errorString.contains("404") || errorString.contains("not found") {
-                syncError = .emptyFolder
-                syncErrorMessage = "No se encontró la carpeta o no contiene archivos de audio"
-            } else {
-                syncError = .networkError(error.localizedDescription)
-                syncErrorMessage = "Error de conexión: \(error.localizedDescription)"
-            }
-
+            // La capa Data ya entrega `SyncError` tipado; el `catch` genérico es un
+            // salvavidas por si llega algo sin clasificar.
+            let classified = (error as? SyncError) ?? .networkError(error.localizedDescription)
+            syncError = classified
+            syncErrorMessage = classified.userMessage
             isLoadingSongs = false
-            logger.error("Error en sincronización: \(self.syncErrorMessage ?? "Error desconocido")")
+            logger.error("Error en sincronización: \(classified.userMessage, privacy: .public)")
         }
     }
 

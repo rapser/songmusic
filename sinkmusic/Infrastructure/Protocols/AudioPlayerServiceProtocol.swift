@@ -16,8 +16,13 @@ protocol AudioPlayerServiceProtocol: Sendable {
 
     // MARK: - Playback Control
 
-    /// Reproduce una canción desde una URL
-    func play(songID: UUID, url: URL)
+    /// Carga y reproduce una canción desde una URL, opcionalmente desde una posición dada
+    func play(songID: UUID, url: URL, startTime: TimeInterval)
+
+    /// Continúa la canción ya cargada sin reprogramarla ni reiniciar su posición.
+    /// Devuelve `false` si no hay nada cargado y hace falta un `play` real.
+    @discardableResult
+    func resume() -> Bool
 
     /// Pausa la reproducción actual
     func pause()
@@ -28,7 +33,8 @@ protocol AudioPlayerServiceProtocol: Sendable {
     /// Busca a una posición específica en la canción
     func seek(to time: TimeInterval)
 
-    /// Verifica si está reproduciendo actualmente
+    /// Estado real de reproducción — **fuente única de verdad de toda la app**.
+    /// Ninguna capa superior debe cachear su propia copia de este valor.
     var isPlaying: Bool { get }
 
     // MARK: - Equalizer
@@ -38,13 +44,15 @@ protocol AudioPlayerServiceProtocol: Sendable {
 
     // MARK: - Now Playing Info
 
-    /// Actualiza la información de Now Playing (Lock Screen)
-    func updateNowPlayingInfo(
+    /// Fija la metadata de la canción actual en Now Playing (una vez por canción)
+    func setNowPlayingMetadata(
         title: String,
         artist: String,
         album: String?,
         duration: TimeInterval,
-        currentTime: TimeInterval,
         artwork: Data?
     )
+
+    /// Refresca solo el tiempo transcurrido de Now Playing
+    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?)
 }

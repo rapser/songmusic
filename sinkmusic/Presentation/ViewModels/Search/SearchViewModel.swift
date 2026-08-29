@@ -48,18 +48,13 @@ final class SearchViewModel {
 
     init(readStore: SearchReadStoreProtocol) {
         self.readStore = readStore
-        changesTask = Task { [weak self] in
+        // Re-ejecuta la búsqueda activa + agregaciones ante cambios en otra pantalla, sin
+        // spinner. `performSearch` solo reasigna resultados si cambiaron.
+        changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
             guard let self else { return }
-            for await _ in readStore.changes() {
-                guard !Task.isCancelled else { break }
-                // Re-ejecuta la última búsqueda activa para reflejar cambios hechos en otra
-                // pantalla, sin isSearching: esto se dispara con cambios menores como
-                // incrementar playCount al reproducir una canción, y no debe reemplazar los
-                // resultados visibles por un spinner (ver performSearch()).
-                await self.performSearch()
-                await self.loadAggregations()
-                await self.loadRecommendations()
-            }
+            await self.performSearch()
+            await self.loadAggregations()
+            await self.loadRecommendations()
         }
         Task {
             await loadAggregations()
@@ -88,7 +83,10 @@ final class SearchViewModel {
                 downloadedOnly: downloadedOnly,
                 sortBy: sortOption
             )
-            searchResults = entities.map { SongMapper.toUI($0) }
+            let mapped = entities.map { SongMapper.toUI($0) }
+            // Solo reasigna si cambió el contenido: un refresco reactivo con resultados
+            // idénticos no debe invalidar la lista (ver P0.3/P0.4 en la deuda técnica).
+            if mapped != searchResults { searchResults = mapped }
         } catch {
             logger.error("Error en búsqueda: \(error)")
             searchResults = []

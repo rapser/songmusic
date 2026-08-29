@@ -48,8 +48,11 @@ struct PreviewPlaylists {
 struct PreviewData {
     static func container(with items: [SongDTO]) -> ModelContainer {
         do {
-            let container = try ModelContainer(for: SongDTO.self, PlaylistDTO.self,
-                                               configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            let container = try ModelContainer(
+                for: AppSchemaV1.schema,
+                migrationPlan: AppMigrationPlan.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
             let context = container.mainContext
             items.forEach { context.insert($0) }
             return container
@@ -72,7 +75,8 @@ struct PreviewContainer {
     private init() {
         do {
             container = try ModelContainer(
-                for: SongDTO.self, PlaylistDTO.self,
+                for: AppSchemaV1.schema,
+                migrationPlan: AppMigrationPlan.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true)
             )
 
@@ -108,7 +112,11 @@ struct PreviewViewModels {
 
     static func playerVM(songID: UUID? = nil) -> PlayerViewModel {
         setupDI()
-        let vm = PlayerViewModel(playerUseCases: DIContainer.shared.playerUseCases, eventBus: DIContainer.shared.eventBus)
+        let vm = PlayerViewModel(
+            playerUseCases: DIContainer.shared.playerUseCases,
+            eventBus: DIContainer.shared.eventBus,
+            liveActivityService: DIContainer.shared.liveActivityService
+        )
         if let id = songID {
             vm.currentlyPlayingID = id
             vm.isPlaying = true
@@ -121,6 +129,11 @@ struct PreviewViewModels {
     static func playlistVM() -> PlaylistViewModel {
         setupDI()
         return DIContainer.shared.makePlaylistViewModel()
+    }
+
+    static func homePlaylistLayoutVM() -> HomePlaylistLayoutViewModel {
+        setupDI()
+        return DIContainer.shared.makeHomePlaylistLayoutViewModel()
     }
 
     static func searchVM() -> SearchViewModel {
@@ -220,6 +233,7 @@ struct PreviewWrapper<Content: View>: View {
             .environment(libraryVM ?? PreviewViewModels.libraryVM())
             .environment(playerVM ?? PreviewViewModels.playerVM())
             .environment(playlistVM ?? PreviewViewModels.playlistVM())
+            .environment(PreviewViewModels.homePlaylistLayoutVM())
             .environment(searchVM ?? PreviewViewModels.searchVM())
             .environment(equalizerVM ?? PreviewViewModels.equalizerVM())
             .environment(downloadVM ?? PreviewViewModels.downloadVM())

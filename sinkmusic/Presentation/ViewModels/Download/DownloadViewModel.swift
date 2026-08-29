@@ -48,6 +48,8 @@ final class DownloadViewModel: EventBusObservable {
 
     private let downloadUseCases: DownloadUseCases
     private(set) var eventBus: EventBusProtocol
+    /// Pausa la reactividad de las listas durante "Descargar todo".
+    private let bulkReloadGate: BulkReloadGate
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
 
@@ -67,9 +69,10 @@ final class DownloadViewModel: EventBusObservable {
 
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol) {
+    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol, bulkReloadGate: BulkReloadGate) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
+        self.bulkReloadGate = bulkReloadGate
         downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
                                           handler: { [weak self] in await self?.handleDownloadEvent($0) })
     }
@@ -145,13 +148,22 @@ final class DownloadViewModel: EventBusObservable {
 
     // MARK: - Download Operations
 
-    /// Descarga una canción por su ID
-    /// El progreso y completado se reciben via EventBus
-    /// Usa cola con límites por proveedor (Google Drive: 1, Mega: 3)
+    /// Descarga una canción por su ID (espera a que termine).
+    /// El progreso y completado se reciben via EventBus.
+    /// Usa cola con límites por proveedor (Google Drive: 1, Mega: 3).
     /// - Parameter songID: ID de la canción a descargar
     func download(songID: UUID) async {
+        if let task = await startDownloadTask(songID: songID) {
+            await task.value
+        }
+    }
+
+    /// Crea y registra la tarea de descarga de una canción, **sin esperarla**.
+    /// Devuelve la `Task` (o `nil` si no se pudo iniciar: duplicada o cuota excedida).
+    /// `download(songID:)` la espera; `downloadMultiple` lanza varias y las espera al final.
+    private func startDownloadTask(songID: UUID) async -> Task<Void, Never>? {
         // Evitar descargas duplicadas
-        guard activeTasksManager.tasks[songID] == nil else { return }
+        guard activeTasksManager.tasks[songID] == nil else { return nil }
 
         // Obtener proveedor actual
         let provider = downloadUseCases.currentCloudProvider()
@@ -161,7 +173,7 @@ final class DownloadViewModel: EventBusObservable {
             quotaExceededProvider = provider
             quotaResetTime = resetTime
             showQuotaAlert = true
-            return
+            return nil
         }
 
         // Crear tarea de descarga (weak self para evitar ciclo de retención)
@@ -245,21 +257,31 @@ final class DownloadViewModel: EventBusObservable {
             }
         }
 
-        // Guardar tarea y esperar a que termine (así "Descargar todo" es realmente secuencial)
         activeTasksManager.tasks[songID] = task
-        await task.value
+        return task
     }
 
-    /// Descarga múltiples canciones en cola secuencial (una tras otra).
-    /// Cada petición pasa por el actor DownloadQueueManager (Swift 6); con Mega pueden
-    /// coexistir hasta 3 descargas si se lanzan por otros medios, pero aquí es secuencial.
-    /// Al terminar todo el proceso se deja el estado limpio (sin retenciones).
+    /// Descarga múltiples canciones **en paralelo** (concurrencia real acotada por
+    /// `DownloadQueueManager`: Mega hasta 3, Google Drive 1). Antes era estrictamente
+    /// secuencial (`await` por canción) y una canción lenta bloqueaba a todas las
+    /// siguientes (head-of-line blocking).
+    /// Durante el lote se pausa la reactividad de las listas: se recargan una sola vez al
+    /// terminar, no una por canción (que era O(nº canciones) × N).
     /// - Parameter songIDs: IDs de las canciones a descargar
     func downloadMultiple(songIDs: [UUID]) async {
+        bulkReloadGate.suspend()
+        defer { bulkReloadGate.resume() }
+
+        var tasks: [Task<Void, Never>] = []
         for songID in songIDs {
-            await download(songID: songID)
+            if let task = await startDownloadTask(songID: songID) {
+                tasks.append(task)
+            }
         }
-        // Limpieza explícita al terminar todo: sin ciclos de retención ni estado residual
+        for task in tasks {
+            await task.value
+        }
+
         cleanupWhenIdle()
     }
 

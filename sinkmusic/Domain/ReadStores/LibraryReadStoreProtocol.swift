@@ -9,7 +9,7 @@ import Foundation
 /// SOLID: Interface Segregation — expone solo lo que LibraryViewModel consume para lectura.
 /// Las mutaciones (borrar, sincronizar, etc.) siguen yendo por LibraryUseCases.
 @MainActor
-protocol LibraryReadStoreProtocol: AnyObject {
+protocol LibraryReadStoreProtocol: ReactiveReloadControllable {
     func allSongs() async throws -> [Song]
     func stats() async throws -> LibraryStats
 

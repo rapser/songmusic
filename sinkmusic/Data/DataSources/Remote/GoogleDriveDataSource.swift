@@ -52,12 +52,19 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
 
     private let keychainService: KeychainServiceProtocol
     private let eventBus: EventBusProtocol
+    /// Único punto de la app que conoce la ruta `Documents/Music/<uuid>.m4a` (P1.6).
+    private let fileStore: DownloadFileStoreProtocol
 
     // MARK: - Initialization
 
-    init(keychainService: KeychainServiceProtocol, eventBus: EventBusProtocol) {
+    init(
+        keychainService: KeychainServiceProtocol,
+        eventBus: EventBusProtocol,
+        fileStore: DownloadFileStoreProtocol
+    ) {
         self.keychainService = keychainService
         self.eventBus = eventBus
+        self.fileStore = fileStore
         super.init()
     }
 
@@ -189,18 +196,9 @@ final class GoogleDriveDataSource: NSObject, GoogleDriveServiceProtocol {
     // MARK: - Local File Management
 
     func localURL(for songID: UUID) -> URL? {
-        let fileManager = FileManager.default
-        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let musicDirectory = documentsDirectory.appendingPathComponent("Music")
-        do {
-            try fileManager.createDirectory(at: musicDirectory, withIntermediateDirectories: true, attributes: nil)
-        } catch {
-            logger.error("Error al crear directorio Music: \(error.localizedDescription)")
-            return nil
-        }
-        return musicDirectory.appendingPathComponent("\(songID.uuidString).m4a")
+        // Ruta canónica (crea `Documents/Music/` si hace falta). Antes esta lógica estaba
+        // duplicada aquí, en MegaDataSource y en CloudStorageRepositoryImpl.
+        fileStore.fileURL(for: songID)
     }
 
     func getDuration(for url: URL) -> TimeInterval? {

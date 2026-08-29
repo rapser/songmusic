@@ -48,26 +48,27 @@ final class SongDTO: Identifiable {
     }
 }
 
-// MARK: - Helper Extensions
+// MARK: - Mutación
 extension SongDTO {
-    /// Obtiene la URL local del archivo descargado
-    /// Replica la lógica de GoogleDriveService.localURL(for:)
-    var localURL: URL? {
-        guard isDownloaded else { return nil }
-
-        let fileManager = FileManager.default
-        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let musicDirectory = documentsDirectory.appendingPathComponent("Music")
-        let fileURL = musicDirectory.appendingPathComponent("\(id.uuidString).m4a")
-
-        // Verificar que el archivo existe
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
-
-        return fileURL
+    /// Copia todos los campos mutables desde otro DTO (menos `id` y la relación `playlists`,
+    /// que se gestionan aparte). Único punto de verdad del copiado para `update()`:
+    /// añadir un campo nuevo al modelo = tocar solo aquí.
+    func apply(from other: SongDTO) {
+        title = other.title
+        artist = other.artist
+        album = other.album
+        author = other.author
+        fileID = other.fileID
+        isDownloaded = other.isDownloaded
+        duration = other.duration
+        artworkData = other.artworkData
+        artworkThumbnail = other.artworkThumbnail
+        artworkMediumThumbnail = other.artworkMediumThumbnail
+        cachedDominantColorRed = other.cachedDominantColorRed
+        cachedDominantColorGreen = other.cachedDominantColorGreen
+        cachedDominantColorBlue = other.cachedDominantColorBlue
+        playCount = other.playCount
+        lastPlayedAt = other.lastPlayedAt
     }
 }
 

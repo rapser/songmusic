@@ -9,7 +9,7 @@ import Foundation
 /// SOLID: Interface Segregation — expone solo lo que PlaylistViewModel consume para lectura.
 /// Las mutaciones (crear, renombrar, agregar/quitar canciones) siguen yendo por PlaylistUseCases.
 @MainActor
-protocol PlaylistReadStoreProtocol: AnyObject {
+protocol PlaylistReadStoreProtocol: ReactiveReloadControllable {
     func allPlaylists() async throws -> [Playlist]
     func songs(inPlaylist id: UUID) async throws -> [Song]
     func stats(forPlaylist id: UUID) async throws -> PlaylistStats

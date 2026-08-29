@@ -78,20 +78,15 @@ final class SongLocalDataSource {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Obtiene top canciones por playCount (query targeted: predicate + sort + fetchLimit a nivel SwiftData)
-    func getTopSongs(limit: Int = 10) throws -> [SongDTO] {
-        let predicate = #Predicate<SongDTO> { $0.playCount > 0 }
-        var descriptor = FetchDescriptor<SongDTO>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\SongDTO.playCount, order: .reverse)]
-        )
-        descriptor.fetchLimit = limit
-        return try modelContext.fetch(descriptor)
-    }
+    // Nota: el ranking "Canciones que más escuchas" de Inicio NO se calcula aquí.
+    // Usa un contador con ventana de 7 días que vive fuera de SwiftData
+    // (`RankingWindowRepository`), combinado con `getDownloaded()` en `SongRepositoryImpl`.
 
     /// Obtiene canciones reproducidas recientemente (query targeted: reemplaza getAll()+filter+sort+prefix)
+    /// Excluye canciones ya no descargadas para que "Recientes" en Home se limpie
+    /// automáticamente al eliminar una descarga.
     func getRecentlyPlayed(limit: Int = 10) throws -> [SongDTO] {
-        let predicate = #Predicate<SongDTO> { $0.lastPlayedAt != nil }
+        let predicate = #Predicate<SongDTO> { $0.lastPlayedAt != nil && $0.isDownloaded }
         var descriptor = FetchDescriptor<SongDTO>(
             predicate: predicate,
             sortBy: [SortDescriptor(\SongDTO.lastPlayedAt, order: .reverse)]
@@ -112,18 +107,21 @@ final class SongLocalDataSource {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Busca canciones cuyo álbum contenga `query` (query targeted separada de `search`,
-    /// porque `album` es opcional y `#Predicate` con `||` sobre `String?.contains` tiene
-    /// limitaciones de macro-expansion en SwiftData al combinarlo con campos no opcionales).
+    /// Busca canciones cuyo álbum contenga `query`.
+    ///
+    /// Excepción aceptada: se filtra en memoria en vez de con `#Predicate`. `album` es
+    /// opcional y SwiftData/CoreData no sabe generar SQL para `CONTAINS[cd]` sobre una
+    /// columna opcional (ni con `$0.album!`, ni con `$0.album ?? ""`, ni con encadenado
+    /// opcional). El pre-filtro `album != nil` sí es expresable y acota la carga a las
+    /// canciones que tienen álbum antes de hacer el `contains` real.
     func searchByAlbum(query: String) throws -> [SongDTO] {
-        let predicate = #Predicate<SongDTO> {
-            $0.album != nil && $0.album!.localizedStandardContains(query)
-        }
-        let descriptor = FetchDescriptor<SongDTO>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\SongDTO.title)]
+        let withAlbum = try modelContext.fetch(
+            FetchDescriptor<SongDTO>(
+                predicate: #Predicate { $0.album != nil },
+                sortBy: [SortDescriptor(\SongDTO.title)]
+            )
         )
-        return try modelContext.fetch(descriptor)
+        return withAlbum.filter { $0.album?.localizedStandardContains(query) ?? false }
     }
 
     /// Crea una nueva canción
@@ -143,27 +141,10 @@ final class SongLocalDataSource {
         try modelContext.save()
     }
 
-    /// Actualiza una canción existente
+    /// Actualiza una canción existente copiando los campos del DTO recibido al persistido.
     func update(_ song: SongDTO) throws {
         guard let existing = try getByID(song.id) else { return }
-
-        // Copiar propiedades del DTO recibido al objeto persistido
-        existing.title = song.title
-        existing.artist = song.artist
-        existing.album = song.album
-        existing.author = song.author
-        existing.fileID = song.fileID
-        existing.isDownloaded = song.isDownloaded
-        existing.duration = song.duration
-        existing.artworkData = song.artworkData
-        existing.artworkThumbnail = song.artworkThumbnail
-        existing.artworkMediumThumbnail = song.artworkMediumThumbnail
-        existing.playCount = song.playCount
-        existing.lastPlayedAt = song.lastPlayedAt
-        existing.cachedDominantColorRed = song.cachedDominantColorRed
-        existing.cachedDominantColorGreen = song.cachedDominantColorGreen
-        existing.cachedDominantColorBlue = song.cachedDominantColorBlue
-
+        existing.apply(from: song)
         try modelContext.save()
     }
 

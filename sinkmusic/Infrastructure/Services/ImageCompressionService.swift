@@ -6,69 +6,73 @@
 //
 
 import UIKit
+import ImageIO
 
-/// Servicio para comprimir y crear thumbnails de imágenes
+/// Servicio para crear thumbnails comprimidos de artwork embebido.
+///
+/// Antes: `UIImage(data:)` decodificaba la portada a **resolución completa** (una portada
+/// 3000×3000 se decodificaba entera), y eso pasaba **dos veces** (una por tamaño), seguido
+/// de hasta 5 re-encodes JPEG por tamaño. El coste escalaba con la resolución de la portada
+/// → "unas canciones rápido, otras lento".
+///
+/// Ahora: `CGImageSourceCreateThumbnailAtIndex` con `kCGImageSourceThumbnailMaxPixelSize`
+/// decodifica **directo al tamaño objetivo** (coste independiente de la resolución de origen),
+/// y se encodea una sola vez (con un único fallback si supera el presupuesto).
 final class ImageCompressionService: ImageCompressionServiceProtocol, Sendable {
 
-    /// Crea un thumbnail pequeño optimizado para Live Activities (< 1KB)
-    /// - Parameter imageData: Datos de la imagen original
-    /// - Returns: Datos de la imagen comprimida, o nil si falla
+    /// Thumbnail pequeño para Live Activities (objetivo ≤ 1 KB, lado ≤ 32 px).
     static func createThumbnail(from imageData: Data) -> Data? {
-        guard let image = UIImage(data: imageData) else {
-            return nil
-        }
-
-        // Tamaño objetivo: 32x32 píxeles (más pequeño para cumplir límite de 1KB)
-        let targetSize = CGSize(width: 32, height: 32)
-
-        // Redimensionar la imagen
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let resizedImage = renderer.image { context in
-            image.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-
-        // Comprimir con calidad muy baja para cumplir límite de 1KB
-        // Intentar con diferentes niveles de compresión
-        let qualityLevels: [CGFloat] = [0.15, 0.1, 0.05, 0.02]
-
-        for quality in qualityLevels {
-            if let compressedData = resizedImage.jpegData(compressionQuality: quality),
-               compressedData.count <= 1024 {
-                return compressedData
-            }
-        }
-
-        // Si aún es muy grande, usar la compresión mínima
-        return resizedImage.jpegData(compressionQuality: 0.01)
+        guard let source = makeSource(imageData) else { return nil }
+        return encodedThumbnail(from: source, maxPixel: 32, budget: 1024, qualities: [0.10, 0.02])
     }
 
-    /// Crea un thumbnail de tamaño medio para vistas de lista (< 5KB)
-    /// - Parameter imageData: Datos de la imagen original
-    /// - Returns: Datos de la imagen comprimida, o nil si falla
+    /// Thumbnail mediano para filas de lista (objetivo ≤ 5 KB, lado ≤ 64 px).
     static func createMediumThumbnail(from imageData: Data) -> Data? {
-        guard let image = UIImage(data: imageData) else {
+        guard let source = makeSource(imageData) else { return nil }
+        return encodedThumbnail(from: source, maxPixel: 64, budget: 5120, qualities: [0.40, 0.15])
+    }
+
+    /// Genera ambos tamaños reutilizando el mismo `CGImageSource` (una lectura del contenedor).
+    /// Es lo que usa `MetadataService` en el pipeline de descarga.
+    static func makeThumbnails(from imageData: Data) -> (small: Data?, medium: Data?) {
+        guard let source = makeSource(imageData) else { return (nil, nil) }
+        return (
+            encodedThumbnail(from: source, maxPixel: 32, budget: 1024, qualities: [0.10, 0.02]),
+            encodedThumbnail(from: source, maxPixel: 64, budget: 5120, qualities: [0.40, 0.15])
+        )
+    }
+
+    // MARK: - Private
+
+    private static func makeSource(_ data: Data) -> CGImageSource? {
+        CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary)
+    }
+
+    /// Decodifica al tamaño objetivo y encodea a JPEG. `qualities` = [intento, fallback].
+    private static func encodedThumbnail(
+        from source: CGImageSource,
+        maxPixel: Int,
+        budget: Int,
+        qualities: [CGFloat]
+    ) -> Data? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
             return nil
         }
+        let image = UIImage(cgImage: cgImage)
 
-        // Tamaño objetivo: 64x64 píxeles (suficiente para vistas de lista que usan 56x56)
-        let targetSize = CGSize(width: 64, height: 64)
-
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let resizedImage = renderer.image { context in
-            image.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-
-        // Intentar con diferentes niveles de calidad para cumplir límite de 5KB
-        let qualityLevels: [CGFloat] = [0.5, 0.4, 0.3, 0.2]
-
-        for quality in qualityLevels {
-            if let compressedData = resizedImage.jpegData(compressionQuality: quality),
-               compressedData.count <= 5120 {
-                return compressedData
+        for (index, quality) in qualities.enumerated() {
+            guard let data = image.jpegData(compressionQuality: quality) else { continue }
+            // El último de la lista es el fallback: se devuelve aunque exceda el presupuesto.
+            if data.count <= budget || index == qualities.count - 1 {
+                return data
             }
         }
-
-        // Si aún es muy grande, usar compresión baja
-        return resizedImage.jpegData(compressionQuality: 0.15)
+        return nil
     }
 }

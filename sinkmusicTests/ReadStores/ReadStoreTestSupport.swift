@@ -21,37 +21,72 @@ enum ReadStoreTestSupport {
     /// crashes reportados en esta suite — no un bug de SwiftData con `@Attribute(.unique)`.
     static func makeInMemoryContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try ModelContainer(for: SongDTO.self, PlaylistDTO.self, configurations: config)
+        return try ModelContainer(
+            for: AppSchemaV1.schema,
+            migrationPlan: AppMigrationPlan.self,
+            configurations: config
+        )
     }
 
     static func makeSongLocalDataSource(_ context: ModelContext) -> SongLocalDataSource {
         SongLocalDataSource(modelContext: context)
     }
 
-    static func makeSongRepository(_ context: ModelContext) -> SongRepositoryProtocol {
-        SongRepositoryImpl(localDataSource: makeSongLocalDataSource(context))
+    /// Ranking de Inicio sobre el mismo contenedor SwiftData en memoria del test.
+    static func makeRankingWindowRepository(_ context: ModelContext) -> RankingWindowRepositoryProtocol {
+        RankingWindowRepositoryImpl(dataSource: RankingWindowLocalDataSource(modelContext: context))
     }
 
-    static func makePlaylistRepository(_ context: ModelContext) -> PlaylistRepositoryProtocol {
+    static func makeSongRepository(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol? = nil
+    ) -> SongRepositoryProtocol {
+        SongRepositoryImpl(
+            localDataSource: makeSongLocalDataSource(context),
+            rankingWindowRepository: ranking ?? makeRankingWindowRepository(context)
+        )
+    }
+
+    static func makePlaylistRepository(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol? = nil
+    ) -> PlaylistRepositoryProtocol {
         PlaylistRepositoryImpl(
             localDataSource: PlaylistLocalDataSource(modelContext: context),
-            songRepository: makeSongRepository(context),
+            songRepository: makeSongRepository(context, ranking: ranking),
             songLocalDataSource: makeSongLocalDataSource(context)
         )
     }
 
-    static func makeLibraryUseCases(_ context: ModelContext) -> LibraryUseCases {
+    static func makeLibraryUseCases(
+        _ context: ModelContext,
+        ranking: RankingWindowRepositoryProtocol? = nil
+    ) -> LibraryUseCases {
         LibraryUseCases(
+            songRepository: makeSongRepository(context, ranking: ranking),
+            cloudStorageRepository: MockCloudStorageRepository(),
+            credentialsRepository: MockCredentialsRepository(),
+            playlistRepository: makePlaylistRepository(context, ranking: ranking)
+        )
+    }
+
+    static func makeDownloadUseCases(_ context: ModelContext) -> DownloadUseCases {
+        DownloadUseCases(
             songRepository: makeSongRepository(context),
             cloudStorageRepository: MockCloudStorageRepository(),
-            credentialsRepository: MockCredentialsRepository()
+            metadataRepository: MockMetadataRepository(),
+            credentialsRepository: MockCredentialsRepository(),
+            eventBus: MockEventBus()
         )
     }
 
     static func makePlaylistUseCases(_ context: ModelContext) -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: makePlaylistRepository(context),
-            songRepository: makeSongRepository(context)
+            songRepository: makeSongRepository(context),
+            // Mock explícito: evita que estos tests dependan de UserDefaults real
+            // (que persiste entre corridas) para la curaduría de playlists en Inicio.
+            homePlaylistLayoutRepository: MockHomePlaylistLayoutRepository()
         )
     }
 

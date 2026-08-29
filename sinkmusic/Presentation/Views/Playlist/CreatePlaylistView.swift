@@ -20,8 +20,11 @@ struct CreatePlaylistView: View {
     @State private var selectedImage: PhotosPickerItem?
     @State private var coverImageData: Data?
     @State private var cachedCoverImage: UIImage?
-    /// Retrasar el PhotosPicker al abrir el modal para evitar tocar la sesión de audio (la sesión se configura solo en AudioPlayerService).
-    @State private var showCoverPicker = false
+    /// El `PHPicker` inicializa PhotoKit al aparecer y eso reconfigura la `AVAudioSession`
+    /// compartida (sample rate / IO buffer / ruta) por debajo del engine que está sonando →
+    /// crujido. Con el modificador `.photosPicker(isPresented:)` solo se monta cuando el
+    /// usuario toca el recuadro, no al abrir el modal.
+    @State private var showPhotoPicker = false
     /// Índice para uno de los 10 colores del placeholder (fondo con icono de música).
     @State private var placeholderColorIndex = 0
 
@@ -32,16 +35,16 @@ struct CreatePlaylistView: View {
 
                 ScrollView {
                     VStack(spacing: 24) {
-                        if showCoverPicker {
-                            CoverImagePickerContent(
-                                selectedImage: $selectedImage,
-                                coverImageData: $coverImageData,
-                                cachedCoverImage: $cachedCoverImage,
-                                placeholderColorIndex: placeholderColorIndex
+                        Button {
+                            showPhotoPicker = true
+                        } label: {
+                            CoverImagePlaceholder(
+                                cachedImage: cachedCoverImage,
+                                isLoading: coverImageData != nil,
+                                gradient: PlaylistPlaceholderColors.gradient(at: placeholderColorIndex)
                             )
-                        } else {
-                            CoverImagePlaceholder(cachedImage: nil, isLoading: false, gradient: PlaylistPlaceholderColors.gradient(at: placeholderColorIndex))
                         }
+                        .buttonStyle(.plain)
 
                         // Text Fields
                         VStack(spacing: 16) {
@@ -106,9 +109,17 @@ struct CreatePlaylistView: View {
             }
             .onAppear {
                 placeholderColorIndex = Int.random(in: 0..<15)
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(280))
-                    showCoverPicker = true
+            }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedImage, matching: .images)
+            .onChange(of: selectedImage) { _, newValue in
+                Task.detached(priority: .userInitiated) {
+                    if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                        let image = UIImage(data: data)
+                        await MainActor.run {
+                            coverImageData = data
+                            cachedCoverImage = image
+                        }
+                    }
                 }
             }
         }
@@ -129,34 +140,6 @@ struct CreatePlaylistView: View {
             }
 
             dismiss()
-        }
-    }
-}
-
-// MARK: - Cover image picker (subvista @MainActor; lee estado en body y pasa snapshot al closure)
-@MainActor
-private struct CoverImagePickerContent: View {
-    @Binding var selectedImage: PhotosPickerItem?
-    @Binding var coverImageData: Data?
-    @Binding var cachedCoverImage: UIImage?
-    var placeholderColorIndex: Int = 0
-
-    var body: some View {
-        let cached = cachedCoverImage
-        let isLoading = coverImageData != nil
-        PhotosPicker(selection: $selectedImage, matching: .images) {
-            CoverImagePlaceholder(cachedImage: cached, isLoading: isLoading, gradient: PlaylistPlaceholderColors.gradient(at: placeholderColorIndex))
-        }
-        .onChange(of: selectedImage) { _, newValue in
-            Task.detached(priority: .userInitiated) {
-                if let data = try? await newValue?.loadTransferable(type: Data.self) {
-                    let image = UIImage(data: data)
-                    await MainActor.run {
-                        coverImageData = data
-                        cachedCoverImage = image
-                    }
-                }
-            }
         }
     }
 }

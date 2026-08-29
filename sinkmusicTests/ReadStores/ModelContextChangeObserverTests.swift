@@ -86,4 +86,43 @@ final class ModelContextChangeObserverTests: XCTestCase {
         let received = await task.value
         XCTAssertEqual(received, 0)
     }
+
+    // MARK: - suspend() / resume()  (usado por "Descargar todo" vía ReactiveReloadGate)
+
+    func test_suspend_buffersChanges_thenEmitsOnceOnResume() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        let observer = ModelContextChangeObserver(modelContext: context, relevantEntityNames: ["SongDTO"])
+        let stream = observer.stream()
+
+        let task = Task { await collectSignals(from: stream, count: 5, timeoutMS: 400) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        observer.suspend()
+        for _ in 0..<4 {
+            try ReadStoreTestSupport.insertSong(context)
+        }
+        try await Task.sleep(nanoseconds: 200_000_000) // ninguna señal mientras está suspendido
+
+        observer.resume()
+
+        let received = await task.value
+        XCTAssertEqual(received, 1, "los cambios suspendidos deben colapsar en una sola señal")
+    }
+
+    func test_resume_withNoChanges_doesNotEmit() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        let observer = ModelContextChangeObserver(modelContext: context, relevantEntityNames: ["SongDTO"])
+        let stream = observer.stream()
+
+        let task = Task { await collectSignals(from: stream, count: 1, timeoutMS: 200) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        observer.suspend()
+        observer.resume()
+
+        let received = await task.value
+        XCTAssertEqual(received, 0)
+    }
 }
