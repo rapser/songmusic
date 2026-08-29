@@ -31,8 +31,10 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     // State flags con sincronización
     private var isFirstConnection = true
     private var currentScheduleID = UUID()
-    private var wasPlayingBeforeInterruption = false
     private var seekOffset: TimeInterval = 0
+
+    /// Reacción a interrupciones de `AVAudioSession` (llamadas, Siri, otra app).
+    private let interruptions: AudioInterruptionObserver
 
     // MARK: - Now Playing
 
@@ -58,12 +60,13 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         self.eq = AVAudioUnitEQ(numberOfBands: 6)
         self.mixerNode = AVAudioMixerNode()
         self.nowPlaying = NowPlayingCenter(eventBus: eventBus)
+        self.interruptions = AudioInterruptionObserver(eventBus: eventBus)
 
         super.init()
         setupAudioSession()
         setupAudioEngine()
         nowPlaying.setupRemoteCommands()
-        setupInterruptionHandling()
+        interruptions.start(delegate: self)
     }
 
     private func setupAudioSession() {
@@ -409,68 +412,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
     // MARK: - Interruption Handling
 
-    deinit {
-        NotificationCenter.default.removeObserver(
-            self,
-            name: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance()
-        )
-    }
-
-    private func setupInterruptionHandling() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAudioSessionInterruption),
-            name: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance()
-        )
-    }
-
-    @objc nonisolated private func handleAudioSessionInterruption(notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
-
-        let shouldResumeIfEnded: Bool? = {
-            guard type == .ended else { return nil }
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                return AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume)
-            }
-            return true
-        }()
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            switch type {
-            case .began:
-                if self.playerNode.isPlaying {
-                    self.wasPlayingBeforeInterruption = true
-                    self.pause()
-                }
-
-            case .ended:
-                guard self.wasPlayingBeforeInterruption, shouldResumeIfEnded == true else {
-                    self.wasPlayingBeforeInterruption = false
-                    return
-                }
-                try? await Task.sleep(for: .seconds(1))
-                guard let songID = self.currentlyPlayingID else { return }
-                // Reutiliza `resume()` para heredar el orden correcto del motor y el
-                // refresco de Now Playing, en vez de repetir la secuencia a mano.
-                if !self.resume() {
-                    self.eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
-                }
-                self.wasPlayingBeforeInterruption = false
-
-            @unknown default:
-                break
-            }
-        }
-    }
-
     /// Fija la metadata de la canción actual. Se llama una vez por canción, no en cada tick.
     func setNowPlayingMetadata(title: String, artist: String, album: String?, duration: TimeInterval, artwork: Data?) {
         nowPlaying.setMetadata(
@@ -494,4 +435,13 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private func clearNowPlaying() {
         nowPlaying.clear()
     }
+}
+
+// MARK: - AudioInterruptionDelegate
+
+extension AudioPlayerService: AudioInterruptionDelegate {
+    var currentSongID: UUID? { currentlyPlayingID }
+    func pauseForInterruption() { pause() }
+    @discardableResult
+    func resumeAfterInterruption() -> Bool { resume() }
 }
