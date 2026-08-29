@@ -51,7 +51,10 @@ struct sinkmusicApp: App {
         // pueda necesitar DIContainer.shared (p.ej. background URL sessions).
         container = DIContainer.createShared()
         do {
-            modelContainer = try ModelContainer(for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self)
+            modelContainer = try ModelContainer(
+                for: AppSchemaV1.schema,
+                migrationPlan: AppMigrationPlan.self
+            )
             modelContainerError = nil
         } catch {
             // Antes: `fatalError` → crash-loop al arrancar. Ahora se muestra `StorageErrorView`.

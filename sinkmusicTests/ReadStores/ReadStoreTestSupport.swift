@@ -21,7 +21,11 @@ enum ReadStoreTestSupport {
     /// crashes reportados en esta suite — no un bug de SwiftData con `@Attribute(.unique)`.
     static func makeInMemoryContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try ModelContainer(for: SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self, configurations: config)
+        return try ModelContainer(
+            for: AppSchemaV1.schema,
+            migrationPlan: AppMigrationPlan.self,
+            configurations: config
+        )
     }
 
     static func makeSongLocalDataSource(_ context: ModelContext) -> SongLocalDataSource {
