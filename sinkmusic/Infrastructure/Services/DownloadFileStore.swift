@@ -9,7 +9,9 @@ import Foundation
 
 /// Implementación de `DownloadFileStoreProtocol` sobre `FileManager`.
 /// Único punto de la app que conoce la ruta `Documents/Music/<uuid>.m4a`.
-final class DownloadFileStore: DownloadFileStoreProtocol {
+/// No tiene estado: todo son constantes de tipo y rutas derivadas, así que conforma a
+/// `Sendable` sin `@unchecked` — el compilador puede comprobarlo solo.
+final class DownloadFileStore: DownloadFileStoreProtocol, Sendable {
 
     private static let musicFolderName = "Music"
     private static let fileExtension = "m4a"
@@ -37,5 +39,3 @@ final class DownloadFileStore: DownloadFileStoreProtocol {
     }
 }
 
-// FileManager es thread-safe para estas operaciones de solo-lectura de rutas.
-extension DownloadFileStore: @unchecked Sendable {}

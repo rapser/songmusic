@@ -44,4 +44,7 @@ final class PlaybackStateRepositoryImpl: PlaybackStateRepositoryProtocol {
 
 // MARK: - Sendable Conformance
 
+// `@unchecked` por `UserDefaults`, que es thread-safe por documentación pero no está
+// anotado `NS_SWIFT_SENDABLE` en Foundation, así que el compilador no puede verificarlo.
+// El resto del tipo es inmutable.
 extension PlaybackStateRepositoryImpl: @unchecked Sendable {}

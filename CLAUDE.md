@@ -78,6 +78,33 @@ Cualquier lógica de Auth nueva va aquí, no repartida por las capas.
 
 ## Deuda técnica conocida
 
-Ver `/Users/rapser/.claude/plans/necesito-que-en-base-memoized-charm.md` (auditoría completa
-con plan priorizado). Refactors grandes pendientes: cascada de reactividad, `SongUI` sin
-trabajo pesado, partir `AudioPlayerService` y los ViewModels grandes, `songOrder` → entidad.
+Resumen inline y no un enlace: la auditoría anterior vivía en un archivo fuera del repo que
+acabó desapareciendo, dejando esta sección apuntando a una ruta muerta.
+
+**El problema grande — fan-out del read-side.** Hay cuatro `ModelContextChangeObserver`
+sobre el mismo `ModelContext`, cada uno con su debounce de 120 ms, y `SongDTO` lo vigilan
+los cuatro. Un solo `save()` recarga Inicio, Biblioteca, Playlists y Búsqueda enteras:
+≈13-15 fetches en el main actor. El disparador más caliente es `incrementPlayCount`, o sea
+**dar al play**. Vías de ataque, de menor a mayor riesgo: sacar `playCount` de `SongDTO` a
+una entidad propia (mismo patrón que `RankingWindowEntryDTO`, aditivo y seguro), unificar
+los cuatro observers en uno con señal tipada por entidad, y por último SwiftData History
+(`fetchHistory`, iOS 18+) para saber *qué* cambió en vez de *que algo* cambió.
+
+**Caminos duplicados.** Cada dato se recarga hasta por tres vías: recarga imperativa tras
+mutar, señal `changes()` ~120 ms después, y `.task`/`.onAppear` de la vista. `BulkReloadGate`
+existe y funciona pero solo se usa en `DownloadViewModel.downloadMultiple`.
+
+**Responsabilidades.** `AudioPlayerService` (657 L, el EQ no pinta ahí), `DownloadViewModel`
+(426 L, instancia su propio `DownloadQueueManager` en vez de recibirlo del DI),
+`PlayerViewModel` (414 L, con el algoritmo de cola/shuffle/repeat que es lógica de dominio),
+`SettingsUseCases` (274 L, 19 funcs de tres features distintas). El modelo a seguir está en
+`Features/Auth`: Strategy + Factory + Facade + State.
+
+**Main actor.** `SongMapper.toUI` extrae el color dominante decodificando la imagen y
+muestreando píxeles, una vez por fila de cada lista mientras `dominantColor` sea `nil`.
+`MetadataCacheViewModel` decodifica el artwork a tamaño completo, dos veces por canción.
+
+**Reactividad — decidido, no revisar sin motivo.** `Observations` (SE-0475) es iOS 26+ y el
+target es iOS 18, así que no es una alternativa; además observa *estado* y fusiona cambios
+de la misma transacción, por lo que no sirve para eventos discretos como `songFinished`.
+El `EventBus` sobre `AsyncStream` es la herramienta correcta aquí.
