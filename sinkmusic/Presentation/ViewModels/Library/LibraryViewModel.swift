@@ -70,15 +70,30 @@ final class LibraryViewModel {
         (try? await libraryUseCases.getSongByID(songID))?.artworkData
     }
 
-    /// Persiste el color dominante calculado del artwork (solo cuando aún no está guardado).
-    /// La primera vez se calcula y guarda; en siguientes cargas la lista usará el color guardado.
+    /// Calcula y persiste el color dominante de una canción que todavía no lo tiene.
+    ///
+    /// Desde que el color se calcula al ingerir (`MetadataService`), esto solo hace falta
+    /// para las canciones que ya estaban en la biblioteca antes: un relleno perezoso, una
+    /// vez por canción y solo cuando se abre su reproductor.
+    ///
+    /// El análisis va en `Task.detached`: decodificar y muestrear la imagen no tiene por
+    /// qué bloquear el main actor, que es justo donde está la animación de apertura del
+    /// reproductor.
     func persistDominantColorIfNeeded(songID: UUID, artworkData: Data?) async {
-        guard let artworkData = artworkData,
-              let rgb = Color.dominantColorRGB(from: artworkData) else { return }
+        guard let artworkData else { return }
+
+        let rgb = await Task.detached(priority: .utility) {
+            DominantColorService.extract(from: artworkData)
+        }.value
+
+        guard let rgb else { return }
+
         do {
-            try await libraryUseCases.updateDominantColor(songID: songID, red: rgb.r, green: rgb.g, blue: rgb.b)
+            try await libraryUseCases.updateDominantColor(
+                songID: songID, red: rgb.red, green: rgb.green, blue: rgb.blue
+            )
             if let idx = songs.firstIndex(where: { $0.id == songID }) {
-                songs[idx] = songs[idx].with(dominantColor: Color(red: rgb.r, green: rgb.g, blue: rgb.b))
+                songs[idx] = songs[idx].with(dominantColor: Color(rgb))
             }
         } catch {
             logger.error("Error al guardar color dominante: \(error)")

@@ -100,7 +100,8 @@ final class DownloadUseCasesTests: XCTestCase {
             duration: 210,
             artwork: nil,
             artworkThumbnail: nil,
-            artworkMediumThumbnail: nil
+            artworkMediumThumbnail: nil,
+            dominantColor: nil
         )
 
         try await sut.downloadSong(song.id)
@@ -120,7 +121,8 @@ final class DownloadUseCasesTests: XCTestCase {
             duration: 180,
             artwork: nil,
             artworkThumbnail: nil,
-            artworkMediumThumbnail: nil
+            artworkMediumThumbnail: nil,
+            dominantColor: nil
         )
 
         try await sut.downloadSong(song.id)

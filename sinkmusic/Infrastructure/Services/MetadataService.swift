@@ -103,10 +103,15 @@ final class MetadataService: MetadataServiceProtocol {
         // Downsampling al decodificar: coste independiente de la resolución de la portada.
         var thumbnail: Data?
         var mediumThumbnail: Data?
+        var dominantColor: RGBColor?
         if let artworkData = artwork {
             let thumbs = ImageCompressionService.makeThumbnails(from: artworkData)
             thumbnail = thumbs.small
             mediumThumbnail = thumbs.medium
+
+            // El color de fondo del reproductor, aquí y no en la UI: se calcula sobre el
+            // thumbnail ya hecho, una vez por canción y fuera del main actor.
+            dominantColor = DominantColorService.extract(from: thumbs.medium ?? artworkData)
         }
 
         return SongMetadata(
@@ -117,7 +122,8 @@ final class MetadataService: MetadataServiceProtocol {
             duration: durationSeconds,
             artwork: artwork,
             artworkThumbnail: thumbnail,
-            artworkMediumThumbnail: mediumThumbnail
+            artworkMediumThumbnail: mediumThumbnail,
+            dominantColor: dominantColor
         )
     }
 

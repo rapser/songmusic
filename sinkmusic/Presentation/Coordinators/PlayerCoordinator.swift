@@ -66,9 +66,11 @@ final class PlayerCoordinator {
 
         guard artworkLoadedSongID != id else { return }
 
-        metadataViewModel.cacheArtwork(from: nil, thumbnail: song.artworkSmallThumbnail ?? song.artworkThumbnail)
+        // El thumbnail primero, para que el mini player tenga algo que pintar ya; la
+        // carátula grande después, que necesita ir a disco.
+        metadataViewModel.cacheThumbnail(from: song.artworkSmallThumbnail ?? song.artworkThumbnail)
         let fullArtwork = await libraryViewModel.getArtworkData(songID: id)
-        metadataViewModel.cacheArtwork(from: fullArtwork, thumbnail: song.artworkSmallThumbnail ?? song.artworkThumbnail)
+        await metadataViewModel.cacheFullArtwork(from: fullArtwork)
         artworkLoadedSongID = id
     }
 }
