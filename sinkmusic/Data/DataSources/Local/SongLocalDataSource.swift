@@ -177,38 +177,5 @@ final class SongLocalDataSource {
         try modelContext.save()
     }
 
-    /// Actualiza metadata de una canción
-    func updateMetadata(
-        for id: UUID,
-        duration: TimeInterval?,
-        artworkData: Data?,
-        artworkThumbnail: Data?,
-        artworkMediumThumbnail: Data?,
-        album: String?,
-        author: String?
-    ) throws {
-        guard let song = try getByID(id) else { return }
-
-        if let duration = duration {
-            song.duration = duration
-        }
-        if let artworkData = artworkData {
-            song.artworkData = artworkData
-        }
-        if let artworkThumbnail = artworkThumbnail {
-            song.artworkThumbnail = artworkThumbnail
-        }
-        if let artworkMediumThumbnail = artworkMediumThumbnail {
-            song.artworkMediumThumbnail = artworkMediumThumbnail
-        }
-        if let album = album {
-            song.album = album
-        }
-        if let author = author {
-            song.author = author
-        }
-
-        try modelContext.save()
-    }
 
 }

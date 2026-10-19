@@ -14,11 +14,18 @@ final class HomeReadStore: HomeReadStoreProtocol {
 
     private let libraryUseCases: LibraryUseCases
     private let playlistUseCases: PlaylistUseCases
+    private let homeLayoutUseCases: HomePlaylistLayoutUseCases
     private let observer: ModelContextChangeObserver
 
-    init(libraryUseCases: LibraryUseCases, playlistUseCases: PlaylistUseCases, modelContext: ModelContext) {
+    init(
+        libraryUseCases: LibraryUseCases,
+        playlistUseCases: PlaylistUseCases,
+        homeLayoutUseCases: HomePlaylistLayoutUseCases,
+        modelContext: ModelContext
+    ) {
         self.libraryUseCases = libraryUseCases
         self.playlistUseCases = playlistUseCases
+        self.homeLayoutUseCases = homeLayoutUseCases
         self.observer = ModelContextChangeObserver(
             modelContext: modelContext,
             // `SongPlayStatsDTO` porque Inicio es la única pantalla que muestra algo
@@ -29,7 +36,7 @@ final class HomeReadStore: HomeReadStoreProtocol {
     }
 
     func playlists() async throws -> [Playlist] {
-        try await playlistUseCases.getHomePlaylistLayout().shown
+        try await homeLayoutUseCases.getHomePlaylistLayout().shown
     }
 
     func mostPlayedPlaylists(limit: Int) async throws -> [Playlist] {

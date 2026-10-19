@@ -89,7 +89,11 @@ final class ReactiveFlowTests: XCTestCase {
         try ReadStoreTestSupport.insertSong(context, title: "Existing")
 
         let searchUseCases = ReadStoreTestSupport.makeSearchUseCases(context)
-        let readStore = SearchReadStore(searchUseCases: searchUseCases, modelContext: context)
+        let readStore = SearchReadStore(
+            searchUseCases: searchUseCases,
+            aggregationUseCases: ReadStoreTestSupport.makeAggregationUseCases(context),
+            modelContext: context
+        )
         let viewModel = SearchViewModel(readStore: readStore)
 
         await viewModel.search()

@@ -17,6 +17,7 @@ final class HomeReadStoreTests: XCTestCase {
         HomeReadStore(
             libraryUseCases: ReadStoreTestSupport.makeLibraryUseCases(context, ranking: ranking),
             playlistUseCases: ReadStoreTestSupport.makePlaylistUseCases(context),
+            homeLayoutUseCases: ReadStoreTestSupport.makeHomeLayoutUseCases(context),
             modelContext: context
         )
     }

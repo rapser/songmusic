@@ -29,9 +29,6 @@ protocol EventBusProtocol: AnyObject, Sendable {
 
     // MARK: - Emit Events
 
-    /// Emitir evento de autenticación
-    func emit(_ event: AuthEvent)
-
     /// Emitir evento de reproducción
     func emit(_ event: PlaybackEvent)
 
@@ -39,9 +36,6 @@ protocol EventBusProtocol: AnyObject, Sendable {
     func emit(_ event: DownloadEvent)
 
     // MARK: - AsyncStream Factories
-
-    /// Stream de eventos de autenticación
-    func authEvents() -> AsyncStream<AuthEvent>
 
     /// Stream de eventos de reproducción
     func playbackEvents() -> AsyncStream<PlaybackEvent>

@@ -22,6 +22,10 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
 
     var shouldThrowOnFetch = false
     var shouldThrowOnDownload = false
+
+    /// Error concreto a lanzar en `download`. Sirve para ejercitar caminos que dependen del
+    /// tipo de error, como el límite de cuota de Mega.
+    var errorOnDownload: Error?
     var shouldThrowOnDelete = false
 
     func fetchSongsFromFolder() async throws -> [CloudFile] {
@@ -31,6 +35,7 @@ final class MockCloudStorageRepository: CloudStorageRepositoryProtocol {
     }
 
     func download(fileID: String, songID: UUID) async throws -> URL {
+        if let errorOnDownload { throw errorOnDownload }
         if shouldThrowOnDownload { throw CloudStorageError.downloadFailed(SongError.fileNotFound) }
         downloadCallCount += 1
         lastDownloadedSongID = songID

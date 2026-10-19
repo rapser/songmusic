@@ -138,13 +138,25 @@ final class DownloadViewModelTests: XCTestCase {
         downloadTask.cancel()
     }
 
-    func test_eventBus_quotaExceeded_showsAlert() async {
-        let resetDate = Date(timeIntervalSinceNow: 3600)
-        mockEventBus.emit(.quotaExceeded(provider: "mega", resetTime: resetDate))
-        try? await Task.sleep(for: .milliseconds(50))
+    /// El camino real: Mega devuelve un rate limit durante la descarga.
+    ///
+    /// Antes esto se probaba emitiendo `.quotaExceeded` en el bus, un evento que el propio
+    /// ViewModel emitía y consumía. Al quitar ese round-trip, el test pasa a ejercitar lo
+    /// que de verdad ocurre.
+    func test_download_whenMegaRateLimits_showsAlertAndRemembersTheBackoff() async {
+        mockCredentials.selectedProvider = .mega
+        let song = Song.make(isDownloaded: false)
+        mockSongRepo.songs = [song]
+        mockCloudStorage.errorOnDownload = MegaError.rateLimitExceeded(retryAfter: 1800)
+
+        await sut.download(songID: song.id)
 
         XCTAssertTrue(sut.showQuotaAlert)
+        XCTAssertEqual(sut.quotaExceededProvider, .mega)
         XCTAssertNotNil(sut.quotaResetTime)
+        XCTAssertNotNil(sut.downloadError)
+        let backoffIsShared = await queueManager.isQuotaExceeded(for: .mega)
+        XCTAssertTrue(backoffIsShared, "El backoff queda en la cola compartida, no solo en la pantalla")
     }
 
     // MARK: - dismissQuotaAlert()
@@ -170,9 +182,9 @@ final class DownloadViewModelTests: XCTestCase {
     }
 
     func test_dismissQuotaAlert_hidesAlert() async {
-        let resetDate = Date(timeIntervalSinceNow: 3600)
-        mockEventBus.emit(.quotaExceeded(provider: "mega", resetTime: resetDate))
-        try? await Task.sleep(for: .milliseconds(50))
+        await queueManager.markQuotaExceeded(provider: .googleDrive, retryAfter: 3600)
+        await sut.download(songID: UUID())
+        XCTAssertTrue(sut.showQuotaAlert)
 
         sut.dismissQuotaAlert()
 

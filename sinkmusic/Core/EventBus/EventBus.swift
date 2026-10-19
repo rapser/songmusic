@@ -51,18 +51,8 @@ final class EventBus: EventBusProtocol {
 
     // MARK: - Stream Continuations
 
-    private var authEventContinuations: [UUID: AsyncStream<AuthEvent>.Continuation] = [:]
     private var playbackEventContinuations: [UUID: AsyncStream<PlaybackEvent>.Continuation] = [:]
     private var downloadEventContinuations: [UUID: AsyncStream<DownloadEvent>.Continuation] = [:]
-
-    // MARK: - Emit Auth Events
-
-    /// Emitir evento de autenticación
-    func emit(_ event: AuthEvent) {
-        for (_, continuation) in authEventContinuations {
-            continuation.yield(event)
-        }
-    }
 
     // MARK: - Emit Playback Events
 
@@ -93,20 +83,6 @@ final class EventBus: EventBusProtocol {
     //
     // `onTermination` sí queda diferido: lo invoca el runtime desde cualquier hilo y solo
     // limpia el diccionario, así que llegar tarde es inofensivo.
-
-    /// Stream de eventos de autenticación
-    /// - Returns: AsyncStream que emite AuthEvent
-    func authEvents() -> AsyncStream<AuthEvent> {
-        let id = UUID()
-        let (stream, continuation) = AsyncStream<AuthEvent>.makeStream()
-        authEventContinuations[id] = continuation
-        continuation.onTermination = { @Sendable [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.authEventContinuations.removeValue(forKey: id)
-            }
-        }
-        return stream
-    }
 
     /// Stream de eventos de reproducción
     /// - Returns: AsyncStream que emite PlaybackEvent
@@ -148,9 +124,6 @@ final class EventBus: EventBusProtocol {
     /// Reset all state (for testing only)
     func reset() {
         // Finish all streams
-        for (_, continuation) in authEventContinuations {
-            continuation.finish()
-        }
         for (_, continuation) in playbackEventContinuations {
             continuation.finish()
         }
@@ -158,7 +131,6 @@ final class EventBus: EventBusProtocol {
             continuation.finish()
         }
 
-        authEventContinuations.removeAll()
         playbackEventContinuations.removeAll()
         downloadEventContinuations.removeAll()
     }

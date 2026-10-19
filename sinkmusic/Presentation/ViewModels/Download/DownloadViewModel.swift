@@ -148,12 +148,6 @@ final class DownloadViewModel: EventBusObservable {
 
         case .queued(let songID, let position):
             logger.debug("Canción en cola (posición \(position)): \(songID)")
-
-        case .quotaExceeded(let provider, let resetTime):
-            quotaExceededProvider = CloudStorageProvider(rawValue: provider)
-            quotaResetTime = resetTime
-            showQuotaAlert = true
-            logger.warning("Cuota excedida para \(provider). Reset: \(resetTime)")
         }
     }
 
@@ -243,11 +237,6 @@ final class DownloadViewModel: EventBusObservable {
                 showQuotaAlert = true
                 let failure = DownloadFailure(error: megaError)
                 downloadError = failure.kind.userMessage + (failure.message.isEmpty || failure.message == failure.kind.userMessage ? "" : " (\(failure.message))")
-
-                eventBus.emit(DownloadEvent.quotaExceeded(
-                    provider: provider.rawValue,
-                    resetTime: Date().addingTimeInterval(retryAfter)
-                ))
 
                 // Borrar todo lo que esté en memoria: cancelar todas las descargas y vaciar progreso
                 clearAllTasksAndProgress()

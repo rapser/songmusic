@@ -89,15 +89,25 @@ enum ReadStoreTestSupport {
     static func makePlaylistUseCases(_ context: ModelContext) -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: makePlaylistRepository(context),
-            songRepository: makeSongRepository(context),
-            // Mock explícito: evita que estos tests dependan de UserDefaults real
-            // (que persiste entre corridas) para la curaduría de playlists en Inicio.
-            homePlaylistLayoutRepository: MockHomePlaylistLayoutRepository()
+            songRepository: makeSongRepository(context)
         )
     }
 
     static func makeSearchUseCases(_ context: ModelContext) -> SearchUseCases {
         SearchUseCases(songRepository: makeSongRepository(context))
+    }
+
+    static func makeAggregationUseCases(_ context: ModelContext) -> LibraryAggregationUseCases {
+        LibraryAggregationUseCases(songRepository: makeSongRepository(context))
+    }
+
+    static func makeHomeLayoutUseCases(_ context: ModelContext) -> HomePlaylistLayoutUseCases {
+        // Mock explícito: evita que estos tests dependan del UserDefaults real
+        // (que persiste entre corridas) para la curaduría de playlists en Inicio.
+        HomePlaylistLayoutUseCases(
+            playlistRepository: makePlaylistRepository(context),
+            homePlaylistLayoutRepository: MockHomePlaylistLayoutRepository()
+        )
     }
 
     /// Canción tal como la guardaba la versión anterior: el contador en los campos de

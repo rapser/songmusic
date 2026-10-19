@@ -91,7 +91,7 @@ final class DIContainer {
 
     /// Facade de autenticación (interno - no exponer directamente)
     private lazy var authFacade: AuthFacade = {
-        AuthFacade(strategy: authStrategy, eventBus: eventBus)
+        AuthFacade(strategy: authStrategy)
     }()
 
     /// ViewModel de autenticación (único punto de acceso público)
@@ -135,6 +135,17 @@ final class DIContainer {
 
     private(set) lazy var searchUseCases: SearchUseCases = makeSearchUseCases()
 
+    /// Curaduría de Inicio: qué playlists se ven y en qué orden. Fuera del CRUD de playlists.
+    private(set) lazy var homePlaylistLayoutUseCases = HomePlaylistLayoutUseCases(
+        playlistRepository: playlistRepository,
+        homePlaylistLayoutRepository: homePlaylistLayoutRepository
+    )
+
+    /// Artistas, álbumes y sus conteos. Los consume Inicio y los filtros, no la Búsqueda.
+    private(set) lazy var libraryAggregationUseCases = LibraryAggregationUseCases(
+        songRepository: songRepository
+    )
+
     private(set) lazy var downloadUseCases: DownloadUseCases = makeDownloadUseCases()
 
     private(set) lazy var cloudCredentialsUseCases: CloudCredentialsUseCases = CloudCredentialsUseCases(
@@ -155,6 +166,7 @@ final class DIContainer {
     private(set) lazy var homeReadStore: HomeReadStoreProtocol = HomeReadStore(
         libraryUseCases: libraryUseCases,
         playlistUseCases: playlistUseCases,
+        homeLayoutUseCases: homePlaylistLayoutUseCases,
         modelContext: requireModelContext()
     )
 
@@ -170,6 +182,7 @@ final class DIContainer {
 
     private(set) lazy var searchReadStore: SearchReadStoreProtocol = SearchReadStore(
         searchUseCases: searchUseCases,
+        aggregationUseCases: libraryAggregationUseCases,
         modelContext: requireModelContext()
     )
 
@@ -274,8 +287,7 @@ final class DIContainer {
     private func makePlaylistUseCases() -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: playlistRepository,
-            songRepository: songRepository,
-            homePlaylistLayoutRepository: homePlaylistLayoutRepository
+            songRepository: songRepository
         )
     }
 
@@ -328,7 +340,7 @@ final class DIContainer {
 
     /// Factory para HomePlaylistLayoutViewModel (pantalla "Editar inicio")
     func makeHomePlaylistLayoutViewModel() -> HomePlaylistLayoutViewModel {
-        HomePlaylistLayoutViewModel(playlistUseCases: playlistUseCases)
+        HomePlaylistLayoutViewModel(homeLayoutUseCases: homePlaylistLayoutUseCases)
     }
 
     /// Factory para SearchViewModel

@@ -38,6 +38,7 @@ final class ReadStoreFanOutTests: XCTestCase {
             home: HomeReadStore(
                 libraryUseCases: ReadStoreTestSupport.makeLibraryUseCases(context),
                 playlistUseCases: ReadStoreTestSupport.makePlaylistUseCases(context),
+                homeLayoutUseCases: ReadStoreTestSupport.makeHomeLayoutUseCases(context),
                 modelContext: context
             ),
             library: LibraryReadStore(
@@ -50,6 +51,7 @@ final class ReadStoreFanOutTests: XCTestCase {
             ),
             search: SearchReadStore(
                 searchUseCases: ReadStoreTestSupport.makeSearchUseCases(context),
+                aggregationUseCases: ReadStoreTestSupport.makeAggregationUseCases(context),
                 modelContext: context
             )
         )

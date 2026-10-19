@@ -188,26 +188,6 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         try localDataSource.updateDownloadStatus(for: id, isDownloaded: isDownloaded)
     }
 
-    func updateMetadata(
-        for id: UUID,
-        duration: TimeInterval?,
-        artworkData: Data?,
-        artworkThumbnail: Data?,
-        artworkMediumThumbnail: Data?,
-        album: String?,
-        author: String?
-    ) async throws {
-        try localDataSource.updateMetadata(
-            for: id,
-            duration: duration,
-            artworkData: artworkData,
-            artworkThumbnail: artworkThumbnail,
-            artworkMediumThumbnail: artworkMediumThumbnail,
-            album: album,
-            author: author
-        )
-    }
-
 }
 
 // MARK: - Sendable Conformance

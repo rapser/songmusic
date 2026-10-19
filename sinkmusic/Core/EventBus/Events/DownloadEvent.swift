@@ -31,6 +31,8 @@ enum DownloadEvent: Sendable {
     /// Descarga agregada a la cola de espera
     case queued(songID: UUID, position: Int)
 
-    /// Límite de cuota excedido para un proveedor
-    case quotaExceeded(provider: String, resetTime: Date)
+    // Nota: hubo un `.quotaExceeded`. Lo emitía `DownloadViewModel` y lo consumía él mismo,
+    // y su handler repetía lo que el código imperativo ya había hecho dos líneas antes. El
+    // estado de cuota vive en `DownloadQueueManager`, que es compartido. Si algún día lo
+    // emite la capa de datos, vuelve.
 }

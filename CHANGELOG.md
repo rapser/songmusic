@@ -482,7 +482,7 @@ lo genuinamente global.
 
 ### 🏗️ Arquitectura - Migración Swift 6 Strict Concurrency Completa
 
-Eliminación de toda la deuda técnica de concurrencia: cero `@unchecked Sendable`, cero `NSLock`, cero `DispatchQueue`. El proyecto compila con cero advertencias en Swift 6 strict concurrency mode.
+Eliminación de la deuda técnica de concurrencia: cero `NSLock`, cero `DispatchQueue`, y el proyecto compila con cero advertencias en Swift 6 strict concurrency mode. Quedan **dos** `@unchecked Sendable` justificados (`PlaybackStateRepositoryImpl` y `HomePlaylistLayoutRepositoryImpl`), no cero como decía esta línea originalmente.
 
 #### 🗑️ Eliminación de @unchecked Sendable (8 archivos)
 

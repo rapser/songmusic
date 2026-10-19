@@ -13,28 +13,24 @@ final class HomePlaylistLayoutViewModelTests: XCTestCase {
 
     private var sut: HomePlaylistLayoutViewModel!
     private var mockPlaylistRepo: MockPlaylistRepository!
-    private var mockSongRepo: MockSongRepository!
     private var mockHomeLayoutRepo: MockHomePlaylistLayoutRepository!
-    private var playlistUseCases: PlaylistUseCases!
+    private var homeLayoutUseCases: HomePlaylistLayoutUseCases!
 
     override func setUp() {
         super.setUp()
         mockPlaylistRepo = MockPlaylistRepository()
-        mockSongRepo = MockSongRepository()
         mockHomeLayoutRepo = MockHomePlaylistLayoutRepository()
-        playlistUseCases = PlaylistUseCases(
+        homeLayoutUseCases = HomePlaylistLayoutUseCases(
             playlistRepository: mockPlaylistRepo,
-            songRepository: mockSongRepo,
             homePlaylistLayoutRepository: mockHomeLayoutRepo
         )
-        sut = HomePlaylistLayoutViewModel(playlistUseCases: playlistUseCases)
+        sut = HomePlaylistLayoutViewModel(homeLayoutUseCases: homeLayoutUseCases)
     }
 
     override func tearDown() {
         sut = nil
-        playlistUseCases = nil
+        homeLayoutUseCases = nil
         mockPlaylistRepo = nil
-        mockSongRepo = nil
         mockHomeLayoutRepo = nil
         super.tearDown()
     }
