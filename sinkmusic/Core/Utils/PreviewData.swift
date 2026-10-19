@@ -160,10 +160,7 @@ struct PreviewViewModels {
 
     static func settingsVM() -> SettingsViewModel {
         setupDI()
-        return SettingsViewModel(
-            settingsUseCases: DIContainer.shared.settingsUseCases,
-            downloadUseCases: DIContainer.shared.downloadUseCases
-        )
+        return DIContainer.shared.makeSettingsViewModel()
     }
 
     static func authVM() -> AuthViewModel {

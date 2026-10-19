@@ -14,7 +14,7 @@ final class SettingsViewModelTests: XCTestCase {
     private var mockSongRepo: MockSongRepository!
     private var mockCloudStorage: MockCloudStorageRepository!
     private var mockMetadata: MockMetadataRepository!
-    private var settingsUseCases: SettingsUseCases!
+    private var credentials: CloudCredentialsUseCases!
     private var downloadUseCases: DownloadUseCases!
 
     override func setUp() {
@@ -23,11 +23,9 @@ final class SettingsViewModelTests: XCTestCase {
         mockSongRepo = MockSongRepository()
         mockCloudStorage = MockCloudStorageRepository()
         mockMetadata = MockMetadataRepository()
-        settingsUseCases = SettingsUseCases(
+        credentials = CloudCredentialsUseCases(
             credentialsRepository: mockCredentials,
-            songRepository: mockSongRepo,
-            cloudStorageRepository: mockCloudStorage,
-            playlistRepository: MockPlaylistRepository()
+            cloudStorageRepository: mockCloudStorage
         )
         downloadUseCases = DownloadUseCases(
             songRepository: mockSongRepo,
@@ -37,14 +35,20 @@ final class SettingsViewModelTests: XCTestCase {
             eventBus: MockEventBus()
         )
         sut = SettingsViewModel(
-            settingsUseCases: settingsUseCases,
+            credentials: credentials,
+            appData: AppDataUseCases(
+                songRepository: mockSongRepo,
+                cloudStorageRepository: mockCloudStorage,
+                playlistRepository: MockPlaylistRepository()
+            ),
+            appInfoUseCases: AppInfoUseCases(),
             downloadUseCases: downloadUseCases
         )
     }
 
     override func tearDown() {
         sut = nil
-        settingsUseCases = nil
+        credentials = nil
         downloadUseCases = nil
         mockCredentials = nil
         mockSongRepo = nil

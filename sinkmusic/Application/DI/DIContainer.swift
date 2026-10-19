@@ -137,7 +137,18 @@ final class DIContainer {
 
     private(set) lazy var downloadUseCases: DownloadUseCases = makeDownloadUseCases()
 
-    private(set) lazy var settingsUseCases: SettingsUseCases = makeSettingsUseCases()
+    private(set) lazy var cloudCredentialsUseCases: CloudCredentialsUseCases = CloudCredentialsUseCases(
+        credentialsRepository: credentialsRepository,
+        cloudStorageRepository: cloudStorageRepository
+    )
+
+    private(set) lazy var appDataUseCases: AppDataUseCases = AppDataUseCases(
+        songRepository: songRepository,
+        cloudStorageRepository: cloudStorageRepository,
+        playlistRepository: playlistRepository
+    )
+
+    private(set) lazy var appInfoUseCases = AppInfoUseCases()
 
     // MARK: - Read Stores (lectura reactiva, SOLID: Interface Segregation por dominio)
 
@@ -282,15 +293,6 @@ final class DIContainer {
         )
     }
 
-    private func makeSettingsUseCases() -> SettingsUseCases {
-        SettingsUseCases(
-            credentialsRepository: credentialsRepository,
-            songRepository: songRepository,
-            cloudStorageRepository: cloudStorageRepository,
-            playlistRepository: playlistRepository
-        )
-    }
-
     // MARK: - ViewModel Factories
 
     /// Factory para PlayerViewModel
@@ -325,7 +327,9 @@ final class DIContainer {
     /// Factory para SettingsViewModel
     func makeSettingsViewModel() -> SettingsViewModel {
         SettingsViewModel(
-            settingsUseCases: settingsUseCases,
+            credentials: cloudCredentialsUseCases,
+            appData: appDataUseCases,
+            appInfoUseCases: appInfoUseCases,
             downloadUseCases: downloadUseCases
         )
     }
