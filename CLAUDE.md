@@ -89,20 +89,30 @@ los cuatro. Un solo `save()` recarga Inicio, Biblioteca, Playlists y Búsqueda e
 una entidad propia (mismo patrón que `RankingWindowEntryDTO`, aditivo y seguro), unificar
 los cuatro observers en uno con señal tipada por entidad, y por último SwiftData History
 (`fetchHistory`, iOS 18+) para saber *qué* cambió en vez de *que algo* cambió.
+El número está fijado en `sinkmusicTests/ReadStores/ReadStoreFanOutTests.swift`: sirve de
+antes/después, y sacar `playCount` debería llevar el primer caso de 4 señales a 0. **Ojo:**
+ese paso toca el esquema de SwiftData, así que hay que probar la migración desde una build
+anterior con datos reales, no solo instalación limpia.
 
-**Caminos duplicados.** Cada dato se recarga hasta por tres vías: recarga imperativa tras
-mutar, señal `changes()` ~120 ms después, y `.task`/`.onAppear` de la vista. `BulkReloadGate`
-existe y funciona pero solo se usa en `DownloadViewModel.downloadMultiple`.
+**Caminos duplicados — lo que queda.** Cada dato se recarga aún por dos vías: recarga
+imperativa tras mutar (`PlaylistViewModel` la repite en 9 métodos, `LibraryViewModel` en 3)
+y la señal `changes()` ~120 ms después, que ya las cubre todas. Hay que elegir **una** vía
+por dato. `BulkReloadGate` ya se usa en las tres operaciones masivas que existen
+(`downloadMultiple`, `clearLibrary`, `deleteSongs`).
 
-**Responsabilidades.** `AudioPlayerService` (657 L, el EQ no pinta ahí), `DownloadViewModel`
-(426 L, instancia su propio `DownloadQueueManager` en vez de recibirlo del DI),
-`PlayerViewModel` (414 L, con el algoritmo de cola/shuffle/repeat que es lógica de dominio),
-`SettingsUseCases` (274 L, 19 funcs de tres features distintas). El modelo a seguir está en
+**Responsabilidades.** Hecho: el EQ fuera de `AudioPlayerService` (`AudioEqualizer`), la
+cola fuera de `PlayerViewModel` (`PlaybackQueue` en Domain), `DownloadQueueManager`
+inyectado desde el DI, y `SettingsUseCases` partido en `CloudCredentialsUseCases` /
+`AppDataUseCases` / `AppInfoUseCases`. Pendientes, menos urgentes: `PlaylistUseCases`
+(266 L, la curación de Inicio mezclada con el CRUD) y `SearchUseCases` (205 L, con
+agregaciones que alimentan Inicio y no Búsqueda). El modelo a seguir está en
 `Features/Auth`: Strategy + Factory + Facade + State.
 
-**Main actor.** `SongMapper.toUI` extrae el color dominante decodificando la imagen y
-muestreando píxeles, una vez por fila de cada lista mientras `dominantColor` sea `nil`.
-`MetadataCacheViewModel` decodifica el artwork a tamaño completo, dos veces por canción.
+**Main actor.** Hecho: el color dominante se calcula al ingerir
+(`MetadataService` → `DominantColorService`, fuera del main actor) y el mapper solo lee lo
+persistido; la carátula del reproductor se decodifica a 1024 px fuera del main actor
+(`ArtworkDecoder`). Para canciones anteriores a ese cambio queda el relleno perezoso de
+`LibraryViewModel.persistDominantColorIfNeeded`.
 
 **Reactividad — decidido, no revisar sin motivo.** `Observations` (SE-0475) es iOS 26+ y el
 target es iOS 18, así que no es una alternativa; además observa *estado* y fusiona cambios
