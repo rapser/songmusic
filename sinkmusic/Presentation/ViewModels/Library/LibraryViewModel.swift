@@ -44,6 +44,9 @@ final class LibraryViewModel {
 
     // MARK: - Initialization
 
+    /// **Una sola vía por dato.** Las mutaciones escriben y no recargan a mano: la lectura
+    /// la trae la señal del ReadStore. Requiere que esa señal llegue de inmediato — ver el
+    /// flanco de subida de `ModelContextChangeObserver`.
     init(
         libraryUseCases: LibraryUseCases,
         readStore: LibraryReadStoreProtocol,
@@ -168,9 +171,7 @@ final class LibraryViewModel {
                 }
             }
 
-            await loadSongs()
-            await loadStats()
-
+            // La recarga la trae el `resume()` del `defer`: una señal al terminar.
             logger.info("Biblioteca local y archivos descargados limpiados.")
 
         } catch {
@@ -182,8 +183,6 @@ final class LibraryViewModel {
     func deleteSong(_ songID: UUID) async {
         do {
             try await libraryUseCases.deleteSong(songID)
-            await loadSongs()
-            await loadStats()
         } catch {
             logger.error("Error al eliminar canción: \(error)")
         }
@@ -196,8 +195,6 @@ final class LibraryViewModel {
         defer { bulkReloadGate.resume() }
 
         let result = await libraryUseCases.deleteSongs(songIDs)
-        await loadSongs()
-        await loadStats()
         if result.hasFailures {
             logger.error("\(result.failureCount) canciones no pudieron eliminarse")
         }

@@ -47,6 +47,13 @@ final class PlaylistViewModel {
 
     // MARK: - Initialization
 
+    /// **Una sola vía por dato.** Las mutaciones ya no recargan a mano: escriben y punto, y
+    /// la señal del ReadStore trae la lectura. Antes cada método hacía las dos cosas, así que
+    /// toda mutación recargaba dos veces —la segunda 120 ms después— y había que acordarse
+    /// de añadir la recarga en cada método nuevo.
+    ///
+    /// Esto depende de que la señal llegue **ya** y no al final de la ventana de debounce:
+    /// ver el flanco de subida de `ModelContextChangeObserver`.
     init(playlistUseCases: PlaylistUseCases, readStore: PlaylistReadStoreProtocol) {
         self.playlistUseCases = playlistUseCases
         self.readStore = readStore
@@ -85,7 +92,6 @@ final class PlaylistViewModel {
         isLoading = true
         do {
             let playlist = try await playlistUseCases.createPlaylist(name: name, description: description, coverImageData: coverImageData, placeholderColorIndex: placeholderColorIndex)
-            await loadPlaylists()
             errorMessage = nil
             isLoading = false
             return playlist.id
@@ -125,7 +131,6 @@ final class PlaylistViewModel {
             )
 
             try await playlistUseCases.updatePlaylist(updatedPlaylist)
-            await loadPlaylists()
 
             // Actualizar la playlist seleccionada si es la que se editó
             if selectedPlaylist?.id == id {
@@ -144,7 +149,6 @@ final class PlaylistViewModel {
         isLoading = true
         do {
             try await playlistUseCases.deletePlaylist(id)
-            await loadPlaylists()
             if selectedPlaylist?.id == id {
                 selectedPlaylist = nil
             }
@@ -168,7 +172,6 @@ final class PlaylistViewModel {
         isLoading = true
         do {
             try await playlistUseCases.renamePlaylist(id, newName: newName)
-            await loadPlaylists()
             if let playlist = try? await playlistUseCases.getPlaylistByID(id) {
                 selectedPlaylist = PlaylistMapper.toUI(playlist)
             }
@@ -185,8 +188,6 @@ final class PlaylistViewModel {
     func addSongToPlaylist(songID: UUID, playlistID: UUID) async {
         do {
             try await playlistUseCases.addSongToPlaylist(songID: songID, playlistID: playlistID)
-            await loadSongsInPlaylist(playlistID)
-            await loadPlaylistStats(playlistID)
             errorMessage = nil
         } catch {
             errorMessage = "Error al agregar canción: \(error.localizedDescription)"
@@ -197,8 +198,6 @@ final class PlaylistViewModel {
     func removeSongFromPlaylist(songID: UUID, playlistID: UUID) async {
         do {
             try await playlistUseCases.removeSongFromPlaylist(songID: songID, playlistID: playlistID)
-            await loadSongsInPlaylist(playlistID)
-            await loadPlaylistStats(playlistID)
             errorMessage = nil
         } catch {
             errorMessage = "Error al remover canción: \(error.localizedDescription)"
@@ -210,8 +209,6 @@ final class PlaylistViewModel {
         isLoading = true
         do {
             try await playlistUseCases.addSongsToPlaylist(songIDs: songIDs, playlistID: playlistID)
-            await loadSongsInPlaylist(playlistID)
-            await loadPlaylistStats(playlistID)
             errorMessage = nil
         } catch {
             errorMessage = "Error al agregar canciones: \(error.localizedDescription)"
@@ -242,8 +239,6 @@ final class PlaylistViewModel {
         isLoading = true
         do {
             try await playlistUseCases.clearPlaylist(id)
-            await loadSongsInPlaylist(id)
-            await loadPlaylistStats(id)
             errorMessage = nil
         } catch {
             errorMessage = "Error al limpiar playlist: \(error.localizedDescription)"

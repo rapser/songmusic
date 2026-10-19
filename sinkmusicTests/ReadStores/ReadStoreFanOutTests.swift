@@ -115,9 +115,10 @@ final class ReadStoreFanOutTests: XCTestCase {
 
     // MARK: - Coalescing
 
-    /// El debounce de 120 ms sí hace su trabajo: una ráfaga de escrituras seguidas produce
-    /// una sola señal, no una por escritura.
-    func test_burstOfWrites_isCoalescedIntoOneSignal() async throws {
+    /// El coalescing sigue acotando la ráfaga: 10 reproducciones seguidas son dos señales
+    /// —la inmediata y la de cierre de ventana—, no diez. Ver el flanco de subida de
+    /// `ModelContextChangeObserver`.
+    func test_burstOfWrites_isCoalesced() async throws {
         let container = try ReadStoreTestSupport.makeInMemoryContainer()
         let context = container.mainContext
         let song = try ReadStoreTestSupport.insertSong(context, isDownloaded: true)
@@ -130,8 +131,8 @@ final class ReadStoreFanOutTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(counts.values.reduce(0, +), 1,
-                       "10 reproducciones seguidas siguen siendo 1 señal, no 10")
+        XCTAssertEqual(counts.values.reduce(0, +), 2,
+                       "10 reproducciones seguidas: dos señales, no diez")
     }
 
     /// Lo que sí sigue despertando a las cuatro: cambiar la canción de verdad (su estado de
