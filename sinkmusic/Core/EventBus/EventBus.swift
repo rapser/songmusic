@@ -129,52 +129,56 @@ final class EventBus: EventBusProtocol {
 
     // MARK: - AsyncStream Factories
 
+    // El registro de la continuation es **síncrono**, antes de devolver el stream.
+    //
+    // Guardarla dentro de un `Task { @MainActor }` abría una ventana entre que el stream se
+    // devolvía y la tarea corría: cualquier `emit` en ese hueco no veía al suscriptor y el
+    // evento se perdía sin rastro. `makeStream()` entrega la continuation en mano, así que
+    // cuando el llamador recibe el stream ya está registrado.
+    //
+    // `onTermination` sí queda diferido: lo invoca el runtime desde cualquier hilo y solo
+    // limpia el diccionario, así que llegar tarde es inofensivo.
+
     /// Stream de eventos de autenticación
     /// - Returns: AsyncStream que emite AuthEvent
     func authEvents() -> AsyncStream<AuthEvent> {
         let id = UUID()
-        return AsyncStream { [weak self] continuation in
+        let (stream, continuation) = AsyncStream<AuthEvent>.makeStream()
+        authEventContinuations[id] = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.authEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.authEventContinuations.removeValue(forKey: id)
-                }
+                self?.authEventContinuations.removeValue(forKey: id)
             }
         }
+        return stream
     }
 
     /// Stream de eventos de reproducción
     /// - Returns: AsyncStream que emite PlaybackEvent
     func playbackEvents() -> AsyncStream<PlaybackEvent> {
         let id = UUID()
-        return AsyncStream { [weak self] continuation in
+        let (stream, continuation) = AsyncStream<PlaybackEvent>.makeStream()
+        playbackEventContinuations[id] = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.playbackEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.playbackEventContinuations.removeValue(forKey: id)
-                }
+                self?.playbackEventContinuations.removeValue(forKey: id)
             }
         }
+        return stream
     }
 
     /// Stream de eventos de descarga
     /// - Returns: AsyncStream que emite DownloadEvent
     func downloadEvents() -> AsyncStream<DownloadEvent> {
         let id = UUID()
-        return AsyncStream { [weak self] continuation in
+        let (stream, continuation) = AsyncStream<DownloadEvent>.makeStream()
+        downloadEventContinuations[id] = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.downloadEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.downloadEventContinuations.removeValue(forKey: id)
-                }
+                self?.downloadEventContinuations.removeValue(forKey: id)
             }
         }
+        return stream
     }
 
     // MARK: - Lifecycle

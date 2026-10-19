@@ -60,6 +60,14 @@ final class PlayerViewModel: EventBusObservable {
     @ObservationIgnored
     private var playbackEventTask: Task<Void, Never>?
 
+    /// Tokens de los observers de Live Activity.
+    ///
+    /// `removeObserver(self)` **no** elimina los registrados con
+    /// `addObserver(forName:object:queue:using:)` — hay que guardar el token que devuelven y
+    /// quitarlos uno a uno. Sin esto seguían disparando después de destruir el ViewModel.
+    @ObservationIgnored
+    private var liveActivityTokens: [NSObjectProtocol] = []
+
     // MARK: - Initialization
 
     init(
@@ -350,37 +358,18 @@ final class PlayerViewModel: EventBusObservable {
     /// Mantener NotificationCenter para Live Activity (comunicación inter-proceso)
     /// Los widgets/Live Activity no pueden usar EventBus directamente
     private func setupLiveActivityHandlers() {
-        // Play/Pause desde Live Activity
-        NotificationCenter.default.addObserver(
-            forName: .playPauseFromLiveActivity,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            // Convertir a EventBus internamente
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.playPause))
-            }
-        }
+        let commands: [(Notification.Name, RemoteCommand)] = [
+            (.playPauseFromLiveActivity, .playPause),
+            (.nextTrackFromLiveActivity, .next),
+            (.previousTrackFromLiveActivity, .previous)
+        ]
 
-        // Next desde Live Activity
-        NotificationCenter.default.addObserver(
-            forName: .nextTrackFromLiveActivity,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.next))
-            }
-        }
-
-        // Previous desde Live Activity
-        NotificationCenter.default.addObserver(
-            forName: .previousTrackFromLiveActivity,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.eventBus.emit(.remoteCommand(.previous))
+        liveActivityTokens = commands.map { name, command in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                // Convertir a EventBus internamente
+                Task { @MainActor [weak self] in
+                    self?.eventBus.emit(.remoteCommand(command))
+                }
             }
         }
     }
@@ -405,7 +394,9 @@ final class PlayerViewModel: EventBusObservable {
 
     deinit {
         playbackEventTask?.cancel()
-        NotificationCenter.default.removeObserver(self)
+        for token in liveActivityTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
         let service = liveActivityService
         Task { @MainActor in
             service.endActivity()
