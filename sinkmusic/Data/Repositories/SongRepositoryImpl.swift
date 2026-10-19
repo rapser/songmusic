@@ -58,27 +58,47 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         return SongMapper.toDomain(dtos)
     }
 
-    /// Top canciones del ranking de Inicio: ordenadas por su contador de ventana (7 días),
-    /// no por el `playCount` histórico. Así el listado se mantiene fresco y ninguna canción
-    /// se queda fija eternamente en el puesto 1. Las ventanas caducadas ya fueron
-    /// descartadas por `activeCounts()`.
+    /// Top canciones del ranking de Inicio.
+    ///
+    /// Con actividad reciente manda el contador de ventana (7 días) y no el `playCount`
+    /// histórico: así el listado se mantiene fresco y ninguna canción se queda fija
+    /// eternamente en el puesto 1. Las ventanas caducadas ya fueron descartadas por
+    /// `activeCounts()`.
+    ///
+    /// Cuando no queda ninguna ventana viva —una semana sin escuchar nada— se cae al
+    /// `playCount` histórico en lugar de devolver una lista vacía, que es lo que dejaba
+    /// la sección de Inicio en blanco. Sigue siendo un ranking de verdad, y en cuanto se
+    /// reproduzca algo la ventana vuelve a mandar.
     func getTopSongs(limit: Int = 10) async throws -> [Song] {
         let counts = await rankingWindowRepository.activeCounts()
-        guard !counts.isEmpty else { return [] }
 
         // `getDownloaded()` excluye canciones sin descargar: al quitar una descarga sale
         // del ranking aunque conserve su ventana (se limpia sola al caducar).
         let downloaded = try localDataSource.getDownloaded()
-        let ranked = downloaded
-            .filter { counts[$0.id] != nil }
-            .sorted { lhs, rhs in
-                let l = counts[lhs.id] ?? 0
-                let r = counts[rhs.id] ?? 0
-                if l != r { return l > r }
-                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
-            }
-            .prefix(limit)
-        return SongMapper.toDomain(Array(ranked))
+
+        let ranked: [SongDTO] = counts.isEmpty
+            // Nunca se reprodujo nada: la sección sí debe salir vacía, no listar la
+            // biblioteca entera por orden alfabético bajo "lo que más escuchas".
+            ? rank(downloaded.filter { $0.playCount > 0 }, limit: limit) { $0.playCount }
+            : rank(downloaded.filter { counts[$0.id] != nil }, limit: limit) { counts[$0.id] ?? 0 }
+
+        return SongMapper.toDomain(ranked)
+    }
+
+    /// Ordena de mayor a menor por el contador dado, desempatando por título para que el
+    /// orden sea estable entre lecturas.
+    private func rank(
+        _ songs: [SongDTO],
+        limit: Int,
+        by count: (SongDTO) -> Int
+    ) -> [SongDTO] {
+        let sorted = songs.sorted { lhs, rhs in
+            let left = count(lhs)
+            let right = count(rhs)
+            if left != right { return left > right }
+            return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        }
+        return Array(sorted.prefix(limit))
     }
 
     func getRecentlyPlayed(limit: Int = 10) async throws -> [Song] {
