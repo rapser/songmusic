@@ -81,32 +81,39 @@ Cualquier lógica de Auth nueva va aquí, no repartida por las capas.
 Resumen inline y no un enlace: la auditoría anterior vivía en un archivo fuera del repo que
 acabó desapareciendo, dejando esta sección apuntando a una ruta muerta.
 
-**El problema grande — fan-out del read-side.** Hay cuatro `ModelContextChangeObserver`
-sobre el mismo `ModelContext`, cada uno con su debounce de 120 ms, y `SongDTO` lo vigilan
-los cuatro. Un solo `save()` recarga Inicio, Biblioteca, Playlists y Búsqueda enteras:
-≈13-15 fetches en el main actor. El disparador más caliente es `incrementPlayCount`, o sea
-**dar al play**. Vías de ataque, de menor a mayor riesgo: sacar `playCount` de `SongDTO` a
-una entidad propia (mismo patrón que `RankingWindowEntryDTO`, aditivo y seguro), unificar
-los cuatro observers en uno con señal tipada por entidad, y por último SwiftData History
-(`fetchHistory`, iOS 18+) para saber *qué* cambió en vez de *que algo* cambió.
-El número está fijado en `sinkmusicTests/ReadStores/ReadStoreFanOutTests.swift`: sirve de
-antes/después, y sacar `playCount` debería llevar el primer caso de 4 señales a 0. **Ojo:**
-ese paso toca el esquema de SwiftData, así que hay que probar la migración desde una build
-anterior con datos reales, no solo instalación limpia.
+**Fan-out del read-side — resuelto el camino caliente.** Dar al play escribía
+`playCount`/`lastPlayedAt` en `SongDTO`, y las cuatro tiendas vigilan esa entidad: cuatro
+señales por reproducción, con Biblioteca, Playlists y Búsqueda recargando enteras sin usar
+el dato. El contador vive ahora en `SongPlayStatsDTO` (entidad independiente, aditiva,
+mismo patrón que `RankingWindowEntryDTO`), que solo vigila Inicio. Medido en
+`sinkmusicTests/ReadStores/ReadStoreFanOutTests.swift`: **de 4 señales a 1**, y una
+escritura real sobre la canción sigue despertando a las cuatro, que es correcto.
 
-**Caminos duplicados — lo que queda.** Cada dato se recarga aún por dos vías: recarga
-imperativa tras mutar (`PlaylistViewModel` la repite en 9 métodos, `LibraryViewModel` en 3)
-y la señal `changes()` ~120 ms después, que ya las cubre todas. Hay que elegir **una** vía
-por dato. `BulkReloadGate` ya se usa en las tres operaciones masivas que existen
+Queda, con mucho menos valor ahora: unificar los cuatro `ModelContextChangeObserver` en
+uno con señal tipada por entidad (un debounce en vez de cuatro, y adiós a los nombres de
+entidad como literales de string). SwiftData History (`fetchHistory`, iOS 18+)
+probablemente no vale lo que cuesta: obliga a gestionar y purgar transacciones.
+
+**Al tocar el esquema**: los campos viejos de `SongDTO` siguen ahí a propósito —quitarlos
+exigiría `AppSchemaV2`— y son la semilla del backfill perezoso. Cualquier cambio de esquema
+se prueba migrando **desde una build anterior con datos reales**, no solo en instalación
+limpia.
+
+**Caminos duplicados — lo único grande que queda.** Cada dato se recarga aún por dos vías:
+recarga imperativa tras mutar (`PlaylistViewModel` la repite en 11 métodos,
+`LibraryViewModel` en 3) y la señal `changes()` ~120 ms después, que ya las cubre todas.
+Hay que elegir **una** vía por dato. También sigue la cascada de `MainAppView`, con
+`onPlayingIDChanged` llamado desde tres sitios y salvado por un guard de idempotencia.
+`BulkReloadGate` ya se usa en las tres operaciones masivas que existen
 (`downloadMultiple`, `clearLibrary`, `deleteSongs`).
 
-**Responsabilidades.** Hecho: el EQ fuera de `AudioPlayerService` (`AudioEqualizer`), la
+**Responsabilidades — hecho.** El EQ fuera de `AudioPlayerService` (`AudioEqualizer`), la
 cola fuera de `PlayerViewModel` (`PlaybackQueue` en Domain), `DownloadQueueManager`
-inyectado desde el DI, y `SettingsUseCases` partido en `CloudCredentialsUseCases` /
-`AppDataUseCases` / `AppInfoUseCases`. Pendientes, menos urgentes: `PlaylistUseCases`
-(266 L, la curación de Inicio mezclada con el CRUD) y `SearchUseCases` (205 L, con
-agregaciones que alimentan Inicio y no Búsqueda). El modelo a seguir está en
-`Features/Auth`: Strategy + Factory + Facade + State.
+inyectado desde el DI, `SettingsUseCases` partido en tres (`CloudCredentialsUseCases` /
+`AppDataUseCases` / `AppInfoUseCases`), la curaduría de Inicio fuera del CRUD de playlists
+(`HomePlaylistLayoutUseCases`) y las agregaciones fuera de Búsqueda
+(`LibraryAggregationUseCases`). El modelo a seguir está en `Features/Auth`: Strategy +
+Factory + Facade + State.
 
 **Main actor.** Hecho: el color dominante se calcula al ingerir
 (`MetadataService` → `DominantColorService`, fuera del main actor) y el mapper solo lee lo
