@@ -14,8 +14,13 @@ final class PlayerUseCasesTests: XCTestCase {
     private var mockSongRepo: MockSongRepository!
     private var mockPlaybackState: MockPlaybackStateRepository!
 
+    /// Directorio propio de cada ejecución: nada de estos tests toca la carpeta real.
+    private var tempBase: URL!
+
     override func setUp() {
         super.setUp()
+        tempBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sinkmusic-tests-\(UUID().uuidString)")
         mockAudioPlayer = MockAudioPlayerService()
         mockSongRepo = MockSongRepository()
         mockPlaybackState = MockPlaybackStateRepository()
@@ -23,11 +28,13 @@ final class PlayerUseCasesTests: XCTestCase {
             audioPlayer: mockAudioPlayer,
             songRepository: mockSongRepo,
             playbackStateRepository: mockPlaybackState,
-            fileStore: DownloadFileStore()
+            fileStore: DownloadFileStore(baseDirectory: tempBase)
         )
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(at: tempBase)
+        tempBase = nil
         sut = nil
         mockAudioPlayer = nil
         mockSongRepo = nil
@@ -64,8 +71,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_play_withValidFile_callsAudioPlayerPlay() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
 
@@ -77,8 +83,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_play_withValidFile_incrementsPlayCount() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
 
@@ -89,8 +94,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_play_withValidFile_setsIsPlayingTrue() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
 
@@ -110,8 +114,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_pause_setsIsPlayingFalse() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -131,8 +134,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_stop_clearsSongState() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -148,8 +150,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_togglePlayPause_whenPlaying_callsPause() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -216,8 +217,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_play_setsNowPlayingMetadata() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -229,8 +229,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_pendingResumeTime_persistedOnPlay() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
 
@@ -241,8 +240,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_persistCurrentPlaybackTime_withCurrentSong_savesState() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -304,8 +302,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_togglePlayPause_afterRestore_resumesFromSavedTime() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         mockPlaybackState.stateToLoad = (songID, 145)
@@ -324,8 +321,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_resume_whenEngineHasTrack_doesNotReplayNorIncrementPlayCount() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -343,8 +339,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_resume_afterColdRestore_playsFromSavedTime() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         mockPlaybackState.stateToLoad = (songID, 145)
@@ -363,8 +358,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_togglePlayPause_whenEnginePaused_resumesWithoutSeekingToZero() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -378,8 +372,7 @@ final class PlayerUseCasesTests: XCTestCase {
 
     func test_togglePlayPause_whenEnginePlaying_pauses() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
 
         mockSongRepo.songs = [Song.make(id: songID, isDownloaded: true)]
         try await sut.play(songID: songID)
@@ -392,9 +385,12 @@ final class PlayerUseCasesTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// Crea el archivo de audio de prueba dentro de `tempBase`, no en la carpeta de música
+    /// real de la app. Antes escribía en `Documents/Music` y cada test borraba ese
+    /// directorio entero al terminar: ejecutar la suite se llevaba las descargas del
+    /// usuario. Ahora `tearDown` borra solo `tempBase`.
     private func createTempAudioFile(songID: UUID) throws -> URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let musicDir = docs.appendingPathComponent("Music")
+        let musicDir = tempBase.appendingPathComponent("Music")
         try FileManager.default.createDirectory(at: musicDir, withIntermediateDirectories: true)
         let file = musicDir.appendingPathComponent("\(songID.uuidString).m4a")
         FileManager.default.createFile(atPath: file.path, contents: Data())

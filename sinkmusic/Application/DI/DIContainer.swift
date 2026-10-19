@@ -113,7 +113,7 @@ final class DIContainer {
 
     private(set) lazy var playbackStateRepository: PlaybackStateRepositoryProtocol = PlaybackStateRepositoryImpl()
 
-    private(set) lazy var downloadFileStore: DownloadFileStoreProtocol = DownloadFileStore()
+    private(set) lazy var downloadFileStore: DownloadFileStoreProtocol = DownloadFileStore.documents()
 
     private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
 
