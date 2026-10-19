@@ -57,8 +57,8 @@ final class EventBus: EventBusProtocol {
     /// Estado actual de reproducción
     private(set) var playbackState: PlaybackState = .idle
 
-    /// Información de tiempo de reproducción
-    private(set) var playbackTimeInfo: PlaybackTimeInfo = .zero
+    /// Posición de reproducción vigente
+    private(set) var playbackProgress: PlaybackProgress = .zero
 
     // MARK: - Stream Continuations
 
@@ -108,8 +108,8 @@ final class EventBus: EventBusProtocol {
             } else {
                 playbackState = .idle
             }
-        case .timeUpdated(let current, let duration):
-            playbackTimeInfo = PlaybackTimeInfo(currentTime: current, duration: duration)
+        case .timeUpdated(let progress):
+            playbackProgress = progress
         case .songFinished:
             playbackState = .idle
         case .remoteCommand:
@@ -190,7 +190,7 @@ final class EventBus: EventBusProtocol {
     func reset() {
         authUserID = nil
         playbackState = .idle
-        playbackTimeInfo = .zero
+        playbackProgress = .zero
 
         // Finish all streams
         for (_, continuation) in authEventContinuations {

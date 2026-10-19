@@ -14,7 +14,7 @@ final class MockEventBus: EventBusProtocol {
     var authUserID: String?
     var isAuthenticated: Bool = false
     var playbackState: PlaybackState = .idle
-    var playbackTimeInfo: PlaybackTimeInfo = .zero
+    var playbackProgress: PlaybackProgress = .zero
 
     // MARK: - Emit tracking
 

@@ -16,7 +16,6 @@ final class MockAudioPlayerService: AudioPlayerServiceProtocol {
     var seekCallCount = 0
     var updateEqualizerCallCount = 0
     var setNowPlayingMetadataCallCount = 0
-    var updateNowPlayingTimeCallCount = 0
 
     var lastPlayedSongID: UUID?
     var lastPlayedURL: URL?
@@ -76,9 +75,5 @@ final class MockAudioPlayerService: AudioPlayerServiceProtocol {
         artwork: Data?
     ) {
         setNowPlayingMetadataCallCount += 1
-    }
-
-    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) {
-        updateNowPlayingTimeCallCount += 1
     }
 }

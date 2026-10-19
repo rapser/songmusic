@@ -120,8 +120,7 @@ struct PreviewViewModels {
         if let id = songID {
             vm.currentlyPlayingID = id
             vm.isPlaying = true
-            vm.songDuration = 200
-            vm.playbackTime = 30
+            vm.progress = PlaybackProgress(elapsed: 30, duration: 200)
         }
         return vm
     }

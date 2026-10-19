@@ -8,6 +8,7 @@
 
 import Foundation
 import AVFoundation
+import QuartzCore
 
 /// SOLID: Dependency Inversion - Depende de EventBusProtocol
 @MainActor
@@ -33,6 +34,13 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private var currentScheduleID = UUID()
     private var seekOffset: TimeInterval = 0
 
+    /// Reloj autoritativo de la reproducción — **la única fuente de tiempo de la app**.
+    ///
+    /// Traduce los frames renderizados por el nodo a una posición acotada a la duración real
+    /// del archivo, y detecta por sí mismo tanto el fin de pista como un motor atascado. Ni
+    /// este servicio ni ninguna capa superior llevan su propio contador: todos leen de aquí.
+    private let clock = PlaybackClock()
+
     /// Reacción a interrupciones de `AVAudioSession` (llamadas, Siri, otra app).
     private let interruptions: AudioInterruptionObserver
 
@@ -43,10 +51,6 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private nonisolated(unsafe) var routeChangeToken: NSObjectProtocol?
 
     // MARK: - Now Playing
-
-    /// Última posición conocida. Mientras el nodo está pausado `playerTime(forNodeTime:)`
-    /// devuelve nil, así que este es el único valor válido para informar a iOS.
-    private var lastKnownTime: TimeInterval = 0
 
     /// Pantalla de bloqueo / Centro de Control (metadata + comandos remotos).
     private let nowPlaying: NowPlayingCenter
@@ -163,10 +167,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             // El dispositivo de salida se retiró (p. ej. auriculares): iOS detiene el audio.
             // NO reanudar en el altavoz — solo dejar el estado consistente y en pausa.
             guard playbackTimer != nil else { return }
-            lastKnownTime = currentPlaybackTime()
-            playbackTimer?.invalidate()
-            playbackTimer = nil
-            pushNowPlaying(elapsed: lastKnownTime, isPlaying: false)
+            let progress = syncClockWithEngine()
+            stopPlaybackTimer()
+            pushNowPlaying(progress, isPlaying: false)
             eventBus.emit(.stateChanged(isPlaying: false, songID: currentlyPlayingID))
             return
         }
@@ -174,16 +177,39 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     }
 
     /// Si el engine se detuvo (perturbación de sesión / cambio de formato) pero seguimos con
-    /// una pista cargada, rehace el grafo y re-agenda desde la posición actual. Si el engine
-    /// sigue corriendo (perturbación benigna) no toca nada — evita meter un glitch propio.
+    /// una pista cargada, rehace el grafo y re-agenda desde la posición actual. También cubre
+    /// el caso en que el engine sigue corriendo pero el nodo quedó parado con sus buffers
+    /// descartados. Ante una perturbación benigna (engine y nodo intactos) no toca nada —
+    /// evita meter un glitch propio.
     private func recoverEngineIfStopped() {
         guard let audioFile, let songID = currentlyPlayingID, audioFile.length > 0 else { return }
-        guard !audioEngine.isRunning else { return }
 
         // El `playbackTimer` solo vive mientras suena (se invalida en pause/stop/fin de pista),
         // así que es la señal fiable de "estábamos reproduciendo" ahora que el nodo ya no reporta.
         let wasPlaying = playbackTimer != nil
-        let resumeAt = lastKnownTime
+
+        // Una reconfiguración puede dejar el engine corriendo pero haber parado el nodo y
+        // descartado sus buffers. Si creíamos estar sonando y el nodo ya no lo está, también
+        // hay que rehacer el grafo: si no, el engine se queda renderizando silencio.
+        guard !audioEngine.isRunning || (wasPlaying && !playerNode.isPlaying) else { return }
+
+        rebuildGraphAndReschedule(audioFile: audioFile, songID: songID, resumePlaying: wasPlaying)
+    }
+
+    /// Rehace el grafo del engine y reprograma la pista desde la posición del reloj.
+    ///
+    /// Es el único camino de recuperación: lo usan tanto las notificaciones del sistema
+    /// (cambio de configuración o de ruta) como el detector de atasco del reloj.
+    private func rebuildGraphAndReschedule(audioFile: AVAudioFile, songID: UUID, resumePlaying: Bool) {
+        let duration = fileDuration()
+        let resumeAt = clock.progress.elapsed
+
+        // Si la posición ya estaba en el final, reprogramar el último frame suelto solo
+        // produciría un "fin" espurio: se cierra como fin de pista normal.
+        if duration > 0, resumeAt >= duration - PlaybackClock.endOfTrackTolerance {
+            finishTrack()
+            return
+        }
 
         playerNode.stop()
 
@@ -197,44 +223,69 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         let sampleRate = fileFormat.sampleRate
         let startFrame = min(max(0, AVAudioFramePosition(resumeAt * sampleRate)), audioFile.length - 1)
 
-        let scheduleID = UUID()
-        currentScheduleID = scheduleID
+        let scheduleID = newSchedule()
         playerNode.scheduleSegment(
             audioFile,
             startingFrame: startFrame,
             frameCount: AVAudioFrameCount(audioFile.length - startFrame),
             at: nil,
+            completionCallbackType: .dataPlayedBack,
             completionHandler: makeCompletionHandler(scheduleID)
         )
         seekOffset = Double(startFrame) / sampleRate
-        lastKnownTime = seekOffset
+        clock.load(duration: duration, startingAt: seekOffset, at: CACurrentMediaTime())
 
         do {
             if !audioEngine.isRunning {
                 try audioEngine.start()
             }
-            if wasPlaying {
+            if resumePlaying {
                 playerNode.play()
+                clock.resumed(at: CACurrentMediaTime())
                 startPlaybackTimer()
             }
-            pushNowPlaying(elapsed: lastKnownTime, isPlaying: wasPlaying)
+            pushNowPlaying(clock.progress, isPlaying: resumePlaying)
         } catch {
+            stopPlaybackTimer()
             eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
         }
     }
 
-    /// Completion handler de una programación de reproducción: cuando el buffer de esa
-    /// programación (identificada por `scheduleID`) se agota, marca fin de pista.
-    private func makeCompletionHandler(_ scheduleID: UUID) -> @Sendable () -> Void {
-        { [weak self] in
+    /// Abre una programación nueva, invalidando los completion handlers en vuelo de la
+    /// anterior. La marca de fin de pista vive en el reloj y la limpia quien lo reposiciona.
+    private func newSchedule() -> UUID {
+        let scheduleID = UUID()
+        currentScheduleID = scheduleID
+        return scheduleID
+    }
+
+    /// Completion handler de una programación de reproducción.
+    ///
+    /// Se pide `.dataPlayedBack` en lugar del tipo por defecto (`.dataConsumed`): este último
+    /// se dispara cuando el nodo termina de *leer* el archivo, no cuando termina de sonar, y
+    /// cortaba la pista un buffer antes del final.
+    private func makeCompletionHandler(_ scheduleID: UUID) -> @Sendable (AVAudioPlayerNodeCompletionCallbackType) -> Void {
+        { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self,
-                      self.currentScheduleID == scheduleID,
-                      let currentID = self.currentlyPlayingID else { return }
-                self.handlePlaybackCompleted()
-                self.eventBus.emit(.songFinished(currentID))
+                guard let self, self.currentScheduleID == scheduleID else { return }
+                self.finishTrack()
             }
         }
+    }
+
+    /// Punto único de "la pista llegó al final".
+    ///
+    /// Idempotente: el final puede llegar por el aviso del motor o porque el reloj vea la
+    /// posición pasada de la duración, y solo el primero en llegar emite. La marca la lleva
+    /// el reloj (`hasReachedEnd`), no un flag paralelo.
+    private func finishTrack() {
+        guard !clock.hasReachedEnd, let songID = currentlyPlayingID else { return }
+        handlePlaybackCompleted()
+        // El espejo de UI vive de este evento: sin él el ViewModel sigue creyendo que suena,
+        // el mini player queda con el icono de pausa y un `repeatOne` acaba haciendo `seek(0)`
+        // sobre un nodo pausado (silencio).
+        eventBus.emit(.stateChanged(isPlaying: false, songID: songID))
+        eventBus.emit(.songFinished(songID))
     }
 
     /// Carga y arranca una canción desde `startTime`.
@@ -281,30 +332,39 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
             audioEngine.prepare()
 
-            let scheduleID = UUID()
-            self.currentScheduleID = scheduleID
-            let onCompletion = makeCompletionHandler(scheduleID)
+            let onCompletion = makeCompletionHandler(newSchedule())
 
             // Una sola programación: si hay posición inicial se programa el segmento
             // directamente, en vez de programar el archivo entero y hacer seek después.
+            // Una posición restaurada que ya está en el final (la canción terminó justo antes
+            // de cerrar la app) se ignora: programar el último sobrante sonaría a nada y
+            // saltaría de inmediato a la siguiente.
             let sampleRate = fileFormat.sampleRate
-            let startFrame = AVAudioFramePosition(startTime * sampleRate)
+            let trackDuration = Double(audioFile.length) / sampleRate
+            let resumeAt = startTime > 0 && startTime < trackDuration - PlaybackClock.endOfTrackTolerance ? startTime : 0
+            let startFrame = AVAudioFramePosition(resumeAt * sampleRate)
 
-            if startTime > 0 && startFrame < audioFile.length {
+            if resumeAt > 0 {
                 playerNode.scheduleSegment(
                     audioFile,
                     startingFrame: startFrame,
                     frameCount: AVAudioFrameCount(audioFile.length - startFrame),
                     at: nil,
+                    completionCallbackType: .dataPlayedBack,
                     completionHandler: onCompletion
                 )
-                self.seekOffset = startTime
-                self.lastKnownTime = startTime
+                self.seekOffset = resumeAt
             } else {
-                playerNode.scheduleFile(audioFile, at: nil, completionHandler: onCompletion)
+                playerNode.scheduleFile(
+                    audioFile,
+                    at: nil,
+                    completionCallbackType: .dataPlayedBack,
+                    completionHandler: onCompletion
+                )
                 self.seekOffset = 0
-                self.lastKnownTime = 0
             }
+
+            clock.load(duration: trackDuration, startingAt: resumeAt, at: CACurrentMediaTime())
 
             // El engine debe estar corriendo ANTES de que el nodo reproduzca.
             if !audioEngine.isRunning {
@@ -312,12 +372,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             }
 
             playerNode.play()
+            clock.resumed(at: CACurrentMediaTime())
 
             self.currentlyPlayingID = songID
             startPlaybackTimer()
-            pushNowPlaying(elapsed: lastKnownTime, isPlaying: true)
+            pushNowPlaying(clock.progress, isPlaying: true)
             eventBus.emit(.stateChanged(isPlaying: true, songID: songID))
         } catch {
+            clock.reset()
             clearNowPlaying()
             eventBus.emit(.stateChanged(isPlaying: false, songID: nil))
         }
@@ -331,10 +393,14 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     func resume() -> Bool {
         guard currentlyPlayingID != nil, audioFile != nil else { return false }
 
+        // La pista ya terminó: el nodo no tiene nada programado. Un `play()` ahí solo
+        // renderizaría silencio con el contador corriendo, así que se pide un `play` real.
+        guard !clock.hasReachedEnd else { return false }
+
         // Idempotente: un `playCommand` redundante es justo el síntoma de una desincronización,
         // así que lo honramos re-afirmándole a iOS la verdad en vez de ignorarlo.
         guard !playerNode.isPlaying else {
-            pushNowPlaying(elapsed: currentPlaybackTime(), isPlaying: true)
+            pushNowPlaying(syncClockWithEngine(), isPlaying: true)
             return true
         }
 
@@ -343,9 +409,10 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             try? audioEngine.start()
         }
         playerNode.play()
+        clock.resumed(at: CACurrentMediaTime())
         startPlaybackTimer()
 
-        pushNowPlaying(elapsed: lastKnownTime, isPlaying: true)
+        pushNowPlaying(clock.progress, isPlaying: true)
         eventBus.emit(.stateChanged(isPlaying: true, songID: currentlyPlayingID))
         return true
     }
@@ -354,33 +421,31 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         // Idempotente por el mismo motivo que `resume()`: un `pauseCommand` que llega
         // estando ya en pausa no debe arrancar nada, solo re-afirmar el estado.
         guard playerNode.isPlaying else {
-            pushNowPlaying(elapsed: lastKnownTime, isPlaying: false)
+            pushNowPlaying(clock.progress, isPlaying: false)
             return
         }
 
         // Capturar la posición ANTES de pausar: después el nodo ya no la reporta.
-        lastKnownTime = currentPlaybackTime()
+        let progress = syncClockWithEngine()
 
         playerNode.pause()
-        playbackTimer?.invalidate()
-        playbackTimer = nil
+        stopPlaybackTimer()
 
-        pushNowPlaying(elapsed: lastKnownTime, isPlaying: false)
+        pushNowPlaying(progress, isPlaying: false)
         eventBus.emit(.stateChanged(isPlaying: false, songID: currentlyPlayingID))
     }
 
     func stop() {
         playerNode.stop()
         audioEngine.stop()
-        playbackTimer?.invalidate()
-        playbackTimer = nil
+        stopPlaybackTimer()
         // Invalida cualquier completion en vuelo de la pista que acabamos de detener.
-        currentScheduleID = UUID()
+        _ = newSchedule()
         let oldID = currentlyPlayingID
         currentlyPlayingID = nil
         audioFile = nil
         seekOffset = 0
-        lastKnownTime = 0
+        clock.reset()
         clearNowPlaying()
         eventBus.emit(.stateChanged(isPlaying: false, songID: oldID))
     }
@@ -393,10 +458,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     /// en lugar de avanzar.
     private func handlePlaybackCompleted() {
         playerNode.pause()
-        playbackTimer?.invalidate()
-        playbackTimer = nil
-        lastKnownTime = fileDuration()
-        pushNowPlaying(elapsed: lastKnownTime, isPlaying: false)
+        stopPlaybackTimer()
+        clock.markReachedEnd()
+        pushNowPlaying(clock.progress, isPlaying: false)
     }
 
     func seek(to time: TimeInterval) {
@@ -409,56 +473,65 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         let startFrame = AVAudioFramePosition(time * sampleRate)
 
         playerNode.stop()
-        playbackTimer?.invalidate()
-        playbackTimer = nil
+        stopPlaybackTimer()
 
         guard startFrame < audioFile.length else {
             // Seek más allá del final: tratarlo como fin de pista en vez de dejar el nodo
             // parado en silencio sin avisar a nadie.
-            guard let currentID = currentlyPlayingID else { return }
-            handlePlaybackCompleted()
-            eventBus.emit(.songFinished(currentID))
+            finishTrack()
             return
         }
 
         let frameCount = AVAudioFrameCount(audioFile.length - startFrame)
 
         self.seekOffset = time
-        self.lastKnownTime = time
-
-        let scheduleID = UUID()
-        self.currentScheduleID = scheduleID
+        clock.seek(to: time, at: CACurrentMediaTime())
 
         playerNode.scheduleSegment(
             audioFile,
             startingFrame: startFrame,
             frameCount: frameCount,
             at: nil,
-            completionHandler: makeCompletionHandler(scheduleID)
+            completionCallbackType: .dataPlayedBack,
+            completionHandler: makeCompletionHandler(newSchedule())
         )
 
-        let duration = fileDuration()
-        eventBus.emit(.timeUpdated(current: time, duration: duration))
+        eventBus.emit(.timeUpdated(clock.progress))
 
         if wasPlaying {
             playerNode.play()
+            clock.resumed(at: CACurrentMediaTime())
             startPlaybackTimer()
         }
 
-        pushNowPlaying(elapsed: time, isPlaying: wasPlaying)
+        pushNowPlaying(clock.progress, isPlaying: wasPlaying)
     }
 
-    /// Posición actual real del nodo. Mientras está pausado devuelve la última conocida,
-    /// porque `playerTime(forNodeTime:)` deja de reportar.
-    private func currentPlaybackTime() -> TimeInterval {
+    /// Posición cruda del nodo, **sin acotar**. `nil` mientras el nodo no reporta tiempo
+    /// (pausado o aún sin arrancar).
+    ///
+    /// Un `AVAudioPlayerNode` que se queda sin buffers programados no se detiene: sigue
+    /// "reproduciendo" silencio y este valor sigue creciendo sin límite. Por eso lo crudo solo
+    /// lo ve el `PlaybackClock`, que es quien lo acota y quien detecta esa condición.
+    private func nodePlaybackTime() -> TimeInterval? {
         guard let nodeTime = playerNode.lastRenderTime,
               nodeTime.isSampleTimeValid || nodeTime.isHostTimeValid,
               let playerTime = playerNode.playerTime(forNodeTime: nodeTime) else {
-            return lastKnownTime
+            return nil
         }
-        let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
-        lastKnownTime = nodePlaybackTime + seekOffset
-        return lastKnownTime
+        return Double(playerTime.sampleTime) / playerTime.sampleRate + seekOffset
+    }
+
+    /// Alinea el reloj con lo que reporta el nodo y devuelve la posición vigente.
+    ///
+    /// Para leer la posición en una transición (pausar, informar a la pantalla de bloqueo).
+    /// Mientras el nodo está pausado no reporta nada y se conserva la del reloj.
+    @discardableResult
+    private func syncClockWithEngine() -> PlaybackProgress {
+        if let raw = nodePlaybackTime() {
+            clock.align(to: raw)
+        }
+        return clock.progress
     }
 
     /// Duración real del archivo cargado. Más fiable que la metadata de la canción,
@@ -468,6 +541,11 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         return Double(audioFile.length) / audioFile.processingFormat.sampleRate
     }
 
+    private func stopPlaybackTimer() {
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+    }
+
     private func startPlaybackTimer() {
         playbackTimer?.invalidate()
 
@@ -475,28 +553,53 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
             // El closure del Timer es @Sendable — no podemos leer propiedades @MainActor aquí.
             // Despachamos todo al MainActor donde el acceso es seguro.
             Task { @MainActor [weak self] in
-                guard let self,
-                      let nodeTime = self.playerNode.lastRenderTime,
-                      (nodeTime.isSampleTimeValid || nodeTime.isHostTimeValid),
-                      let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime),
-                      self.audioFile != nil else {
-                    return
-                }
-                let nodePlaybackTime = Double(playerTime.sampleTime) / playerTime.sampleRate
-                let currentTime = nodePlaybackTime + self.seekOffset
-                let duration = self.fileDuration()
-                self.lastKnownTime = currentTime
-                self.eventBus.emit(.timeUpdated(current: currentTime, duration: duration))
-
-                // Refresco periódico del widget nativo (~1 Hz); el throttle vive en NowPlayingCenter.
-                self.nowPlaying.pushIfStale(
-                    elapsed: currentTime, isPlaying: true,
-                    realDuration: duration, minInterval: 1.0
-                )
+                self?.tickPlaybackTime()
             }
         }
 
         RunLoop.current.add(playbackTimer!, forMode: .common)
+    }
+
+    /// Un tick del timer de progreso (~10 Hz). Toda la interpretación la hace el reloj;
+    /// aquí solo se actúa sobre lo que concluye.
+    private func tickPlaybackTime() {
+        guard audioFile != nil else { return }
+
+        switch clock.tick(rawPosition: nodePlaybackTime(), at: CACurrentMediaTime()) {
+        case .progress(let progress):
+            publish(progress)
+
+        case .reachedEnd:
+            // El motor nunca avisó del final. Pasa cuando iOS descarta los buffers
+            // programados al reconfigurar la sesión de audio con la app en segundo plano:
+            // el nodo se queda "reproduciendo" silencio y su posición se va más allá de la
+            // duración. Como la posición la acota el reloj, la app y la pantalla de bloqueo
+            // siguen mostrando lo mismo mientras tanto.
+            finishTrack()
+
+        case .stalled(let progress):
+            // El caso inverso: el motor se paró y dejó de entregar frames, sin emitir
+            // ninguna notificación de ruta ni de configuración a la que reaccionar. El reloj
+            // es la única señal, y rehacer el grafo lo devuelve a sonar desde esta posición.
+            publish(progress)
+            recoverStalledEngine()
+        }
+    }
+
+    /// Publica la posición vigente hacia la app y hacia el widget nativo. Las dos superficies
+    /// leen el mismo valor del reloj: es lo que impide que se separen.
+    private func publish(_ progress: PlaybackProgress) {
+        eventBus.emit(.timeUpdated(progress))
+
+        // Refresco periódico del widget nativo (~1 Hz); el throttle vive en NowPlayingCenter.
+        nowPlaying.pushIfStale(progress, isPlaying: true, minInterval: 1.0)
+    }
+
+    /// El reloj detectó que el motor dejó de entregar audio: se rehace el grafo desde la
+    /// última posición buena.
+    private func recoverStalledEngine() {
+        guard let audioFile, let songID = currentlyPlayingID, audioFile.length > 0 else { return }
+        rebuildGraphAndReschedule(audioFile: audioFile, songID: songID, resumePlaying: true)
     }
 
     // MARK: - Equalizer
@@ -530,20 +633,13 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     func setNowPlayingMetadata(title: String, artist: String, album: String?, duration: TimeInterval, artwork: Data?) {
         nowPlaying.setMetadata(
             title: title, artist: artist, album: album, duration: duration, artwork: artwork,
-            elapsed: currentPlaybackTime(), isPlaying: playerNode.isPlaying, realDuration: fileDuration()
-        )
-    }
-
-    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?) {
-        nowPlaying.updateTime(
-            elapsed: elapsed, duration: duration,
-            isPlaying: playerNode.isPlaying, realDuration: fileDuration()
+            progress: syncClockWithEngine(), isPlaying: playerNode.isPlaying
         )
     }
 
     /// Empuja el estado a `MPNowPlayingInfoCenter` (vía `NowPlayingCenter`).
-    private func pushNowPlaying(elapsed: TimeInterval, isPlaying: Bool) {
-        nowPlaying.push(elapsed: elapsed, isPlaying: isPlaying, realDuration: fileDuration())
+    private func pushNowPlaying(_ progress: PlaybackProgress, isPlaying: Bool) {
+        nowPlaying.push(progress, isPlaying: isPlaying)
     }
 
     private func clearNowPlaying() {

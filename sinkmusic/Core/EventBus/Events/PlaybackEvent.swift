@@ -14,8 +14,11 @@ enum PlaybackEvent: Sendable {
     /// Estado de reproducción cambió
     case stateChanged(isPlaying: Bool, songID: UUID?)
 
-    /// Tiempo de reproducción actualizado
-    case timeUpdated(current: TimeInterval, duration: TimeInterval)
+    /// Posición de reproducción actualizada.
+    ///
+    /// La produce el `PlaybackClock` del servicio de audio, ya acotada a la duración real
+    /// del archivo. Nadie la recalcula aguas abajo.
+    case timeUpdated(PlaybackProgress)
 
     /// Canción terminó de reproducirse
     case songFinished(UUID)
@@ -54,10 +57,3 @@ enum PlaybackState: Sendable, Equatable {
     case paused(songID: UUID)
 }
 
-/// Información de tiempo de reproducción (observable)
-struct PlaybackTimeInfo: Sendable, Equatable {
-    let currentTime: TimeInterval
-    let duration: TimeInterval
-
-    static let zero = PlaybackTimeInfo(currentTime: 0, duration: 0)
-}

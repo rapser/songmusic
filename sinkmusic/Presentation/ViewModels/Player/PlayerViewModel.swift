@@ -24,8 +24,18 @@ final class PlayerViewModel: EventBusObservable {
     /// pausar — para eso está `PlayerUseCases.isPlaying()`, que consulta al motor de audio.
     var isPlaying = false
     var currentlyPlayingID: UUID?
-    var playbackTime: TimeInterval = 0
-    var songDuration: TimeInterval = 0
+
+    /// Posición de reproducción. **Espejo directo del `PlaybackClock`**: aquí no se lleva
+    /// un contador propio ni se interpola entre eventos. Un segundo reloj en la UI es
+    /// exactamente lo que hacía que el reproductor de la app y el de la pantalla de bloqueo
+    /// mostraran tiempos distintos.
+    var progress: PlaybackProgress = .zero
+
+    /// Atajos de lectura para las vistas. No tienen `setter`: la única forma de mover el
+    /// tiempo es que lo mueva el reloj.
+    var playbackTime: TimeInterval { progress.elapsed }
+    var songDuration: TimeInterval { progress.duration }
+
     var showPlayerView: Bool = false
     var isShuffleEnabled = false
     var repeatMode: RepeatMode = .off
@@ -43,7 +53,6 @@ final class PlayerViewModel: EventBusObservable {
     private var queueSongIDs: [UUID] = []
     private var currentSong: SongUI?
     private var lastProgressPersistTime: TimeInterval = 0
-    private var lastPlaybackTime: TimeInterval = 0
 
     // MARK: - Tasks
 
@@ -87,13 +96,10 @@ final class PlayerViewModel: EventBusObservable {
             // Comportamiento estilo Spotify: si presionas la canción actual, reinicia
             if currentlyPlayingID == songID && isPlaying {
                 await playerUseCases.seek(to: 0)
-                playbackTime = 0
-                lastPlaybackTime = 0
+                progress = PlaybackProgress(elapsed: 0, duration: progress.duration)
             } else {
                 // Nueva canción
-                playbackTime = 0
-                lastPlaybackTime = 0
-                songDuration = 0
+                progress = .zero
                 currentlyPlayingID = songID
 
                 try await playerUseCases.play(songID: songID)
@@ -128,7 +134,7 @@ final class PlayerViewModel: EventBusObservable {
         await playerUseCases.pause()
         // Respaldo inmediato: si el usuario cierra la app justo después de pausar,
         // no dependemos del siguiente `timeUpdated` (que ya no llegará) para persistir.
-        playerUseCases.persistCurrentPlaybackTime(playbackTime)
+        playerUseCases.persistCurrentPlaybackTime(progress.elapsed)
     }
 
     func stop() async {
@@ -144,8 +150,7 @@ final class PlayerViewModel: EventBusObservable {
 
     func seek(to time: TimeInterval) async {
         await playerUseCases.seek(to: time)
-        playbackTime = time
-        lastPlaybackTime = time
+        progress = PlaybackProgress(elapsed: time, duration: progress.duration)
     }
 
     /// Restaura la última canción escuchada y su posición al abrir la app.
@@ -156,16 +161,14 @@ final class PlayerViewModel: EventBusObservable {
 
         currentSong = SongMapper.toUI(song)
         currentlyPlayingID = song.id
-        playbackTime = time
-        lastPlaybackTime = time
-        songDuration = song.duration ?? 0
+        progress = PlaybackProgress(elapsed: time, duration: song.duration ?? 0)
         isPlaying = false
     }
 
     /// Persiste de inmediato la posición actual, sin esperar al próximo `timeUpdated`.
     /// Se invoca cuando la app pasa a segundo plano para no perder precisión.
     func persistCurrentPlaybackState() {
-        playerUseCases.persistCurrentPlaybackTime(playbackTime)
+        playerUseCases.persistCurrentPlaybackTime(progress.elapsed)
     }
 
     // MARK: - Queue Management
@@ -274,25 +277,22 @@ final class PlayerViewModel: EventBusObservable {
             }
             self.updateLiveActivity()
 
-        case .timeUpdated(let time, let duration):
-            self.songDuration = duration
-
-            // Throttle: actualizar solo si el cambio es > 0.5 segundos
-            if abs(time - self.lastPlaybackTime) > 0.5 {
-                self.playbackTime = time
-                self.lastPlaybackTime = time
-            }
+        case .timeUpdated(let progress):
+            // Se adopta tal cual, sin throttle ni redondeo: el valor ya viene acotado del
+            // reloj y es el mismo que recibe la pantalla de bloqueo.
+            self.progress = progress
 
             // Now Playing lo refresca AudioPlayerService; aquí solo persistimos el avance
             // (cada 1s) para poder retomar la canción al reabrir la app.
-            let currentTime = CACurrentMediaTime()
-            if currentTime - self.lastProgressPersistTime >= 1.0 {
-                self.lastProgressPersistTime = currentTime
-                self.playerUseCases.persistCurrentPlaybackTime(time)
+            let now = CACurrentMediaTime()
+            if now - self.lastProgressPersistTime >= 1.0 {
+                self.lastProgressPersistTime = now
+                self.playerUseCases.persistCurrentPlaybackTime(progress.elapsed)
             }
 
         case .songFinished(let finishedSongID):
-            self.playbackTime = self.songDuration
+            self.progress = PlaybackProgress(elapsed: self.progress.duration,
+                                             duration: self.progress.duration)
             await self.playNextAutomatically(finishedSongID: finishedSongID)
 
         case .remoteCommand(let command):
@@ -323,7 +323,7 @@ final class PlayerViewModel: EventBusObservable {
 
     private func updateLiveActivity() {
         guard let song = currentSong else { return }
-        let duration = songDuration > 0 ? songDuration : song.durationSeconds
+        let duration = progress.duration > 0 ? progress.duration : song.durationSeconds
 
         if isPlaying {
             liveActivityService.startActivity(

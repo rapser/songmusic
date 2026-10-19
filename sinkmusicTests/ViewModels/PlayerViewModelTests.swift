@@ -206,7 +206,7 @@ final class PlayerViewModelTests: XCTestCase {
     }
 
     func test_eventBus_timeUpdated_updatesSongDuration() async {
-        mockEventBus.emit(.timeUpdated(current: 10, duration: 180))
+        mockEventBus.emit(.timeUpdated(PlaybackProgress(elapsed: 10, duration: 180)))
         try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(sut.songDuration, 180)

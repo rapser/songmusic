@@ -38,8 +38,8 @@ protocol EventBusProtocol: AnyObject, Sendable {
     /// Estado actual de reproducción
     var playbackState: PlaybackState { get }
 
-    /// Información de tiempo de reproducción
-    var playbackTimeInfo: PlaybackTimeInfo { get }
+    /// Posición de reproducción vigente
+    var playbackProgress: PlaybackProgress { get }
 
     // MARK: - Emit Events
 

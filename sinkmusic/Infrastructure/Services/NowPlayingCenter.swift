@@ -33,15 +33,18 @@ final class NowPlayingCenter {
     // MARK: - Metadata
 
     /// Fija la metadata de la canción actual. Se llama una vez por canción, no en cada tick.
+    ///
+    /// `duration` es la de la metadata de la canción, que puede venir vacía o equivocada; la
+    /// buena es `progress.duration`, medida sobre el archivo. Aquí solo sirve de respaldo
+    /// mientras el archivo aún no está cargado.
     func setMetadata(
         title: String,
         artist: String,
         album: String?,
         duration: TimeInterval,
         artwork: Data?,
-        elapsed: TimeInterval,
-        isPlaying: Bool,
-        realDuration: TimeInterval
+        progress: PlaybackProgress,
+        isPlaying: Bool
     ) {
         var info = [String: Any]()
         info[MPMediaItemPropertyTitle] = title
@@ -75,33 +78,27 @@ final class NowPlayingCenter {
         }
 
         base = info
-        push(elapsed: elapsed, isPlaying: isPlaying, realDuration: realDuration)
-    }
-
-    /// Refresca solo el tiempo transcurrido (y la duración si se conoce).
-    func updateTime(elapsed: TimeInterval, duration: TimeInterval?, isPlaying: Bool, realDuration: TimeInterval) {
-        if let duration, duration.isFinite, duration > 0 {
-            base[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
-        }
-        push(elapsed: elapsed, isPlaying: isPlaying, realDuration: realDuration)
+        push(progress, isPlaying: isPlaying)
     }
 
     /// Único punto que escribe en `MPNowPlayingInfoCenter`.
     ///
+    /// Recibe la posición del `PlaybackClock` — la misma que ve la UI de la app — en vez de
+    /// un tiempo suelto: es lo que garantiza que los dos reproductores muestren lo mismo.
+    ///
     /// El orden importa: primero `nowPlayingInfo` (para que iOS tenga el tiempo fresco) y
     /// después `playbackState`. Al revés, iOS extrapola un frame desde el valor anterior.
-    func push(elapsed: TimeInterval, isPlaying: Bool, realDuration: TimeInterval) {
+    func push(_ progress: PlaybackProgress, isPlaying: Bool) {
         var info = base
 
-        let safeElapsed = elapsed.isFinite && elapsed >= 0 ? elapsed : 0
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: safeElapsed)
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: progress.elapsed)
         info[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: isPlaying ? 1.0 : 0.0)
         info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = NSNumber(value: 1.0)
 
-        // La duración real del archivo es más fiable que la metadata de la canción.
-        if realDuration > 0 {
-            info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: realDuration)
-            base[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: realDuration)
+        // La duración medida sobre el archivo es más fiable que la de la metadata.
+        if progress.duration > 0 {
+            info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: progress.duration)
+            base[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: progress.duration)
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
@@ -112,9 +109,13 @@ final class NowPlayingCenter {
 
     /// Push con throttle: no hace nada si hace menos de `minInterval` del último push.
     /// Lo usa el tick del timer de progreso (~10 Hz) para refrescar el widget a ~1 Hz.
-    func pushIfStale(elapsed: TimeInterval, isPlaying: Bool, realDuration: TimeInterval, minInterval: CFTimeInterval) {
+    ///
+    /// iOS no se limita a mostrar lo que se le manda: extrapola desde `elapsed` con
+    /// `playbackRate` y su propio reloj. Refrescar a 1 Hz con la posición real del motor es
+    /// lo que mantiene esa extrapolación pegada a la verdad.
+    func pushIfStale(_ progress: PlaybackProgress, isPlaying: Bool, minInterval: CFTimeInterval) {
         guard CACurrentMediaTime() - lastPush >= minInterval else { return }
-        push(elapsed: elapsed, isPlaying: isPlaying, realDuration: realDuration)
+        push(progress, isPlaying: isPlaying)
     }
 
     func clear() {
