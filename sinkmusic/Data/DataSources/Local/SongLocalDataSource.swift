@@ -82,16 +82,15 @@ final class SongLocalDataSource {
     // Usa un contador con ventana de 7 días que vive fuera de SwiftData
     // (`RankingWindowRepository`), combinado con `getDownloaded()` en `SongRepositoryImpl`.
 
-    /// Obtiene canciones reproducidas recientemente (query targeted: reemplaza getAll()+filter+sort+prefix)
-    /// Excluye canciones ya no descargadas para que "Recientes" en Home se limpie
-    /// automáticamente al eliminar una descarga.
-    func getRecentlyPlayed(limit: Int = 10) throws -> [SongDTO] {
-        let predicate = #Predicate<SongDTO> { $0.lastPlayedAt != nil && $0.isDownloaded }
-        var descriptor = FetchDescriptor<SongDTO>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\SongDTO.lastPlayedAt, order: .reverse)]
+    /// Canciones descargadas de entre un conjunto concreto de ids.
+    ///
+    /// La usa "Recientes": el orden lo da `SongPlayStatsDTO` y aquí solo se resuelven esos
+    /// ids, así que la consulta la acota el número de canciones *escuchadas* y no el tamaño
+    /// de la biblioteca.
+    func getDownloaded(ids: [UUID]) throws -> [SongDTO] {
+        let descriptor = FetchDescriptor<SongDTO>(
+            predicate: #Predicate { ids.contains($0.id) && $0.isDownloaded }
         )
-        descriptor.fetchLimit = limit
         return try modelContext.fetch(descriptor)
     }
 
@@ -166,13 +165,10 @@ final class SongLocalDataSource {
 
     // MARK: - Batch Operations
 
-    /// Incrementa el contador de reproducciones
-    func incrementPlayCount(for id: UUID) throws {
-        guard let song = try getByID(id) else { return }
-        song.playCount += 1
-        song.lastPlayedAt = Date()
-        try modelContext.save()
-    }
+    // Nota: las reproducciones (`playCount`, `lastPlayedAt`) ya no se escriben aquí. Viven
+    // en `SongPlayStatsDTO` y las gestiona `SongPlayStatsLocalDataSource`, para que dar al
+    // play no toque la fila de la canción — que es lo que vigilan las cuatro tiendas del
+    // read-side. Los campos siguen en `SongDTO` como semilla del backfill.
 
     /// Actualiza el estado de descarga
     func updateDownloadStatus(for id: UUID, isDownloaded: Bool) throws {
@@ -181,38 +177,5 @@ final class SongLocalDataSource {
         try modelContext.save()
     }
 
-    /// Actualiza metadata de una canción
-    func updateMetadata(
-        for id: UUID,
-        duration: TimeInterval?,
-        artworkData: Data?,
-        artworkThumbnail: Data?,
-        artworkMediumThumbnail: Data?,
-        album: String?,
-        author: String?
-    ) throws {
-        guard let song = try getByID(id) else { return }
-
-        if let duration = duration {
-            song.duration = duration
-        }
-        if let artworkData = artworkData {
-            song.artworkData = artworkData
-        }
-        if let artworkThumbnail = artworkThumbnail {
-            song.artworkThumbnail = artworkThumbnail
-        }
-        if let artworkMediumThumbnail = artworkMediumThumbnail {
-            song.artworkMediumThumbnail = artworkMediumThumbnail
-        }
-        if let album = album {
-            song.album = album
-        }
-        if let author = author {
-            song.author = author
-        }
-
-        try modelContext.save()
-    }
 
 }

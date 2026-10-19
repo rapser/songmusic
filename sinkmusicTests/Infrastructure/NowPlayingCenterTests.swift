@@ -33,7 +33,7 @@ final class NowPlayingCenterTests: XCTestCase {
 
     func test_setMetadata_writesFields() {
         sut.setMetadata(title: "T", artist: "A", album: "Alb", duration: 200, artwork: nil,
-                        elapsed: 30, isPlaying: true, realDuration: 0)
+                        progress: PlaybackProgress(elapsed: 30, duration: 0), isPlaying: true)
 
         XCTAssertEqual(info?[MPMediaItemPropertyTitle] as? String, "T")
         XCTAssertEqual(info?[MPMediaItemPropertyArtist] as? String, "A")
@@ -45,32 +45,43 @@ final class NowPlayingCenterTests: XCTestCase {
 
     func test_setMetadata_emptyAlbumOmitsKey() {
         sut.setMetadata(title: "T", artist: "A", album: "", duration: 1, artwork: nil,
-                        elapsed: 0, isPlaying: false, realDuration: 0)
+                        progress: .zero, isPlaying: false)
         XCTAssertNil(info?[MPMediaItemPropertyAlbumTitle])
     }
 
     func test_push_realDurationOverridesMetadataDuration() {
         sut.setMetadata(title: "T", artist: "A", album: nil, duration: 200, artwork: nil,
-                        elapsed: 0, isPlaying: false, realDuration: 0)
+                        progress: .zero, isPlaying: false)
 
-        sut.push(elapsed: 5, isPlaying: true, realDuration: 333)
+        sut.push(PlaybackProgress(elapsed: 5, duration: 333), isPlaying: true)
 
         XCTAssertEqual(number(MPMediaItemPropertyPlaybackDuration), 333)
     }
 
-    func test_updateTime_setsElapsedAndKeepsMetadata() {
+    func test_push_keepsMetadataAndUpdatesElapsed() {
         sut.setMetadata(title: "Song", artist: "A", album: nil, duration: 200, artwork: nil,
-                        elapsed: 0, isPlaying: true, realDuration: 0)
+                        progress: .zero, isPlaying: true)
 
-        sut.updateTime(elapsed: 90, duration: nil, isPlaying: true, realDuration: 0)
+        sut.push(PlaybackProgress(elapsed: 90, duration: 0), isPlaying: true)
 
         XCTAssertEqual(number(MPNowPlayingInfoPropertyElapsedPlaybackTime), 90)
         XCTAssertEqual(info?[MPMediaItemPropertyTitle] as? String, "Song")
     }
 
+    /// La posición que llega aquí ya viene acotada por construcción: el widget nativo no
+    /// puede recibir un tiempo mayor que la duración ni aunque quien lo llame se equivoque.
+    func test_push_elapsedIsClampedToDuration() {
+        sut.setMetadata(title: "T", artist: "A", album: nil, duration: 217, artwork: nil,
+                        progress: .zero, isPlaying: true)
+
+        sut.push(PlaybackProgress(elapsed: 256, duration: 217), isPlaying: true)
+
+        XCTAssertEqual(number(MPNowPlayingInfoPropertyElapsedPlaybackTime), 217)
+    }
+
     func test_clear_removesInfo() {
         sut.setMetadata(title: "T", artist: "A", album: nil, duration: 1, artwork: nil,
-                        elapsed: 0, isPlaying: true, realDuration: 0)
+                        progress: .zero, isPlaying: true)
         XCTAssertNotNil(info)
 
         sut.clear()
@@ -80,10 +91,10 @@ final class NowPlayingCenterTests: XCTestCase {
 
     func test_pushIfStale_skipsWhenRecentlyPushed() {
         sut.setMetadata(title: "T", artist: "A", album: nil, duration: 1, artwork: nil,
-                        elapsed: 0, isPlaying: true, realDuration: 0)
+                        progress: .zero, isPlaying: true)
 
         // `setMetadata` ya empujó ahora mismo; un `pushIfStale` inmediato (< 1s) NO re-empuja.
-        sut.pushIfStale(elapsed: 42, isPlaying: true, realDuration: 0, minInterval: 1.0)
+        sut.pushIfStale(PlaybackProgress(elapsed: 42, duration: 0), isPlaying: true, minInterval: 1.0)
 
         XCTAssertEqual(number(MPNowPlayingInfoPropertyElapsedPlaybackTime), 0)
     }

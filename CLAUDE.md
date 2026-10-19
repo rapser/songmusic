@@ -78,6 +78,71 @@ Cualquier lógica de Auth nueva va aquí, no repartida por las capas.
 
 ## Deuda técnica conocida
 
-Ver `/Users/rapser/.claude/plans/necesito-que-en-base-memoized-charm.md` (auditoría completa
-con plan priorizado). Refactors grandes pendientes: cascada de reactividad, `SongUI` sin
-trabajo pesado, partir `AudioPlayerService` y los ViewModels grandes, `songOrder` → entidad.
+Resumen inline y no un enlace: la auditoría anterior vivía en un archivo fuera del repo que
+acabó desapareciendo, dejando esta sección apuntando a una ruta muerta.
+
+**Fan-out del read-side — resuelto el camino caliente.** Dar al play escribía
+`playCount`/`lastPlayedAt` en `SongDTO`, y las cuatro tiendas vigilan esa entidad: cuatro
+señales por reproducción, con Biblioteca, Playlists y Búsqueda recargando enteras sin usar
+el dato. El contador vive ahora en `SongPlayStatsDTO` (entidad independiente, aditiva,
+mismo patrón que `RankingWindowEntryDTO`), que solo vigila Inicio. Medido en
+`sinkmusicTests/ReadStores/ReadStoreFanOutTests.swift`: **de 4 señales a 1**, y una
+escritura real sobre la canción sigue despertando a las cuatro, que es correcto.
+
+Queda, con mucho menos valor ahora: unificar los cuatro `ModelContextChangeObserver` en
+uno con señal tipada por entidad (un debounce en vez de cuatro, y adiós a los nombres de
+entidad como literales de string). SwiftData History (`fetchHistory`, iOS 18+)
+probablemente no vale lo que cuesta: obliga a gestionar y purgar transacciones.
+
+**Al tocar el esquema**: los campos viejos de `SongDTO` siguen ahí a propósito —quitarlos
+exigiría `AppSchemaV2`— y son la semilla del backfill perezoso. Cualquier cambio de esquema
+se prueba migrando **desde una build anterior con datos reales**, no solo en instalación
+limpia.
+
+**Caminos duplicados — lo único grande que queda.** Cada dato se recarga aún por dos vías:
+recarga imperativa tras mutar (`PlaylistViewModel` la repite en 11 métodos,
+`LibraryViewModel` en 3) y la señal `changes()` ~120 ms después, que ya las cubre todas.
+Hay que elegir **una** vía por dato. También sigue la cascada de `MainAppView`, con
+`onPlayingIDChanged` llamado desde tres sitios y salvado por un guard de idempotencia.
+`BulkReloadGate` ya se usa en las tres operaciones masivas que existen
+(`downloadMultiple`, `clearLibrary`, `deleteSongs`).
+
+**Responsabilidades — hecho.** El EQ fuera de `AudioPlayerService` (`AudioEqualizer`), la
+cola fuera de `PlayerViewModel` (`PlaybackQueue` en Domain), `DownloadQueueManager`
+inyectado desde el DI, `SettingsUseCases` partido en tres (`CloudCredentialsUseCases` /
+`AppDataUseCases` / `AppInfoUseCases`), la curaduría de Inicio fuera del CRUD de playlists
+(`HomePlaylistLayoutUseCases`) y las agregaciones fuera de Búsqueda
+(`LibraryAggregationUseCases`). El modelo a seguir está en `Features/Auth`: Strategy +
+Factory + Facade + State.
+
+**Main actor.** Hecho: el color dominante se calcula al ingerir
+(`MetadataService` → `DominantColorService`, fuera del main actor) y el mapper solo lee lo
+persistido; la carátula del reproductor se decodifica a 1024 px fuera del main actor
+(`ArtworkDecoder`). Para canciones anteriores a ese cambio queda el relleno perezoso de
+`LibraryViewModel.persistDominantColorIfNeeded`.
+
+**Reactividad — decidido, no revisar sin motivo.** `Observations` (SE-0475) es iOS 26+ y el
+target es iOS 18, así que no es una alternativa; además observa *estado* y fusiona cambios
+de la misma transacción, por lo que no sirve para eventos discretos como `songFinished`.
+El `EventBus` sobre `AsyncStream` es la herramienta correcta aquí.
+
+**`NonisolatedNonsendingByDefault` — medido y descartado por ahora.** El flag de Swift 6.2
+hace que una función `nonisolated async` herede el actor de quien la llama. Suena gratis y
+no lo es: el proyecto tiene **tres** funciones así, y las tres quieren precisamente salir
+del main actor — `ArtworkDecoder.decode`, `MetadataService.parse` y
+`CloudStorageRepositoryImpl.getDuration`. Activarlo las devolvería al main actor **sin un
+solo error de compilación**: el trabajo pesado se muda en silencio y se nota como tirones.
+
+Coste real medido: 14 errores en `CloudStorageRepositoryImpl` más `@concurrent` en esas
+tres funciones, a cambio de ningún beneficio aquí (los dos `@unchecked Sendable` que quedan
+son por `UserDefaults`, que este flag no arregla). Es el comportamiento por defecto en
+Swift 7, así que la migración llegará; cuando se haga, revisar **cada** función
+`nonisolated async` y decidir explícitamente si hereda o lleva `@concurrent`, y comprobar
+con Instruments que la decodificación de carátulas sigue fuera del main actor.
+
+**Lo que queda del plan, abierto por decisión y no por olvido**: unificar los cuatro
+`ModelContextChangeObserver` en uno con señal tipada (cosmético desde que el camino caliente
+se resolvió) y SwiftData History (obliga a gestionar y purgar transacciones a cambio de
+poco). Las carátulas de las filas de lista de 56 pt siguen ampliando el thumbnail de 64 px
+unas 2,6 veces: arreglarlo pide un thumbnail persistido mayor —entidad aditiva + backfill—,
+y se decidió que no lo vale.

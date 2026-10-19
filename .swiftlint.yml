@@ -43,7 +43,9 @@ disabled_rules:
 
 type_body_length:
   warning: 250
-  error: 700                 # AudioPlayerService (~625) todavía cabe; bajar tras P2.13
+  error: 700                 # El techo lo marca AudioPlayerService (~600 tras sacar
+                             # NowPlayingCenter, las interrupciones y el ecualizador).
+                             # Bajarlo cuando se parta el grafo del reloj.
 
 file_length:
   warning: 300

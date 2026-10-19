@@ -32,6 +32,10 @@ enum ReadStoreTestSupport {
         SongLocalDataSource(modelContext: context)
     }
 
+    static func makePlayStatsDataSource(_ context: ModelContext) -> SongPlayStatsLocalDataSource {
+        SongPlayStatsLocalDataSource(modelContext: context)
+    }
+
     /// Ranking de Inicio sobre el mismo contenedor SwiftData en memoria del test.
     static func makeRankingWindowRepository(_ context: ModelContext) -> RankingWindowRepositoryProtocol {
         RankingWindowRepositoryImpl(dataSource: RankingWindowLocalDataSource(modelContext: context))
@@ -43,7 +47,8 @@ enum ReadStoreTestSupport {
     ) -> SongRepositoryProtocol {
         SongRepositoryImpl(
             localDataSource: makeSongLocalDataSource(context),
-            rankingWindowRepository: ranking ?? makeRankingWindowRepository(context)
+            rankingWindowRepository: ranking ?? makeRankingWindowRepository(context),
+            playStatsDataSource: makePlayStatsDataSource(context)
         )
     }
 
@@ -54,7 +59,8 @@ enum ReadStoreTestSupport {
         PlaylistRepositoryImpl(
             localDataSource: PlaylistLocalDataSource(modelContext: context),
             songRepository: makeSongRepository(context, ranking: ranking),
-            songLocalDataSource: makeSongLocalDataSource(context)
+            songLocalDataSource: makeSongLocalDataSource(context),
+            playStatsDataSource: makePlayStatsDataSource(context)
         )
     }
 
@@ -83,15 +89,49 @@ enum ReadStoreTestSupport {
     static func makePlaylistUseCases(_ context: ModelContext) -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: makePlaylistRepository(context),
-            songRepository: makeSongRepository(context),
-            // Mock explícito: evita que estos tests dependan de UserDefaults real
-            // (que persiste entre corridas) para la curaduría de playlists en Inicio.
-            homePlaylistLayoutRepository: MockHomePlaylistLayoutRepository()
+            songRepository: makeSongRepository(context)
         )
     }
 
     static func makeSearchUseCases(_ context: ModelContext) -> SearchUseCases {
         SearchUseCases(songRepository: makeSongRepository(context))
+    }
+
+    static func makeAggregationUseCases(_ context: ModelContext) -> LibraryAggregationUseCases {
+        LibraryAggregationUseCases(songRepository: makeSongRepository(context))
+    }
+
+    static func makeHomeLayoutUseCases(_ context: ModelContext) -> HomePlaylistLayoutUseCases {
+        // Mock explícito: evita que estos tests dependan del UserDefaults real
+        // (que persiste entre corridas) para la curaduría de playlists en Inicio.
+        HomePlaylistLayoutUseCases(
+            playlistRepository: makePlaylistRepository(context),
+            homePlaylistLayoutRepository: MockHomePlaylistLayoutRepository()
+        )
+    }
+
+    /// Canción tal como la guardaba la versión anterior: el contador en los campos de
+    /// `SongDTO` y **sin** fila en `SongPlayStatsDTO`. Es el estado del que parte el
+    /// backfill perezoso.
+    @discardableResult
+    static func insertLegacySong(
+        _ context: ModelContext,
+        title: String = "Legacy Song",
+        isDownloaded: Bool = true,
+        playCount: Int = 0,
+        lastPlayedAt: Date? = nil
+    ) throws -> SongDTO {
+        let dto = SongDTO(
+            title: title,
+            artist: "Test Artist",
+            fileID: UUID().uuidString,
+            isDownloaded: isDownloaded
+        )
+        dto.playCount = playCount
+        dto.lastPlayedAt = lastPlayedAt
+        context.insert(dto)
+        try context.save()
+        return dto
     }
 
     @discardableResult
@@ -111,9 +151,16 @@ enum ReadStoreTestSupport {
             fileID: UUID().uuidString,
             isDownloaded: isDownloaded
         )
-        dto.playCount = playCount
-        dto.lastPlayedAt = lastPlayedAt
         context.insert(dto)
+
+        // Las reproducciones viven en su propia entidad (`SongPlayStatsDTO`). Se insertan
+        // aquí directamente para que los tests no dependan de cuándo corre el backfill;
+        // el backfill desde los campos viejos tiene sus propios tests con
+        // `insertLegacySong`.
+        if playCount > 0 || lastPlayedAt != nil {
+            context.insert(SongPlayStatsDTO(songID: dto.id, playCount: playCount, lastPlayedAt: lastPlayedAt))
+        }
+
         try context.save()
         return dto
     }

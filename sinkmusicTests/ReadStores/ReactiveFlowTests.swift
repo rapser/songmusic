@@ -21,7 +21,11 @@ final class ReactiveFlowTests: XCTestCase {
 
         let libraryUseCases = ReadStoreTestSupport.makeLibraryUseCases(context)
         let readStore = LibraryReadStore(libraryUseCases: libraryUseCases, modelContext: context)
-        let viewModel = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: readStore)
+        let viewModel = LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: readStore,
+            bulkReloadGate: ReactiveReloadGate([])
+        )
 
         await viewModel.loadSongs()
         XCTAssertEqual(viewModel.songs.first?.isDownloaded, false)
@@ -41,7 +45,11 @@ final class ReactiveFlowTests: XCTestCase {
 
         let libraryUseCases = ReadStoreTestSupport.makeLibraryUseCases(context)
         let readStore = LibraryReadStore(libraryUseCases: libraryUseCases, modelContext: context)
-        let viewModel = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: readStore)
+        let viewModel = LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: readStore,
+            bulkReloadGate: ReactiveReloadGate([])
+        )
 
         await viewModel.loadSongs()
         XCTAssertEqual(viewModel.songs.count, 1)
@@ -81,7 +89,11 @@ final class ReactiveFlowTests: XCTestCase {
         try ReadStoreTestSupport.insertSong(context, title: "Existing")
 
         let searchUseCases = ReadStoreTestSupport.makeSearchUseCases(context)
-        let readStore = SearchReadStore(searchUseCases: searchUseCases, modelContext: context)
+        let readStore = SearchReadStore(
+            searchUseCases: searchUseCases,
+            aggregationUseCases: ReadStoreTestSupport.makeAggregationUseCases(context),
+            modelContext: context
+        )
         let viewModel = SearchViewModel(readStore: readStore)
 
         await viewModel.search()

@@ -65,15 +65,4 @@ protocol SongRepositoryProtocol: Sendable {
     /// Actualiza el estado de descarga
     func updateDownloadStatus(for id: UUID, isDownloaded: Bool) async throws
 
-    /// Actualiza metadata de una canción
-    func updateMetadata(
-        for id: UUID,
-        duration: TimeInterval?,
-        artworkData: Data?,
-        artworkThumbnail: Data?,
-        artworkMediumThumbnail: Data?,
-        album: String?,
-        author: String?
-    ) async throws
-
 }

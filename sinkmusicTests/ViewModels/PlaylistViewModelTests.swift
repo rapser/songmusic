@@ -13,7 +13,6 @@ final class PlaylistViewModelTests: XCTestCase {
     private var mockPlaylistRepo: MockPlaylistRepository!
     private var mockSongRepo: MockSongRepository!
     private var mockReadStore: MockPlaylistReadStore!
-    private var mockHomeLayoutRepo: MockHomePlaylistLayoutRepository!
     private var playlistUseCases: PlaylistUseCases!
 
     override func setUp() {
@@ -21,11 +20,9 @@ final class PlaylistViewModelTests: XCTestCase {
         mockPlaylistRepo = MockPlaylistRepository()
         mockSongRepo = MockSongRepository()
         mockReadStore = MockPlaylistReadStore()
-        mockHomeLayoutRepo = MockHomePlaylistLayoutRepository()
         playlistUseCases = PlaylistUseCases(
             playlistRepository: mockPlaylistRepo,
-            songRepository: mockSongRepo,
-            homePlaylistLayoutRepository: mockHomeLayoutRepo
+            songRepository: mockSongRepo
         )
         sut = PlaylistViewModel(playlistUseCases: playlistUseCases, readStore: mockReadStore)
     }
@@ -36,7 +33,6 @@ final class PlaylistViewModelTests: XCTestCase {
         mockPlaylistRepo = nil
         mockSongRepo = nil
         mockReadStore = nil
-        mockHomeLayoutRepo = nil
         super.tearDown()
     }
 

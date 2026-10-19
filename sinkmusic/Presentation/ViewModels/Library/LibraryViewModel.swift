@@ -32,6 +32,10 @@ final class LibraryViewModel {
     private let libraryUseCases: LibraryUseCases
     private let readStore: LibraryReadStoreProtocol
 
+    /// Pausa la reactividad de las cuatro listas durante un borrado masivo: una recarga al
+    /// final en vez de una por canción.
+    private let bulkReloadGate: BulkReloadGate
+
     // MARK: - Tasks
 
     /// Task para observar cambios reactivos del ReadStore
@@ -40,9 +44,17 @@ final class LibraryViewModel {
 
     // MARK: - Initialization
 
-    init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
+    /// **Una sola vía por dato.** Las mutaciones escriben y no recargan a mano: la lectura
+    /// la trae la señal del ReadStore. Requiere que esa señal llegue de inmediato — ver el
+    /// flanco de subida de `ModelContextChangeObserver`.
+    init(
+        libraryUseCases: LibraryUseCases,
+        readStore: LibraryReadStoreProtocol,
+        bulkReloadGate: BulkReloadGate
+    ) {
         self.libraryUseCases = libraryUseCases
         self.readStore = readStore
+        self.bulkReloadGate = bulkReloadGate
         changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
             await self?.reloadLibrary()
         }
@@ -70,15 +82,30 @@ final class LibraryViewModel {
         (try? await libraryUseCases.getSongByID(songID))?.artworkData
     }
 
-    /// Persiste el color dominante calculado del artwork (solo cuando aún no está guardado).
-    /// La primera vez se calcula y guarda; en siguientes cargas la lista usará el color guardado.
+    /// Calcula y persiste el color dominante de una canción que todavía no lo tiene.
+    ///
+    /// Desde que el color se calcula al ingerir (`MetadataService`), esto solo hace falta
+    /// para las canciones que ya estaban en la biblioteca antes: un relleno perezoso, una
+    /// vez por canción y solo cuando se abre su reproductor.
+    ///
+    /// El análisis va en `Task.detached`: decodificar y muestrear la imagen no tiene por
+    /// qué bloquear el main actor, que es justo donde está la animación de apertura del
+    /// reproductor.
     func persistDominantColorIfNeeded(songID: UUID, artworkData: Data?) async {
-        guard let artworkData = artworkData,
-              let rgb = Color.dominantColorRGB(from: artworkData) else { return }
+        guard let artworkData else { return }
+
+        let rgb = await Task.detached(priority: .utility) {
+            DominantColorService.extract(from: artworkData)
+        }.value
+
+        guard let rgb else { return }
+
         do {
-            try await libraryUseCases.updateDominantColor(songID: songID, red: rgb.r, green: rgb.g, blue: rgb.b)
+            try await libraryUseCases.updateDominantColor(
+                songID: songID, red: rgb.red, green: rgb.green, blue: rgb.blue
+            )
             if let idx = songs.firstIndex(where: { $0.id == songID }) {
-                songs[idx] = songs[idx].with(dominantColor: Color(red: rgb.r, green: rgb.g, blue: rgb.b))
+                songs[idx] = songs[idx].with(dominantColor: Color(rgb))
             }
         } catch {
             logger.error("Error al guardar color dominante: \(error)")
@@ -123,8 +150,16 @@ final class LibraryViewModel {
         }
     }
 
-    /// Limpia toda la biblioteca
+    /// Limpia toda la biblioteca.
+    ///
+    /// Borra canción por canción, y cada borrado hace su propio `save()`. Sin la puerta,
+    /// cada uno despertaba a las cuatro tiendas del read-side: vaciar 500 canciones eran
+    /// 500 cascadas de recargas, todas describiendo un estado intermedio que nadie va a
+    /// ver. Con la puerta se colapsan en una sola señal al terminar.
     func clearLibrary() async {
+        bulkReloadGate.suspend()
+        defer { bulkReloadGate.resume() }
+
         do {
             let allSongs = try await libraryUseCases.getAllSongs()
 
@@ -136,9 +171,7 @@ final class LibraryViewModel {
                 }
             }
 
-            await loadSongs()
-            await loadStats()
-
+            // La recarga la trae el `resume()` del `defer`: una señal al terminar.
             logger.info("Biblioteca local y archivos descargados limpiados.")
 
         } catch {
@@ -150,18 +183,18 @@ final class LibraryViewModel {
     func deleteSong(_ songID: UUID) async {
         do {
             try await libraryUseCases.deleteSong(songID)
-            await loadSongs()
-            await loadStats()
         } catch {
             logger.error("Error al eliminar canción: \(error)")
         }
     }
 
     /// Elimina múltiples canciones en modo best-effort — continúa aunque alguna falle.
+    /// Igual que `clearLibrary()`: una recarga al final, no una por canción.
     func deleteSongs(_ songIDs: [UUID]) async {
+        bulkReloadGate.suspend()
+        defer { bulkReloadGate.resume() }
+
         let result = await libraryUseCases.deleteSongs(songIDs)
-        await loadSongs()
-        await loadStats()
         if result.hasFailures {
             logger.error("\(result.failureCount) canciones no pudieron eliminarse")
         }

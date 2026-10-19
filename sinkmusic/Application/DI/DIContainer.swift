@@ -91,7 +91,7 @@ final class DIContainer {
 
     /// Facade de autenticación (interno - no exponer directamente)
     private lazy var authFacade: AuthFacade = {
-        AuthFacade(strategy: authStrategy, eventBus: eventBus)
+        AuthFacade(strategy: authStrategy)
     }()
 
     /// ViewModel de autenticación (único punto de acceso público)
@@ -113,7 +113,7 @@ final class DIContainer {
 
     private(set) lazy var playbackStateRepository: PlaybackStateRepositoryProtocol = PlaybackStateRepositoryImpl()
 
-    private(set) lazy var downloadFileStore: DownloadFileStoreProtocol = DownloadFileStore()
+    private(set) lazy var downloadFileStore: DownloadFileStoreProtocol = DownloadFileStore.documents()
 
     private(set) lazy var homePlaylistLayoutRepository: HomePlaylistLayoutRepositoryProtocol = HomePlaylistLayoutRepositoryImpl()
 
@@ -135,15 +135,38 @@ final class DIContainer {
 
     private(set) lazy var searchUseCases: SearchUseCases = makeSearchUseCases()
 
+    /// Curaduría de Inicio: qué playlists se ven y en qué orden. Fuera del CRUD de playlists.
+    private(set) lazy var homePlaylistLayoutUseCases = HomePlaylistLayoutUseCases(
+        playlistRepository: playlistRepository,
+        homePlaylistLayoutRepository: homePlaylistLayoutRepository
+    )
+
+    /// Artistas, álbumes y sus conteos. Los consume Inicio y los filtros, no la Búsqueda.
+    private(set) lazy var libraryAggregationUseCases = LibraryAggregationUseCases(
+        songRepository: songRepository
+    )
+
     private(set) lazy var downloadUseCases: DownloadUseCases = makeDownloadUseCases()
 
-    private(set) lazy var settingsUseCases: SettingsUseCases = makeSettingsUseCases()
+    private(set) lazy var cloudCredentialsUseCases: CloudCredentialsUseCases = CloudCredentialsUseCases(
+        credentialsRepository: credentialsRepository,
+        cloudStorageRepository: cloudStorageRepository
+    )
+
+    private(set) lazy var appDataUseCases: AppDataUseCases = AppDataUseCases(
+        songRepository: songRepository,
+        cloudStorageRepository: cloudStorageRepository,
+        playlistRepository: playlistRepository
+    )
+
+    private(set) lazy var appInfoUseCases = AppInfoUseCases()
 
     // MARK: - Read Stores (lectura reactiva, SOLID: Interface Segregation por dominio)
 
     private(set) lazy var homeReadStore: HomeReadStoreProtocol = HomeReadStore(
         libraryUseCases: libraryUseCases,
         playlistUseCases: playlistUseCases,
+        homeLayoutUseCases: homePlaylistLayoutUseCases,
         modelContext: requireModelContext()
     )
 
@@ -159,6 +182,7 @@ final class DIContainer {
 
     private(set) lazy var searchReadStore: SearchReadStoreProtocol = SearchReadStore(
         searchUseCases: searchUseCases,
+        aggregationUseCases: libraryAggregationUseCases,
         modelContext: requireModelContext()
     )
 
@@ -168,6 +192,11 @@ final class DIContainer {
         homeReadStore, libraryReadStore, playlistReadStore, searchReadStore
     ])
 
+    /// Cola de descargas: límites de concurrencia por proveedor y backoff por cuota
+    /// excedida. Compartida a propósito —el estado de cuota es de la app, no de una
+    /// pantalla—, y antes la creaba `DownloadViewModel` dentro de sí mismo.
+    private(set) lazy var downloadQueueManager = DownloadQueueManager()
+
     // MARK: - Shared DataSources
 
     /// Instancia única de SongLocalDataSource compartida entre todos los repositorios
@@ -176,12 +205,19 @@ final class DIContainer {
         SongLocalDataSource(modelContext: requireModelContext())
     }()
 
+    /// Reproducciones históricas, en su propia entidad (`SongPlayStatsDTO`). Compartida:
+    /// hace el backfill desde los campos viejos de `SongDTO` una sola vez por ejecución.
+    private lazy var songPlayStatsDataSource: SongPlayStatsLocalDataSource = {
+        SongPlayStatsLocalDataSource(modelContext: requireModelContext())
+    }()
+
     // MARK: - Repository Factories
 
     private func makeSongRepository() -> SongRepositoryProtocol {
         SongRepositoryImpl(
             localDataSource: songLocalDataSource,
-            rankingWindowRepository: rankingWindowRepository
+            rankingWindowRepository: rankingWindowRepository,
+            playStatsDataSource: songPlayStatsDataSource
         )
     }
 
@@ -190,7 +226,8 @@ final class DIContainer {
         return PlaylistRepositoryImpl(
             localDataSource: playlistLocalDataSource,
             songRepository: songRepository,
-            songLocalDataSource: songLocalDataSource
+            songLocalDataSource: songLocalDataSource,
+            playStatsDataSource: songPlayStatsDataSource
         )
     }
 
@@ -250,8 +287,7 @@ final class DIContainer {
     private func makePlaylistUseCases() -> PlaylistUseCases {
         PlaylistUseCases(
             playlistRepository: playlistRepository,
-            songRepository: songRepository,
-            homePlaylistLayoutRepository: homePlaylistLayoutRepository
+            songRepository: songRepository
         )
     }
 
@@ -269,12 +305,11 @@ final class DIContainer {
         )
     }
 
-    private func makeSettingsUseCases() -> SettingsUseCases {
-        SettingsUseCases(
-            credentialsRepository: credentialsRepository,
+    /// No es `private`: lo invoca el arranque de la app, antes de crear los ViewModels.
+    func makeReconcileDownloadsUseCase() -> ReconcileDownloadsUseCase {
+        ReconcileDownloadsUseCase(
             songRepository: songRepository,
-            cloudStorageRepository: cloudStorageRepository,
-            playlistRepository: playlistRepository
+            fileStore: downloadFileStore
         )
     }
 
@@ -291,7 +326,11 @@ final class DIContainer {
 
     /// Factory para LibraryViewModel
     func makeLibraryViewModel() -> LibraryViewModel {
-        LibraryViewModel(libraryUseCases: libraryUseCases, readStore: libraryReadStore)
+        LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: libraryReadStore,
+            bulkReloadGate: bulkReloadGate
+        )
     }
 
     /// Factory para PlaylistViewModel
@@ -301,7 +340,7 @@ final class DIContainer {
 
     /// Factory para HomePlaylistLayoutViewModel (pantalla "Editar inicio")
     func makeHomePlaylistLayoutViewModel() -> HomePlaylistLayoutViewModel {
-        HomePlaylistLayoutViewModel(playlistUseCases: playlistUseCases)
+        HomePlaylistLayoutViewModel(homeLayoutUseCases: homePlaylistLayoutUseCases)
     }
 
     /// Factory para SearchViewModel
@@ -312,7 +351,9 @@ final class DIContainer {
     /// Factory para SettingsViewModel
     func makeSettingsViewModel() -> SettingsViewModel {
         SettingsViewModel(
-            settingsUseCases: settingsUseCases,
+            credentials: cloudCredentialsUseCases,
+            appData: appDataUseCases,
+            appInfoUseCases: appInfoUseCases,
             downloadUseCases: downloadUseCases
         )
     }
@@ -321,6 +362,9 @@ final class DIContainer {
     func makeEqualizerViewModel() -> EqualizerViewModel {
         EqualizerViewModel(equalizerUseCases: equalizerUseCases)
     }
+
+    /// Caché de carátulas nítidas para las celdas grandes (tarjetas de Inicio).
+    private(set) lazy var artworkImageCache = ArtworkImageCache(libraryUseCases: libraryUseCases)
 
     /// Factory para HomeViewModel
     func makeHomeViewModel() -> HomeViewModel {
@@ -332,7 +376,8 @@ final class DIContainer {
         DownloadViewModel(
             downloadUseCases: downloadUseCases,
             eventBus: eventBus,
-            bulkReloadGate: bulkReloadGate
+            bulkReloadGate: bulkReloadGate,
+            queueManager: downloadQueueManager
         )
     }
 

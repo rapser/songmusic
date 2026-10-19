@@ -13,6 +13,7 @@ final class SearchReadStoreTests: XCTestCase {
     private func makeSUT(_ context: ModelContext) -> SearchReadStore {
         SearchReadStore(
             searchUseCases: ReadStoreTestSupport.makeSearchUseCases(context),
+            aggregationUseCases: ReadStoreTestSupport.makeAggregationUseCases(context),
             modelContext: context
         )
     }

@@ -29,7 +29,8 @@ final class PlayerCoordinatorTests: XCTestCase {
         )
         mockLibraryVM = LibraryViewModel(
             libraryUseCases: libraryUseCases,
-            readStore: mockReadStore
+            readStore: mockReadStore,
+            bulkReloadGate: ReactiveReloadGate([])
         )
         sut = PlayerCoordinator(metadataViewModel: metadataVM)
     }

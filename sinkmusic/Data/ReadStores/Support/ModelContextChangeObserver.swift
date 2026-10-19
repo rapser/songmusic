@@ -15,9 +15,16 @@ import SwiftData
 /// y las republica como un `AsyncStream<Void>` — una señal simple de "algo cambió,
 /// vuelve a preguntar", sin acoplar el observer a qué hacer con el cambio.
 ///
-/// **Coalescing**: una acción de usuario suele producir varios `save()` seguidos
-/// (p. ej. reproducir = `playCount` + posición). Se agrupan en una sola emisión con
-/// una ventana de `debounce` para no disparar N recargas completas en los ViewModels.
+/// **Coalescing con flanco de subida**: una acción de usuario suele producir varios
+/// `save()` seguidos (p. ej. reproducir = contador + posición), y recargar N veces sería
+/// absurdo. Pero un debounce *solo* de cola retrasaba **toda** señal 120 ms, incluida la
+/// primera, y eso obligaba a los ViewModels a recargar también a mano tras cada mutación
+/// para que la UI respondiera al instante — dos caminos al mismo dato.
+///
+/// Así que: si el observer llevaba en silencio más que la ventana, emite **ya**; si llegan
+/// más `save()` dentro de la ventana, se agrupan en una única emisión de cola. Una
+/// escritura suelta produce una señal inmediata; una ráfaga, dos (el arranque y el cierre)
+/// en vez de una por escritura.
 @MainActor
 final class ModelContextChangeObserver {
 
@@ -29,6 +36,10 @@ final class ModelContextChangeObserver {
 
     private let debounce: Duration
     private var pendingNotify: Task<Void, Never>?
+
+    /// Cuándo se emitió por última vez, para distinguir "venía en silencio" de "estoy en
+    /// medio de una ráfaga".
+    private var lastNotifiedAt: ContinuousClock.Instant?
 
     /// Mientras está suspendido (p. ej. durante "Descargar todo"), los `save()` no disparan
     /// recargas: se acumulan en `pendingWhileSuspended` y se emite **una** señal al reanudar.
@@ -57,12 +68,25 @@ final class ModelContextChangeObserver {
             pendingWhileSuspended = true
             return
         }
+
         pendingNotify?.cancel()
-        pendingNotify = Task { [weak self] in
-            try? await Task.sleep(for: self?.debounce ?? .milliseconds(120))
-            guard !Task.isCancelled, let self else { return }
-            self.notifyContinuations()
+
+        if isWithinBurst {
+            // En medio de una ráfaga: una sola emisión cuando pare.
+            pendingNotify = Task { [weak self] in
+                try? await Task.sleep(for: self?.debounce ?? .milliseconds(120))
+                guard !Task.isCancelled, let self else { return }
+                self.notifyContinuations()
+            }
+        } else {
+            // Veníamos en silencio: la UI debe responder ya, sin esperar la ventana.
+            notifyContinuations()
         }
+    }
+
+    private var isWithinBurst: Bool {
+        guard let lastNotifiedAt else { return false }
+        return ContinuousClock.now - lastNotifiedAt < debounce
     }
 
     /// Pausa las emisiones (los cambios se acumulan). Reentrante vía el `ReactiveReloadGate`.
@@ -92,6 +116,7 @@ final class ModelContextChangeObserver {
     }
 
     private func notifyContinuations() {
+        lastNotifiedAt = ContinuousClock.now
         for (_, continuation) in continuations {
             continuation.yield(())
         }

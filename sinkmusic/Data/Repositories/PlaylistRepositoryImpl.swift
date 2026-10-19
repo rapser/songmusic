@@ -18,32 +18,44 @@ final class PlaylistRepositoryImpl: PlaylistRepositoryProtocol {
     private let songRepository: SongRepositoryProtocol
     private let songLocalDataSource: SongLocalDataSource
 
+    /// Reproducciones históricas: las necesita "las playlists que más escuchas", que suma
+    /// el `playCount` de las canciones de cada una.
+    private let playStatsDataSource: SongPlayStatsLocalDataSource
+
     // MARK: - Lifecycle
 
     init(
         localDataSource: PlaylistLocalDataSource,
         songRepository: SongRepositoryProtocol,
-        songLocalDataSource: SongLocalDataSource
+        songLocalDataSource: SongLocalDataSource,
+        playStatsDataSource: SongPlayStatsLocalDataSource
     ) {
         self.localDataSource = localDataSource
         self.songRepository = songRepository
         self.songLocalDataSource = songLocalDataSource
+        self.playStatsDataSource = playStatsDataSource
     }
 
     // MARK: - Query Operations
 
     func getAll() async throws -> [Playlist] {
         let dtos = try localDataSource.getAll()
+        // Un solo índice de reproducciones para todas las playlists: lo necesita
+        // "las que más escuchas", que suma el `playCount` de sus canciones.
+        let stats = try playStatsDataSource.allStats()
         return try dtos.map { dto in
             let ordered = try localDataSource.orderedSongs(for: dto)
-            return PlaylistMapper.toDomain(dto, songs: SongMapper.toDomain(ordered))
+            return PlaylistMapper.toDomain(dto, songs: SongMapper.toDomain(ordered, stats: stats))
         }
     }
 
     func getByID(_ id: UUID) async throws -> Playlist? {
         guard let dto = try localDataSource.getByID(id) else { return nil }
         let ordered = try localDataSource.orderedSongs(for: dto)
-        return PlaylistMapper.toDomain(dto, songs: SongMapper.toDomain(ordered))
+        return PlaylistMapper.toDomain(
+            dto,
+            songs: SongMapper.toDomain(ordered, stats: try playStatsDataSource.allStats())
+        )
     }
 
     // MARK: - Mutation Operations

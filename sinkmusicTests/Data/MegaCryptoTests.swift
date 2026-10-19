@@ -48,7 +48,7 @@ final class MegaCryptoTests: XCTestCase {
         XCTAssertEqual(sut.decryptAESCTR(data: ciphertext, key: key, nonce: counter), plaintext)
     }
 
-    func test_decryptAESCTR_roundTrips_largeBuffer() {
+    func test_decryptAESCTR_roundTrips_largeBuffer() throws {
         let key = Data((0..<16).map { _ in UInt8.random(in: .min ... .max) })
         let nonce = Data((0..<16).map { _ in UInt8.random(in: .min ... .max) })
         let original = Data((0..<(3 * 1024 * 1024 + 7)).map { _ in UInt8.random(in: .min ... .max) })

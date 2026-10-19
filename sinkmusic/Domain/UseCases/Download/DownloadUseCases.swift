@@ -117,7 +117,7 @@ final class DownloadUseCases {
                 artworkMediumThumbnail: metadata.artworkMediumThumbnail,
                 playCount: song.playCount,
                 lastPlayedAt: song.lastPlayedAt,
-                dominantColor: song.dominantColor
+                dominantColor: metadata.dominantColor ?? song.dominantColor
             )
         } else {
             // Metadata extraction falló, solo marcar como descargada

@@ -13,27 +13,27 @@ import os
 @Observable
 final class HomePlaylistLayoutViewModel {
 
-    /// Playlists visibles en Inicio (curadas por el usuario, máx. `PlaylistUseCases.maxHomePlaylistsCount`).
+    /// Playlists visibles en Inicio (curadas por el usuario, máx. `HomePlaylistLayoutUseCases.maxHomePlaylistsCount`).
     var homeShownPlaylists: [PlaylistUI] = []
     /// El resto ("Otros").
     var homeOtherPlaylists: [PlaylistUI] = []
 
     /// `true` cuando Inicio ya tiene el máximo de playlists permitido.
     var isHomePlaylistsFull: Bool {
-        homeShownPlaylists.count >= PlaylistUseCases.maxHomePlaylistsCount
+        homeShownPlaylists.count >= HomePlaylistLayoutUseCases.maxHomePlaylistsCount
     }
 
-    private let playlistUseCases: PlaylistUseCases
+    private let homeLayoutUseCases: HomePlaylistLayoutUseCases
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "HomeLayout")
 
-    init(playlistUseCases: PlaylistUseCases) {
-        self.playlistUseCases = playlistUseCases
+    init(homeLayoutUseCases: HomePlaylistLayoutUseCases) {
+        self.homeLayoutUseCases = homeLayoutUseCases
     }
 
     /// Carga la curaduría actual: playlists en Inicio (y su orden) y el resto ("Otros").
     func loadHomePlaylistLayout() async {
         do {
-            let layout = try await playlistUseCases.getHomePlaylistLayout()
+            let layout = try await homeLayoutUseCases.getHomePlaylistLayout()
             homeShownPlaylists = layout.shown.map(PlaylistMapper.toUI)
             homeOtherPlaylists = layout.others.map(PlaylistMapper.toUI)
         } catch {
@@ -54,7 +54,7 @@ final class HomePlaylistLayoutViewModel {
     func movePlaylistToHome(_ id: UUID) {
         guard !homeShownPlaylists.contains(where: { $0.id == id }),
               let index = homeOtherPlaylists.firstIndex(where: { $0.id == id }),
-              homeShownPlaylists.count < PlaylistUseCases.maxHomePlaylistsCount else {
+              homeShownPlaylists.count < HomePlaylistLayoutUseCases.maxHomePlaylistsCount else {
             return
         }
         homeShownPlaylists.append(homeOtherPlaylists.remove(at: index))
@@ -71,7 +71,7 @@ final class HomePlaylistLayoutViewModel {
     }
 
     private func persistHomePlaylistLayout() {
-        playlistUseCases.updateHomePlaylistLayout(
+        homeLayoutUseCases.updateHomePlaylistLayout(
             shownIDs: homeShownPlaylists.map(\.id),
             otherIDs: homeOtherPlaylists.map(\.id)
         )
