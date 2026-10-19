@@ -5,6 +5,147 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] (23) - 2026-10-19
+
+Rama `fix/playback-clock-and-download-reconciliation`: un solo reloj de reproducción,
+reconciliación de descargas, ranking de Inicio que ya no se queda en blanco, y el plan de
+deuda técnica de reactividad ejecutado casi completo (fan-out del read-side, SRP, main
+actor). 28 commits, 488 tests.
+
+### 🐛 Fixes — reproducción
+
+- **El tiempo seguía subiendo después de terminar la canción** (3:37 marcando 04:16, sin
+  audio, mientras la pantalla bloqueada ya estaba al final). Causa: un `AVAudioPlayerNode`
+  sin buffers sigue "reproduciendo" silencio y su `playerTime` crece sin límite, y había
+  tres copias del tiempo (servicio, EventBus, ViewModel) que se desincronizaban.
+  Ahora hay **un solo reloj** (`PlaybackClock`), acotado a la duración real del archivo por
+  invariante de tipo (`PlaybackProgress`), con detección propia de fin de pista y de motor
+  atascado. `scheduleFile` pasa a `completionCallbackType: .dataPlayedBack` para que el
+  callback llegue cuando el audio **se oyó**, no cuando se consumió el buffer
+- **`PlayerError.fileNotDownloaded` con todo en la biblioteca**: la base de datos marcaba
+  81 canciones como descargadas con 33 archivos en disco. `ReconcileDownloadsUseCase`
+  reconcilia el flag con el disco al arrancar, sin tocar nada más
+- **Carátula borrosa en el miniplayer**: pintaba el thumbnail de 32 px (el de la Live
+  Activity) en 42 pt. Ahora usa la carátula ya decodificada que muestra el reproductor
+  grande, sin coste extra
+- **Carátulas borrosas en las tarjetas de "lo que más escuchas"**: thumbnail de 64 px en una
+  celda de 150×155 pt, ampliación de 7×. `ArtworkImageCache` decodifica la carátula completa
+  al tamaño de la celda, fuera del main actor y con `NSCache` acotada por bytes
+
+### 🐛 Fixes — ranking de Inicio
+
+- **La lista quedaba completamente en blanco tras una semana sin escuchar nada**: la ventana
+  de 7 días caducaba y no había respaldo. Ahora cae al `playCount` histórico, y el respaldo
+  se decide sobre el **resultado** y no sobre si el diccionario de contadores está vacío
+  (una ventana viva podía pertenecer solo a canciones cuya descarga se quitó)
+- **La ventana pasa a ser deslizante**: se ancla en la última reproducción, así que una
+  canción en rotación se mantiene en el ranking en vez de caerse a los 7 días del primer play
+
+### ⚡ Performance — fan-out del read-side
+
+- **`playCount`/`lastPlayedAt` salen de `SongDTO`** a `SongPlayStatsDTO`, entidad
+  independiente y aditiva. Dar al play escribía en la fila de la canción, y las cuatro
+  tiendas del read-side vigilan `SongDTO`: **4 señales por reproducción**, con Biblioteca,
+  Playlists y Búsqueda recargando enteras sin usar el dato. Medido en
+  `ReadStoreFanOutTests`: **de 4 señales a 1**. Migración por backfill perezoso; los campos
+  viejos quedan como semilla
+- **Una sola vía por dato**: 11 recargas imperativas (8 en `PlaylistViewModel`, 3 en
+  `LibraryViewModel`) que duplicaban lo que ya hacía la señal `changes()`. Para poder
+  quitarlas sin introducir latencia, `ModelContextChangeObserver` emite ahora en **flanco de
+  subida** — el debounce era solo de cola, así que *toda* señal esperaba 120 ms y la recarga
+  imperativa era el parche de esa latencia
+- `SearchView` recargaba agregaciones y recomendaciones en **cada** aparición de la pestaña,
+  para datos que el ViewModel ya mantiene al día
+- `BulkReloadGate` se usa ya en las tres operaciones masivas: `clearLibrary()` y
+  `deleteSongs()` borraban canción por canción con un `save()` cada una, sin puerta
+
+### ⚡ Performance — main actor
+
+- **El color dominante se calcula al ingerir**, no al pintar. `SongMapper.toUI` lo extraía
+  —decodificar, pintar en un buffer, muestrear píxeles— por cada fila de cada lista mientras
+  no estuviera guardado, y el color solo lo lee el reproductor: se calculaban N para usar
+  uno. Vive en `DominantColorService`, se calcula en `MetadataService` fuera del main actor
+  y el mapper solo lee lo persistido
+- **La carátula del reproductor se decodifica a 1024 px**, no a resolución nativa: una
+  portada 3000×3000 son 36 MB de píxeles para una pantalla de 1290, y se decodificaba en el
+  main actor durante la animación de apertura (`ArtworkDecoder`, con la imagen devuelta como
+  `sending`, sin `@unchecked Sendable`)
+- `cacheArtwork(from:thumbnail:)` se parte en dos: el coordinador la llamaba dos veces por
+  cambio de canción, así que el thumbnail se decodificaba dos veces
+
+### 🏗️ Arquitectura — responsabilidades
+
+- **`PlaybackQueue`** en Domain: el algoritmo de cola, aleatorio y repetición vivía en
+  `PlayerViewModel`. Al separarlo salió a la luz una distinción que estaba mezclada —pulsar
+  "siguiente" en la última canción da la vuelta siempre; que termine sola solo continúa si
+  hay repetición—, ahora dos operaciones con nombre propio
+- **`AudioEqualizer`** fuera de `AudioPlayerService`. De paso se borra
+  `applyEqualizerSettings(_:)`, sin un solo llamador y recibiendo un tipo de Presentation
+  (Infrastructure importando hacia arriba)
+- **`SettingsUseCases` (274 L, 19 funcs) partido en tres**: `CloudCredentialsUseCases`,
+  `AppDataUseCases`, `AppInfoUseCases` — este último arrastraba cuatro repositorios para
+  leer el `Info.plist`
+- **`HomePlaylistLayoutUseCases`** (la curaduría de Inicio no es CRUD de playlists) y
+  **`LibraryAggregationUseCases`** (artistas y álbumes los consume Inicio, no Búsqueda)
+- **`DownloadQueueManager` inyectado** desde el `DIContainer` en vez de construido dentro
+  del ViewModel: guarda el backoff por cuota excedida, que es estado de la app, así que
+  recrear la pantalla lo borraba y se volvía a pedir descargas a un proveedor que las
+  rechaza
+- `MainAppView`: tres llamadas distintas al coordinador repartidas por tres disparadores
+  pasan a una función, `syncPlayerWithLibrary()`. Los tres disparadores se quedan: cada uno
+  cubre una carrera real de arranque en frío
+
+### 🧹 Reactividad — código muerto
+
+- El **estado `@Observable` del `EventBus`** (`playbackState`, `playbackProgress`,
+  `authUserID`, `isAuthenticated`) no tenía un solo lector y se mantenía en cada emisión.
+  Era además la tercera copia de la verdad de reproducción
+- **Carrera de registro en el `EventBus`**: la continuation se guardaba dentro de un
+  `Task { @MainActor }`, así que el stream se devolvía antes de estar registrado y todo
+  `emit` en esa ventana se perdía sin rastro. Ahora `AsyncStream.makeStream()`, síncrono
+- **`authEvents()` fuera**: siete `emit` a ningún sitio, cero suscriptores. La reactividad
+  de auth fluye por `AuthFacade.state`, que es `@Observable`
+- **Round-trip de `.quotaExceeded`**: `DownloadViewModel` emitía un evento del que era su
+  único suscriptor, y el handler repetía lo que el código imperativo acababa de hacer
+- **`updateMetadata`** (7 parámetros, protocolo + repositorio + DataSource): cero llamadores
+- **Fuga de observers** en `PlayerViewModel.deinit`: usaba `removeObserver(self)`, que **no**
+  elimina los registrados con `addObserver(forName:object:queue:using:)`, así que los tres de
+  Live Activity seguían disparando tras destruir el ViewModel
+
+### 🧪 Tests
+
+De ~420 a **488**, 0 fallos.
+
+- **`PlaybackClockTests`** (16): fin de pista, motor atascado, márgenes ordenados a propósito
+  para que el final nunca se confunda con un atasco
+- **`SongPlayStatsLocalDataSourceTests`** (15): el backfill perezoso, con los dos casos que
+  perderían datos de verdad — reproducir una canción legacy antes de la primera lectura
+  (siembra desde el campo viejo en vez de reiniciar a 1) y contar doble
+- **`ReadStoreFanOutTests`**: fija el fan-out como número comparable, y que una escritura
+  real sobre la canción **sí** siga despertando a las cuatro tiendas
+- `PlaybackQueueTests` (19, con el aleatorio inyectado para que sean deterministas),
+  `CloudCredentialsUseCasesTests` (30), `AppDataUseCasesTests`, `AudioEqualizerTests`,
+  `DominantColorServiceTests`, `ArtworkImageCacheTests`, `HomePlaylistLayoutUseCasesTests`,
+  `LibraryAggregationUseCasesTests`, `ReconcileDownloadsUseCaseTests`, `EventBusTests`
+- **La suite borraba la carpeta de música real del usuario**: los tests del reproductor
+  creaban sus archivos en `Documents/Music` —la de verdad, porque corren hospedados en la
+  app— y terminaban con `removeItem(at: musicDir)`, que borra el directorio entero. 22
+  sitios, en cada ejecución. La causa de fondo: `DownloadFileStore()` derivaba `Documents/`
+  dentro de sí mismo, así que construirlo ya apuntaba a datos reales sin que se viera en la
+  llamada. Ahora la base se recibe
+
+### 📝 Tooling / Docs
+
+- `CLAUDE.md`: la sección de deuda técnica apuntaba a un archivo fuera del repo que
+  desapareció. Ahora es un resumen inline, al día, con **las decisiones tomadas y su por
+  qué** —incluido que `Observations` (iOS 26+) no sustituye al `EventBus` porque observa
+  estado y fusiona cambios, y que `NonisolatedNonsendingByDefault` no es gratis: devolvería
+  al main actor las tres funciones `nonisolated async` que precisamente quieren salir de él,
+  y sin un solo error de compilación
+- `.swiftlint.yml`: nota obsoleta sobre `AudioPlayerService` corregida
+- `CHANGELOG.md` ya no afirma "cero `@unchecked Sendable`": quedan dos, por `UserDefaults`,
+  justificados
+
 ## [1.0.0] (22) - 2026-08-28
 
 Rama `feature/player-persistence-and-settings-redesign`: persistencia del reproductor,
@@ -482,7 +623,7 @@ lo genuinamente global.
 
 ### 🏗️ Arquitectura - Migración Swift 6 Strict Concurrency Completa
 
-Eliminación de toda la deuda técnica de concurrencia: cero `@unchecked Sendable`, cero `NSLock`, cero `DispatchQueue`. El proyecto compila con cero advertencias en Swift 6 strict concurrency mode.
+Eliminación de la deuda técnica de concurrencia: cero `NSLock`, cero `DispatchQueue`, y el proyecto compila con cero advertencias en Swift 6 strict concurrency mode. Quedan **dos** `@unchecked Sendable` justificados (`PlaybackStateRepositoryImpl` y `HomePlaylistLayoutRepositoryImpl`), no cero como decía esta línea originalmente.
 
 #### 🗑️ Eliminación de @unchecked Sendable (8 archivos)
 

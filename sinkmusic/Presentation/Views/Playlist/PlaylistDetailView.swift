@@ -348,7 +348,7 @@ struct PlaylistDetailView: View {
             playerVM: PreviewViewModels.playerVM(songID: UUID()),
             modelContainer: PreviewContainer.shared.container
         ) {
-            PlaylistDetailView(playlist: PlaylistMapper.toUI(PlaylistMapper.toDomainWithSongs(PreviewPlaylists.samplePlaylist())))
+            PlaylistDetailView(playlist: PlaylistMapper.toUI(PlaylistMapper.toDomainWithSongs(PreviewPlaylists.samplePlaylist(), stats: [:])))
         }
     }
 }

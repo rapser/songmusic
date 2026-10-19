@@ -211,33 +211,6 @@ final class SearchUseCasesTests: XCTestCase {
         XCTAssertEqual(sorted.map { $0.duration }, [300, 120, 60])
     }
 
-    // MARK: - getAllArtists() / getAllAlbums()
-
-    func test_getAllArtists_returnsUniqueSorted() async throws {
-        mockSongRepo.songs = [
-            Song.make(artist: "Queen"),
-            Song.make(artist: "ABBA"),
-            Song.make(artist: "Queen")
-        ]
-
-        let result = try await sut.getAllArtists()
-
-        XCTAssertEqual(result, ["ABBA", "Queen"])
-    }
-
-    func test_getAllAlbums_excludesNil() async throws {
-        mockSongRepo.songs = [
-            Song.make(album: "Abbey Road"),
-            Song.make(album: nil),
-            Song.make(album: "Let It Be")
-        ]
-
-        let result = try await sut.getAllAlbums()
-
-        XCTAssertEqual(result.count, 2)
-        XCTAssertEqual(result, ["Abbey Road", "Let It Be"])
-    }
-
     // MARK: - getRecentlyPlayedSongs()
 
     func test_getRecentlyPlayedSongs_sortsByDateDescending() async throws {
@@ -250,37 +223,5 @@ final class SearchUseCasesTests: XCTestCase {
 
         XCTAssertEqual(result.count, 2)
         XCTAssertEqual(result.first?.title, "New")
-    }
-
-    // MARK: - getSongCountByAlbum()
-
-    func test_getSongCountByAlbum_countsCorrectly() async throws {
-        mockSongRepo.songs = [
-            Song.make(album: "Abbey Road"),
-            Song.make(album: "Abbey Road"),
-            Song.make(album: "Let It Be"),
-            Song.make(album: nil)
-        ]
-
-        let result = try await sut.getSongCountByAlbum()
-
-        XCTAssertEqual(result["Abbey Road"], 2)
-        XCTAssertEqual(result["Let It Be"], 1)
-        XCTAssertNil(result[""]) // nil albums no se cuentan como clave vacía
-    }
-
-    // MARK: - getSongCountByArtist()
-
-    func test_getSongCountByArtist_countsCorrectly() async throws {
-        mockSongRepo.songs = [
-            Song.make(artist: "Queen"),
-            Song.make(artist: "Queen"),
-            Song.make(artist: "Eagles")
-        ]
-
-        let result = try await sut.getSongCountByArtist()
-
-        XCTAssertEqual(result["Queen"], 2)
-        XCTAssertEqual(result["Eagles"], 1)
     }
 }

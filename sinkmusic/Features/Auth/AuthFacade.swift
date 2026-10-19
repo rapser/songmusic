@@ -27,7 +27,10 @@ final class AuthFacade {
 
     private let strategy: AuthStrategy
     private let storage: UserDefaults
-    private let eventBus: EventBusProtocol
+
+    // Nota: aquí había un `EventBusProtocol` para emitir `AuthEvent`. Nadie se suscribía
+    // nunca: la reactividad de auth fluye por `state`, que es `@Observable`. Se quitaron
+    // los seis emits, el stream y el tipo de evento.
 
     // MARK: - Storage Keys
 
@@ -40,14 +43,9 @@ final class AuthFacade {
 
     // MARK: - Init
 
-    init(
-        strategy: AuthStrategy,
-        storage: UserDefaults = .standard,
-        eventBus: EventBusProtocol
-    ) {
+    init(strategy: AuthStrategy, storage: UserDefaults = .standard) {
         self.strategy = strategy
         self.storage = storage
-        self.eventBus = eventBus
     }
 
     // MARK: - Public API
@@ -64,12 +62,6 @@ final class AuthFacade {
             storage.set(false, forKey: Keys.didSignOut)
             state = .authenticated(finalUser)
             isCheckingAuth = false
-
-            eventBus.emit(.signedIn(
-                userID: finalUser.id,
-                email: finalUser.email,
-                name: finalUser.fullName
-            ))
 
             logger.info("Auth: Sign in successful - \(finalUser.displayName)")
 
@@ -89,7 +81,6 @@ final class AuthFacade {
         clearUser()
         storage.set(true, forKey: Keys.didSignOut)
         state = .unauthenticated
-        eventBus.emit(.signedOut)
 
         logger.info("Auth: Signed out")
     }
@@ -103,7 +94,6 @@ final class AuthFacade {
         if storage.bool(forKey: Keys.didSignOut) {
             state = .unauthenticated
             isCheckingAuth = false
-            eventBus.emit(.checkCompleted(isAuthenticated: false))
             logger.info("Auth: User previously signed out")
             return
         }
@@ -112,7 +102,6 @@ final class AuthFacade {
         guard let user = loadUser() else {
             state = .unauthenticated
             isCheckingAuth = false
-            eventBus.emit(.checkCompleted(isAuthenticated: false))
             logger.info("Auth: No saved user")
             return
         }
@@ -122,16 +111,10 @@ final class AuthFacade {
 
         if isValid {
             state = .authenticated(user)
-            eventBus.emit(.signedIn(
-                userID: user.id,
-                email: user.email,
-                name: user.fullName
-            ))
             logger.info("Auth: Restored session for \(user.displayName)")
         } else {
             clearUser()
             state = .unauthenticated
-            eventBus.emit(.checkCompleted(isAuthenticated: false))
             logger.warning("Auth: Credentials revoked or expired")
         }
 
@@ -143,7 +126,6 @@ final class AuthFacade {
         clearUser()
         storage.removeObject(forKey: Keys.didSignOut)
         state = .unauthenticated
-        eventBus.emit(.signedOut)
 
         logger.info("Auth: All data cleared")
     }

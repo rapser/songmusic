@@ -15,8 +15,12 @@ import Foundation
 /// `ReadStoreProtocol` de cada dominio (`Domain/ReadStores/`), que reaccionan directamente a
 /// `ModelContext.didSave` de SwiftData. Ver `ModelContextChangeObserver`.
 ///
-/// Usa @Observable para estado observable + AsyncStream para eventos
-/// Reactividad moderna iOS 18+ / Swift 6
+/// Es **solo un bus de eventos efímeros**: no guarda estado. Cada consumidor mantiene el
+/// suyo (p. ej. `PlayerViewModel.progress`). Antes duplicaba aquí el estado de reproducción
+/// y de sesión en propiedades `@Observable` que no leía nadie — una tercera copia de la
+/// verdad que solo podía desincronizarse.
+///
+/// AsyncStream para eventos. Reactividad moderna iOS 18+ / Swift 6
 ///
 /// ## Principios
 /// - **Type-safe:** Todos los eventos son enums/structs tipados
@@ -43,78 +47,19 @@ import Foundation
 /// SOLID: Conforma a EventBusProtocol para Dependency Inversion
 /// NO usa singleton - Obtener instancia de DIContainer.shared.eventBus
 @MainActor
-@Observable
 final class EventBus: EventBusProtocol {
-
-    // MARK: - Observable State
-
-    /// ID del usuario autenticado (nil si no hay sesión)
-    private(set) var authUserID: String?
-
-    /// Indica si hay un usuario autenticado
-    var isAuthenticated: Bool { authUserID != nil }
-
-    /// Estado actual de reproducción
-    private(set) var playbackState: PlaybackState = .idle
-
-    /// Información de tiempo de reproducción
-    private(set) var playbackTimeInfo: PlaybackTimeInfo = .zero
 
     // MARK: - Stream Continuations
 
-    private var authEventContinuations: [UUID: AsyncStream<AuthEvent>.Continuation] = [:]
     private var playbackEventContinuations: [UUID: AsyncStream<PlaybackEvent>.Continuation] = [:]
     private var downloadEventContinuations: [UUID: AsyncStream<DownloadEvent>.Continuation] = [:]
-
-    // MARK: - Emit Auth Events
-
-    /// Emitir evento de autenticación
-    func emit(_ event: AuthEvent) {
-        updateAuthState(from: event)
-        for (_, continuation) in authEventContinuations {
-            continuation.yield(event)
-        }
-    }
-
-    private func updateAuthState(from event: AuthEvent) {
-        switch event {
-        case .signedIn(let userID, _, _):
-            authUserID = userID
-        case .signedOut:
-            authUserID = nil
-        case .checkCompleted(let isAuthenticated):
-            if !isAuthenticated {
-                authUserID = nil
-            }
-            // Si isAuthenticated es true, mantener el userID actual
-        }
-    }
 
     // MARK: - Emit Playback Events
 
     /// Emitir evento de reproducción
     func emit(_ event: PlaybackEvent) {
-        updatePlaybackState(from: event)
         for (_, continuation) in playbackEventContinuations {
             continuation.yield(event)
-        }
-    }
-
-    private func updatePlaybackState(from event: PlaybackEvent) {
-        switch event {
-        case .stateChanged(let isPlaying, let songID):
-            if let songID = songID {
-                playbackState = isPlaying ? .playing(songID: songID) : .paused(songID: songID)
-            } else {
-                playbackState = .idle
-            }
-        case .timeUpdated(let current, let duration):
-            playbackTimeInfo = PlaybackTimeInfo(currentTime: current, duration: duration)
-        case .songFinished:
-            playbackState = .idle
-        case .remoteCommand:
-            // Remote commands don't change state directly
-            break
         }
     }
 
@@ -129,52 +74,42 @@ final class EventBus: EventBusProtocol {
 
     // MARK: - AsyncStream Factories
 
-    /// Stream de eventos de autenticación
-    /// - Returns: AsyncStream que emite AuthEvent
-    func authEvents() -> AsyncStream<AuthEvent> {
-        let id = UUID()
-        return AsyncStream { [weak self] continuation in
-            Task { @MainActor [weak self] in
-                self?.authEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.authEventContinuations.removeValue(forKey: id)
-                }
-            }
-        }
-    }
+    // El registro de la continuation es **síncrono**, antes de devolver el stream.
+    //
+    // Guardarla dentro de un `Task { @MainActor }` abría una ventana entre que el stream se
+    // devolvía y la tarea corría: cualquier `emit` en ese hueco no veía al suscriptor y el
+    // evento se perdía sin rastro. `makeStream()` entrega la continuation en mano, así que
+    // cuando el llamador recibe el stream ya está registrado.
+    //
+    // `onTermination` sí queda diferido: lo invoca el runtime desde cualquier hilo y solo
+    // limpia el diccionario, así que llegar tarde es inofensivo.
 
     /// Stream de eventos de reproducción
     /// - Returns: AsyncStream que emite PlaybackEvent
     func playbackEvents() -> AsyncStream<PlaybackEvent> {
         let id = UUID()
-        return AsyncStream { [weak self] continuation in
+        let (stream, continuation) = AsyncStream<PlaybackEvent>.makeStream()
+        playbackEventContinuations[id] = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.playbackEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.playbackEventContinuations.removeValue(forKey: id)
-                }
+                self?.playbackEventContinuations.removeValue(forKey: id)
             }
         }
+        return stream
     }
 
     /// Stream de eventos de descarga
     /// - Returns: AsyncStream que emite DownloadEvent
     func downloadEvents() -> AsyncStream<DownloadEvent> {
         let id = UUID()
-        return AsyncStream { [weak self] continuation in
+        let (stream, continuation) = AsyncStream<DownloadEvent>.makeStream()
+        downloadEventContinuations[id] = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.downloadEventContinuations[id] = continuation
-            }
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.downloadEventContinuations.removeValue(forKey: id)
-                }
+                self?.downloadEventContinuations.removeValue(forKey: id)
             }
         }
+        return stream
     }
 
     // MARK: - Lifecycle
@@ -188,14 +123,7 @@ final class EventBus: EventBusProtocol {
     #if DEBUG
     /// Reset all state (for testing only)
     func reset() {
-        authUserID = nil
-        playbackState = .idle
-        playbackTimeInfo = .zero
-
         // Finish all streams
-        for (_, continuation) in authEventContinuations {
-            continuation.finish()
-        }
         for (_, continuation) in playbackEventContinuations {
             continuation.finish()
         }
@@ -203,7 +131,6 @@ final class EventBus: EventBusProtocol {
             continuation.finish()
         }
 
-        authEventContinuations.removeAll()
         playbackEventContinuations.removeAll()
         downloadEventContinuations.removeAll()
     }

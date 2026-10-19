@@ -68,11 +68,10 @@ struct SearchView: View {
                 }
             }
         }
-        .task {
-            // Cargar datos iniciales
-            await viewModel.loadAggregations()
-            await viewModel.loadRecommendations()
-        }
+        // Sin `.task`: aquí se volvían a cargar agregaciones y recomendaciones en **cada**
+        // aparición de la pestaña. El ViewModel vive mientras vive la app (lo crea
+        // `sinkmusicApp`), las carga una vez en su `init` y su bucle reactivo las mantiene
+        // al día ante cualquier cambio de canciones.
     }
 
     // MARK: - Helpers para compatibilidad con FilterPicker legacy

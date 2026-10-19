@@ -25,8 +25,12 @@ final class MockSongRepository: SongRepositoryProtocol {
     var shouldThrowOnCreate = false
     var shouldThrowOnUpdate = false
     var shouldThrowOnDelete = false
+    var shouldThrowOnGetAll = false
 
-    func getAll() async throws -> [Song] { songs }
+    func getAll() async throws -> [Song] {
+        if shouldThrowOnGetAll { throw SongError.fileNotFound }
+        return songs
+    }
 
     func getByID(_ id: UUID) async throws -> Song? {
         getByIDCallCount += 1
@@ -126,28 +130,6 @@ final class MockSongRepository: SongRepositoryProtocol {
             author: s.author, fileID: s.fileID, isDownloaded: isDownloaded,
             duration: s.duration, artworkData: s.artworkData,
             artworkThumbnail: s.artworkThumbnail, artworkMediumThumbnail: s.artworkMediumThumbnail,
-            playCount: s.playCount, lastPlayedAt: s.lastPlayedAt, dominantColor: s.dominantColor
-        )
-    }
-
-    func updateMetadata(
-        for id: UUID,
-        duration: TimeInterval?,
-        artworkData: Data?,
-        artworkThumbnail: Data?,
-        artworkMediumThumbnail: Data?,
-        album: String?,
-        author: String?
-    ) async throws {
-        guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
-        let s = songs[index]
-        songs[index] = Song(
-            id: s.id, title: s.title, artist: s.artist,
-            album: album ?? s.album, author: author ?? s.author,
-            fileID: s.fileID, isDownloaded: s.isDownloaded,
-            duration: duration ?? s.duration, artworkData: artworkData ?? s.artworkData,
-            artworkThumbnail: artworkThumbnail ?? s.artworkThumbnail,
-            artworkMediumThumbnail: artworkMediumThumbnail ?? s.artworkMediumThumbnail,
             playCount: s.playCount, lastPlayedAt: s.lastPlayedAt, dominantColor: s.dominantColor
         )
     }

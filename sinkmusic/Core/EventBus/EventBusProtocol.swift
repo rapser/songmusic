@@ -27,24 +27,7 @@ import Foundation
 @MainActor
 protocol EventBusProtocol: AnyObject, Sendable {
 
-    // MARK: - Observable State (read-only)
-
-    /// ID del usuario autenticado (nil si no hay sesión)
-    var authUserID: String? { get }
-
-    /// Indica si hay un usuario autenticado
-    var isAuthenticated: Bool { get }
-
-    /// Estado actual de reproducción
-    var playbackState: PlaybackState { get }
-
-    /// Información de tiempo de reproducción
-    var playbackTimeInfo: PlaybackTimeInfo { get }
-
     // MARK: - Emit Events
-
-    /// Emitir evento de autenticación
-    func emit(_ event: AuthEvent)
 
     /// Emitir evento de reproducción
     func emit(_ event: PlaybackEvent)
@@ -53,9 +36,6 @@ protocol EventBusProtocol: AnyObject, Sendable {
     func emit(_ event: DownloadEvent)
 
     // MARK: - AsyncStream Factories
-
-    /// Stream de eventos de autenticación
-    func authEvents() -> AsyncStream<AuthEvent>
 
     /// Stream de eventos de reproducción
     func playbackEvents() -> AsyncStream<PlaybackEvent>

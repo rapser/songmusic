@@ -44,7 +44,11 @@ protocol AudioPlayerServiceProtocol: Sendable {
 
     // MARK: - Now Playing Info
 
-    /// Fija la metadata de la canción actual en Now Playing (una vez por canción)
+    /// Fija la metadata de la canción actual en Now Playing (una vez por canción).
+    ///
+    /// Solo metadata: el tiempo lo publica el propio servicio desde su `PlaybackClock`.
+    /// No hay forma de que una capa superior escriba una posición distinta en el widget
+    /// nativo, que es justo lo que lo desincronizaba del reproductor de la app.
     func setNowPlayingMetadata(
         title: String,
         artist: String,
@@ -52,7 +56,4 @@ protocol AudioPlayerServiceProtocol: Sendable {
         duration: TimeInterval,
         artwork: Data?
     )
-
-    /// Refresca solo el tiempo transcurrido de Now Playing
-    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?)
 }

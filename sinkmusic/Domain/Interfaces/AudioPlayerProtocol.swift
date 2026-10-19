@@ -68,12 +68,6 @@ protocol AudioPlayerProtocol: AudioPlaybackProtocol, AudioEqualizerProtocol {
     ///   - duration: Duración total
     ///   - artwork: Datos de la imagen del artwork (opcional)
     func setNowPlayingMetadata(title: String, artist: String, album: String?, duration: TimeInterval, artwork: Data?)
-
-    /// Refresca solo el tiempo transcurrido de Now Playing
-    /// - Parameters:
-    ///   - elapsed: Tiempo actual de reproducción
-    ///   - duration: Duración total, si se conoce
-    func updateNowPlayingTime(_ elapsed: TimeInterval, duration: TimeInterval?)
 }
 
 // MARK: - Extensión con métodos avanzados de audio (opcionales)

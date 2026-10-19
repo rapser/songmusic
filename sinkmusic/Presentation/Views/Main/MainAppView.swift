@@ -32,34 +32,52 @@ struct MainAppView: View {
             fullPlayerView
             miniPlayerView
         }
-        .task {
-            playerCoordinator.onLibrarySongsChanged(libraryViewModel.songs, currentlyPlayingID: playerViewModel.currentlyPlayingID)
-            // Necesario también aquí (no solo en el .onChange de abajo): si se restauró una
-            // canción al abrir la app, `currentlyPlayingID` ya viene fijado antes de que esta
-            // vista se monte, así que el .onChange nunca ve un cambio para ese valor inicial
-            // y el artwork no se cargaba, mostrando solo el placeholder por defecto.
-            await playerCoordinator.onPlayingIDChanged(playerViewModel.currentlyPlayingID, libraryViewModel: libraryViewModel)
-        }
-        .onChange(of: playerViewModel.currentlyPlayingID) { _, newValue in
-            Task { await playerCoordinator.onPlayingIDChanged(newValue, libraryViewModel: libraryViewModel) }
+        // El coordinador necesita las dos cosas a la vez —la biblioteca y qué suena—, y
+        // cualquiera de las dos puede llegar primero. En vez de tres llamadas distintas
+        // repartidas por los tres disparadores, hay **una** función y tres motivos para
+        // invocarla; es idempotente, así que llamarla de más no cuesta nada.
+        .task { await syncPlayerWithLibrary() }
+        .onChange(of: playerViewModel.currentlyPlayingID) { _, _ in
+            Task { await syncPlayerWithLibrary() }
         }
         .onChange(of: libraryViewModel.songs) { _, newValue in
-            playerCoordinator.onLibrarySongsChanged(newValue, currentlyPlayingID: playerViewModel.currentlyPlayingID)
-            // La biblioteca puede terminar de cargar DESPUÉS del arranque en frío (la
-            // canción restaurada aún no estaba en `songsLookup` en el .task de arriba).
-            // Idempotente: si el artwork ya se cargó para esta canción, no hace nada.
-            Task { await playerCoordinator.onPlayingIDChanged(playerViewModel.currentlyPlayingID, libraryViewModel: libraryViewModel) }
-
-            // Si la canción en curso dejó de estar descargada (p. ej. "Eliminar todas las
-            // descargas" en Ajustes), su archivo local ya no existe: detener la reproducción
-            // y limpiar el mini-reproductor. Solo actúa si la canción sigue en la biblioteca
-            // pero sin descarga, para no interferir con la carga inicial ni con un borrado total.
-            if let playingID = playerViewModel.currentlyPlayingID,
-               let playingSong = newValue.first(where: { $0.id == playingID }),
-               !playingSong.isDownloaded {
-                Task { await playerViewModel.stop() }
-            }
+            Task { await syncPlayerWithLibrary() }
+            stopPlaybackIfCurrentSongLostItsDownload(in: newValue)
         }
+    }
+
+    /// Pone al coordinador al día con la biblioteca y con la canción en curso.
+    ///
+    /// Los tres disparadores son distintos de verdad, y por eso siguen los tres: al montar
+    /// la vista (`currentlyPlayingID` puede venir ya fijado de una sesión restaurada, así
+    /// que el `.onChange` nunca vería ese valor inicial), al cambiar de canción, y cuando la
+    /// biblioteca termina de cargar después del arranque en frío (la canción restaurada
+    /// todavía no estaba en `songsLookup`).
+    private func syncPlayerWithLibrary() async {
+        playerCoordinator.onLibrarySongsChanged(
+            libraryViewModel.songs,
+            currentlyPlayingID: playerViewModel.currentlyPlayingID
+        )
+        await playerCoordinator.onPlayingIDChanged(
+            playerViewModel.currentlyPlayingID,
+            libraryViewModel: libraryViewModel
+        )
+    }
+
+    /// Si la canción en curso dejó de estar descargada (p. ej. "Eliminar todas las
+    /// descargas" en Ajustes), su archivo local ya no existe: detener y limpiar el
+    /// mini-reproductor.
+    ///
+    /// Solo cuando la canción **sigue** en la biblioteca pero sin descarga, para no
+    /// interferir con la carga inicial ni con un borrado total. Va solo en el cambio de
+    /// biblioteca a propósito: dispararlo al cambiar de canción podría detener una
+    /// reproducción recién iniciada si la lista aún no se ha refrescado.
+    private func stopPlaybackIfCurrentSongLostItsDownload(in songs: [SongUI]) {
+        guard let playingID = playerViewModel.currentlyPlayingID,
+              let playingSong = songs.first(where: { $0.id == playingID }),
+              !playingSong.isDownloaded else { return }
+
+        Task { await playerViewModel.stop() }
     }
 
     private var mainTabView: some View {

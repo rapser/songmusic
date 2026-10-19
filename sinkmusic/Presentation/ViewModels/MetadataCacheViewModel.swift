@@ -22,28 +22,24 @@ final class MetadataCacheViewModel {
 
     // MARK: - Cache Operations
 
-    /// Carga y cachea el artwork de una canción de forma optimizada
-    /// - Parameters:
-    ///   - artworkData: Datos de la imagen completa
-    ///   - thumbnailData: Datos del thumbnail (opcional, más eficiente)
-    /// - Note: Usa thumbnail para mini player (42x42) y artwork completo para player grande
-    func cacheArtwork(from artworkData: Data?, thumbnail thumbnailData: Data?) {
-        // OPTIMIZACIÓN: Cachear thumbnail pequeño para mini player (42x42)
-        if let thumbnailData = thumbnailData {
-            cachedThumbnail = UIImage(data: thumbnailData)
-        } else if let artworkData = artworkData {
-            // Fallback: si no hay thumbnail, usar artwork completo
-            cachedThumbnail = UIImage(data: artworkData)
-        } else {
-            cachedThumbnail = nil
-        }
+    /// Cachea el thumbnail del mini player. Son unos pocos KB: decodificar aquí es barato.
+    ///
+    /// Antes esto y la carátula grande eran una sola función, y el coordinador la llamaba
+    /// **dos veces** por cambio de canción —una para mostrar el thumbnail ya, otra al llegar
+    /// la imagen completa—, así que el thumbnail se decodificaba dos veces por canción.
+    /// Separadas, cada decodificación ocurre una vez.
+    func cacheThumbnail(from thumbnailData: Data?) {
+        cachedThumbnail = thumbnailData.flatMap { UIImage(data: $0) }
+    }
 
-        // Cachear imagen completa para PlayerView grande
-        if let artworkData = artworkData {
-            cachedArtwork = UIImage(data: artworkData)
-        } else {
+    /// Cachea la carátula del reproductor grande, decodificada fuera del main actor y al
+    /// tamaño en el que se va a ver (ver `ArtworkDecoder`).
+    func cacheFullArtwork(from artworkData: Data?) async {
+        guard let artworkData else {
             cachedArtwork = nil
+            return
         }
+        cachedArtwork = await ArtworkDecoder.decode(artworkData)
     }
 
     /// Limpia el cache de artwork

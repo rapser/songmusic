@@ -50,7 +50,7 @@ struct HomePlaylistsOrderView: View {
                         .font(.headline)
                         .foregroundColor(.white)
 
-                    Text("\(viewModel.homeShownPlaylists.count) de \(PlaylistUseCases.maxHomePlaylistsCount)")
+                    Text("\(viewModel.homeShownPlaylists.count) de \(HomePlaylistLayoutUseCases.maxHomePlaylistsCount)")
                         .font(.subheadline)
                         .foregroundColor(.textGray)
                 }

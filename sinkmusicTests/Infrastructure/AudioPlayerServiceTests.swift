@@ -72,32 +72,6 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertEqual(MPNowPlayingInfoCenter.default().playbackState, .paused)
     }
 
-    // MARK: - updateNowPlayingTime
-
-    func test_updateNowPlayingTime_updatesElapsed() {
-        sut.setNowPlayingMetadata(title: "T", artist: "A", album: nil, duration: 200, artwork: nil)
-
-        sut.updateNowPlayingTime(120, duration: nil)
-
-        XCTAssertEqual(number(MPNowPlayingInfoPropertyElapsedPlaybackTime), 120)
-    }
-
-    func test_updateNowPlayingTime_updatesDurationWhenProvided() {
-        sut.setNowPlayingMetadata(title: "T", artist: "A", album: nil, duration: 200, artwork: nil)
-
-        sut.updateNowPlayingTime(10, duration: 321)
-
-        XCTAssertEqual(number(MPMediaItemPropertyPlaybackDuration), 321)
-    }
-
-    func test_updateNowPlayingTime_ignoresNonPositiveDuration() {
-        sut.setNowPlayingMetadata(title: "T", artist: "A", album: nil, duration: 200, artwork: nil)
-
-        sut.updateNowPlayingTime(10, duration: 0)
-
-        XCTAssertEqual(number(MPMediaItemPropertyPlaybackDuration), 200)
-    }
-
     // MARK: - stop
 
     func test_stop_clearsNowPlayingInfo() {

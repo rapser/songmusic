@@ -18,7 +18,13 @@ enum AppSchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
     static var models: [any PersistentModel.Type] {
-        [SongDTO.self, PlaylistDTO.self, RankingWindowEntryDTO.self, PlaylistItemDTO.self]
+        [
+            SongDTO.self,
+            PlaylistDTO.self,
+            RankingWindowEntryDTO.self,
+            PlaylistItemDTO.self,
+            SongPlayStatsDTO.self
+        ]
     }
 }
 

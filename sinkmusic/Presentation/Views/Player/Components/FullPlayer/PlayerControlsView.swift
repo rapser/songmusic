@@ -25,8 +25,11 @@ struct PlayerControlsView: View {
         ZStack(alignment: .bottom) {
             // Contenido principal del mini player
             HStack(spacing: 4) {
+                // La carátula ya decodificada si la hay, y el thumbnail mientras llega:
+                // es la misma imagen que muestra el reproductor grande, así que no cuesta
+                // nada de memoria extra.
                 MiniPlayerArtwork(
-                    cachedThumbnail: metadataViewModel.cachedThumbnail
+                    image: metadataViewModel.cachedArtwork ?? metadataViewModel.cachedThumbnail
                 )
 
                 MiniPlayerInfo(title: title, artist: artist)

@@ -25,4 +25,7 @@ struct SongMetadata: Sendable {
     let artwork: Data?
     let artworkThumbnail: Data?
     let artworkMediumThumbnail: Data?
+    /// Color dominante de la carátula, calculado al ingerir —fuera del main actor— para
+    /// que la UI no tenga que analizar la imagen al pintar.
+    let dominantColor: RGBColor?
 }

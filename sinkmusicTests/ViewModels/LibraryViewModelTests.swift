@@ -15,6 +15,7 @@ final class LibraryViewModelTests: XCTestCase {
     private var mockCredentials: MockCredentialsRepository!
     private var mockReadStore: MockLibraryReadStore!
     private var libraryUseCases: LibraryUseCases!
+    private var gate: MockBulkReloadGate!
 
     override func setUp() {
         super.setUp()
@@ -28,7 +29,12 @@ final class LibraryViewModelTests: XCTestCase {
             credentialsRepository: mockCredentials,
             playlistRepository: MockPlaylistRepository()
         )
-        sut = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: mockReadStore)
+        gate = MockBulkReloadGate()
+        sut = LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: mockReadStore,
+            bulkReloadGate: gate
+        )
     }
 
     override func tearDown() {
@@ -38,6 +44,7 @@ final class LibraryViewModelTests: XCTestCase {
         mockCloudStorage = nil
         mockCredentials = nil
         mockReadStore = nil
+        gate = nil
         super.tearDown()
     }
 
@@ -153,4 +160,39 @@ final class LibraryViewModelTests: XCTestCase {
 
         XCTAssertEqual(sut.libraryStats?.totalPlays, 99)
     }
+
+    // MARK: - Puerta de recargas masivas
+
+    /// Vaciar la biblioteca borra canción por canción, con un `save()` cada una. Sin pausar
+    /// la reactividad, cada borrado despierta a las cuatro tiendas del read-side.
+    func test_clearLibrary_suspendsReactivityForTheWholeOperation() async {
+        mockSongRepo.songs = [Song.make(title: "A"), Song.make(title: "B"), Song.make(title: "C")]
+
+        await sut.clearLibrary()
+
+        XCTAssertEqual(gate.suspendCallCount, 1, "Una sola pausa, no una por canción")
+        XCTAssertEqual(gate.resumeCallCount, 1)
+        XCTAssertFalse(gate.isSuspended, "La reactividad no debe quedar colgada")
+    }
+
+    /// Si el borrado falla a mitad, la puerta tiene que abrirse igual: una lista congelada
+    /// para siempre es peor que una recarga de más.
+    func test_clearLibrary_whenItFails_stillResumesReactivity() async {
+        mockSongRepo.shouldThrowOnGetAll = true
+
+        await sut.clearLibrary()
+
+        XCTAssertFalse(gate.isSuspended)
+    }
+
+    func test_deleteSongs_suspendsReactivityOnce() async {
+        let songs = [Song.make(title: "A"), Song.make(title: "B")]
+        mockSongRepo.songs = songs
+
+        await sut.deleteSongs(songs.map(\.id))
+
+        XCTAssertEqual(gate.suspendCallCount, 1)
+        XCTAssertFalse(gate.isSuspended)
+    }
 }
+

@@ -14,9 +14,14 @@ enum SongMapper {
 
     // MARK: - Layer 1: DTO → Domain (Data → Domain)
 
-    /// Convierte DTO de SwiftData a modelo de Dominio puro
-    static func toDomain(_ dto: SongDTO) -> Song {
-        Song(
+    /// Convierte DTO de SwiftData a modelo de Dominio puro.
+    ///
+    /// Las reproducciones se pasan aparte porque ya no viven en `SongDTO`: están en
+    /// `SongPlayStatsDTO`, precisamente para que dar al play no escriba en la fila de la
+    /// canción (ver esa entidad). Sin fila, la canción no se ha escuchado nunca.
+    static func toDomain(_ dto: SongDTO, stats: SongPlayStats?) -> Song {
+        let stats = stats ?? .none
+        return Song(
             id: dto.id,
             title: dto.title,
             artist: dto.artist,
@@ -28,15 +33,16 @@ enum SongMapper {
             artworkData: dto.artworkData,
             artworkThumbnail: dto.artworkThumbnail,
             artworkMediumThumbnail: dto.artworkMediumThumbnail,
-            playCount: dto.playCount,
-            lastPlayedAt: dto.lastPlayedAt,
+            playCount: stats.playCount,
+            lastPlayedAt: stats.lastPlayedAt,
             dominantColor: extractRGBColor(from: dto)
         )
     }
 
-    /// Convierte array de DTOs a Domain
-    static func toDomain(_ dtos: [SongDTO]) -> [Song] {
-        dtos.map { toDomain($0) }
+    /// Convierte array de DTOs a Domain, resolviendo las reproducciones de cada una contra
+    /// un índice leído de una sola vez.
+    static func toDomain(_ dtos: [SongDTO], stats: [UUID: SongPlayStats]) -> [Song] {
+        dtos.map { toDomain($0, stats: stats[$0.id]) }
     }
 
     // MARK: - Layer 2: Domain → DTO (Domain → Data)
@@ -58,8 +64,11 @@ enum SongMapper {
         // Propiedades adicionales que no están en el init
         dto.artworkThumbnail = song.artworkThumbnail
         dto.artworkMediumThumbnail = song.artworkMediumThumbnail
-        dto.playCount = song.playCount
-        dto.lastPlayedAt = song.lastPlayedAt
+
+        // `playCount` / `lastPlayedAt` **no** se escriben: los campos de `SongDTO` quedaron
+        // congelados como semilla del backfill y la verdad está en `SongPlayStatsDTO`.
+        // Escribirlos aquí volvería a meter la escritura de reproducciones en la fila de la
+        // canción, que es justo lo que se sacó de ahí.
 
         // Almacenar dominant color como componentes RGB
         storeRGBColor(song.dominantColor, in: dto)
@@ -82,7 +91,7 @@ enum SongMapper {
             artworkSmallThumbnail: song.artworkThumbnail,
             isDownloaded: song.isDownloaded,
             dominantColor: toSwiftUIColor(song.dominantColor),
-            backgroundColor: resolveBackgroundColor(song.dominantColor, thumbnail: song.artworkMediumThumbnail),
+            backgroundColor: toSwiftUIColor(song.dominantColor) ?? .appPurple,
             artistAlbumInfo: song.artistAlbumInfo
         )
     }
@@ -122,14 +131,5 @@ enum SongMapper {
     private static func toSwiftUIColor(_ rgbColor: RGBColor?) -> Color? {
         guard let rgb = rgbColor else { return nil }
         return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
-    }
-
-    /// Color de fondo del reproductor: el dominante guardado si existe; si no, se analiza
-    /// la carátula UNA vez aquí (antes era un computed property de `SongUI` que re-decodificaba
-    /// la imagen en cada render — p. ej. al arrastrar la barra de progreso).
-    private static func resolveBackgroundColor(_ rgbColor: RGBColor?, thumbnail: Data?) -> Color {
-        if let cached = toSwiftUIColor(rgbColor) { return cached }
-        guard thumbnail != nil else { return .appPurple }
-        return Color.dominantColor(from: thumbnail)
     }
 }

@@ -14,19 +14,29 @@ final class HomeReadStore: HomeReadStoreProtocol {
 
     private let libraryUseCases: LibraryUseCases
     private let playlistUseCases: PlaylistUseCases
+    private let homeLayoutUseCases: HomePlaylistLayoutUseCases
     private let observer: ModelContextChangeObserver
 
-    init(libraryUseCases: LibraryUseCases, playlistUseCases: PlaylistUseCases, modelContext: ModelContext) {
+    init(
+        libraryUseCases: LibraryUseCases,
+        playlistUseCases: PlaylistUseCases,
+        homeLayoutUseCases: HomePlaylistLayoutUseCases,
+        modelContext: ModelContext
+    ) {
         self.libraryUseCases = libraryUseCases
         self.playlistUseCases = playlistUseCases
+        self.homeLayoutUseCases = homeLayoutUseCases
         self.observer = ModelContextChangeObserver(
             modelContext: modelContext,
-            relevantEntityNames: ["SongDTO", "PlaylistDTO"]
+            // `SongPlayStatsDTO` porque Inicio es la única pantalla que muestra algo
+            // derivado de las reproducciones ("lo que más escuchas", "recientes"). Antes
+            // ese aviso llegaba por `SongDTO`, y de paso despertaba a las otras tres.
+            relevantEntityNames: ["SongDTO", "PlaylistDTO", "SongPlayStatsDTO"]
         )
     }
 
     func playlists() async throws -> [Playlist] {
-        try await playlistUseCases.getHomePlaylistLayout().shown
+        try await homeLayoutUseCases.getHomePlaylistLayout().shown
     }
 
     func mostPlayedPlaylists(limit: Int) async throws -> [Playlist] {

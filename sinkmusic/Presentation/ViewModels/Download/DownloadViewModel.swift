@@ -9,11 +9,6 @@
 import Foundation
 import os
 
-/// Gestor de tareas de descarga activas para cancelación
-private final class ActiveTasksManager: @unchecked Sendable {
-    var tasks: [UUID: Task<Void, Never>] = [:]
-}
-
 /// ViewModel responsable de gestionar descargas de canciones
 /// Cumple con Clean Architecture - Solo depende de UseCases
 /// Usa EventBus con AsyncStream para reactividad moderna
@@ -51,17 +46,29 @@ final class DownloadViewModel: EventBusObservable {
     /// Pausa la reactividad de las listas durante "Descargar todo".
     private let bulkReloadGate: BulkReloadGate
 
+    /// Cola de descargas con límites por proveedor y estado de cuota.
+    ///
+    /// Se inyecta en vez de construirse aquí: es un servicio de dominio, y el
+    /// `DIContainer` es el único sitio donde se arma el grafo. Al ser compartido, el
+    /// backoff por cuota excedida sobrevive a que este ViewModel se recree.
+    private let queueManager: DownloadQueueManager
+
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
-
-    // MARK: - Queue Manager
-
-    /// Gestor de cola de descargas con límites por proveedor
-    private let queueManager = DownloadQueueManager()
 
     // MARK: - Private State
 
     /// Gestor de tareas de descarga activas para cancelación
-    private let activeTasksManager = ActiveTasksManager()
+    /// Tareas de descarga en curso, para poder cancelarlas.
+    ///
+    /// Vive directamente en el ViewModel, que ya es `@MainActor`: antes era una caja
+    /// `@unchecked Sendable` aparte, con un diccionario mutable sin ninguna sincronización.
+    /// Solo existía para que `deinit` pudiera tocarla, y eso ya se puede hacer sobre una
+    /// propiedad almacenada normal, igual que con `downloadEventTask`.
+    ///
+    /// `@ObservationIgnored` porque es contabilidad interna: observarla haría que cada alta
+    /// y baja de tarea invalidara las vistas.
+    @ObservationIgnored
+    private var activeTasks: [UUID: Task<Void, Never>] = [:]
 
     /// Task para observación de eventos de descarga
     @ObservationIgnored
@@ -69,17 +76,21 @@ final class DownloadViewModel: EventBusObservable {
 
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol, bulkReloadGate: BulkReloadGate) {
+    init(downloadUseCases: DownloadUseCases,
+         eventBus: EventBusProtocol,
+         bulkReloadGate: BulkReloadGate,
+         queueManager: DownloadQueueManager) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
         self.bulkReloadGate = bulkReloadGate
+        self.queueManager = queueManager
         downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
                                           handler: { [weak self] in await self?.handleDownloadEvent($0) })
     }
 
     deinit {
         downloadEventTask?.cancel()
-        for (_, task) in activeTasksManager.tasks { task.cancel() }
+        for (_, task) in activeTasks { task.cancel() }
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
@@ -88,19 +99,19 @@ final class DownloadViewModel: EventBusObservable {
         switch event {
         case .started(let songID):
             // Solo actualizar si nosotros iniciamos esta descarga
-            if activeTasksManager.tasks[songID] != nil {
+            if activeTasks[songID] != nil {
                 downloadProgress[songID] = 0.0
             }
 
         case .progress(let songID, let progress):
             // Solo actualizar si nosotros iniciamos esta descarga
-            if activeTasksManager.tasks[songID] != nil {
+            if activeTasks[songID] != nil {
                 downloadProgress[songID] = progress
             }
 
         case .completed(let songID):
             // Solo actualizar si nosotros iniciamos esta descarga
-            if activeTasksManager.tasks[songID] != nil {
+            if activeTasks[songID] != nil {
                 downloadProgress[songID] = 1.0
                 logger.info("Descarga completada: \(songID)")
 
@@ -110,39 +121,33 @@ final class DownloadViewModel: EventBusObservable {
                 // Limpiar progreso y tarea (liberar memoria por canción).
                 // Misma ruta con pantalla activa o en background: el evento llega al reabrir si terminó en segundo plano.
                 downloadProgress[songID] = nil
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+                activeTasks.removeValue(forKey: songID)
+                isDownloading = !activeTasks.isEmpty
             }
 
         case .failed(let songID, let error):
             // Solo actualizar si nosotros iniciamos esta descarga
-            if activeTasksManager.tasks[songID] != nil {
+            if activeTasks[songID] != nil {
                 downloadProgress[songID] = nil
                 downloadError = error.kind.userMessage + (error.message.isEmpty || error.message == error.kind.userMessage ? "" : " (\(error.message))")
                 logger.error("Error descarga (via EventBus): \(error.kind.rawValue) - \(error.message)")
 
                 // Limpiar tarea
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+                activeTasks.removeValue(forKey: songID)
+                isDownloading = !activeTasks.isEmpty
             }
 
         case .cancelled(let songID):
             // Solo actualizar si nosotros iniciamos esta descarga
-            if activeTasksManager.tasks[songID] != nil {
+            if activeTasks[songID] != nil {
                 downloadProgress[songID] = nil
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+                activeTasks.removeValue(forKey: songID)
+                isDownloading = !activeTasks.isEmpty
                 logger.info("Descarga cancelada (via EventBus): \(songID)")
             }
 
         case .queued(let songID, let position):
             logger.debug("Canción en cola (posición \(position)): \(songID)")
-
-        case .quotaExceeded(let provider, let resetTime):
-            quotaExceededProvider = CloudStorageProvider(rawValue: provider)
-            quotaResetTime = resetTime
-            showQuotaAlert = true
-            logger.warning("Cuota excedida para \(provider). Reset: \(resetTime)")
         }
     }
 
@@ -163,7 +168,7 @@ final class DownloadViewModel: EventBusObservable {
     /// `download(songID:)` la espera; `downloadMultiple` lanza varias y las espera al final.
     private func startDownloadTask(songID: UUID) async -> Task<Void, Never>? {
         // Evitar descargas duplicadas
-        guard activeTasksManager.tasks[songID] == nil else { return nil }
+        guard activeTasks[songID] == nil else { return nil }
 
         // Obtener proveedor actual
         let provider = downloadUseCases.currentCloudProvider()
@@ -193,8 +198,8 @@ final class DownloadViewModel: EventBusObservable {
             guard gotSlot else {
                 // Cuota excedida mientras esperaba en cola
                 downloadProgress[songID] = nil
-                activeTasksManager.tasks.removeValue(forKey: songID)
-                isDownloading = !activeTasksManager.tasks.isEmpty
+                activeTasks.removeValue(forKey: songID)
+                isDownloading = !activeTasks.isEmpty
 
                 if let resetTime = await queueManager.getQuotaResetTime(for: provider) {
                     quotaExceededProvider = provider
@@ -233,11 +238,6 @@ final class DownloadViewModel: EventBusObservable {
                 let failure = DownloadFailure(error: megaError)
                 downloadError = failure.kind.userMessage + (failure.message.isEmpty || failure.message == failure.kind.userMessage ? "" : " (\(failure.message))")
 
-                eventBus.emit(DownloadEvent.quotaExceeded(
-                    provider: provider.rawValue,
-                    resetTime: Date().addingTimeInterval(retryAfter)
-                ))
-
                 // Borrar todo lo que esté en memoria: cancelar todas las descargas y vaciar progreso
                 clearAllTasksAndProgress()
                 logger.warning("Límite Mega alcanzado; descargas canceladas y estado limpiado")
@@ -252,12 +252,12 @@ final class DownloadViewModel: EventBusObservable {
             logger.error("Error descargando canción: \(error.localizedDescription)")
 
             // Limpiar tarea
-            activeTasksManager.tasks.removeValue(forKey: songID)
-            isDownloading = !activeTasksManager.tasks.isEmpty
+            activeTasks.removeValue(forKey: songID)
+            isDownloading = !activeTasks.isEmpty
             }
         }
 
-        activeTasksManager.tasks[songID] = task
+        activeTasks[songID] = task
         return task
     }
 
@@ -290,9 +290,9 @@ final class DownloadViewModel: EventBusObservable {
     func deleteDownload(songID: UUID) async {
         do {
             // Cancelar descarga si está en progreso
-            if let task = activeTasksManager.tasks[songID] {
+            if let task = activeTasks[songID] {
                 task.cancel()
-                activeTasksManager.tasks.removeValue(forKey: songID)
+                activeTasks.removeValue(forKey: songID)
                 downloadProgress.removeValue(forKey: songID)
             }
 
@@ -309,31 +309,31 @@ final class DownloadViewModel: EventBusObservable {
         }
 
         // Actualizar flag de descarga
-        isDownloading = !activeTasksManager.tasks.isEmpty
+        isDownloading = !activeTasks.isEmpty
     }
 
     /// Cancela una descarga en progreso
     /// - Parameter songID: ID de la canción
     func cancelDownload(songID: UUID) {
-        guard let task = activeTasksManager.tasks[songID] else { return }
+        guard let task = activeTasks[songID] else { return }
 
         task.cancel()
-        activeTasksManager.tasks.removeValue(forKey: songID)
+        activeTasks.removeValue(forKey: songID)
         downloadProgress.removeValue(forKey: songID)
 
         // Actualizar flag de descarga
-        isDownloading = !activeTasksManager.tasks.isEmpty
+        isDownloading = !activeTasks.isEmpty
         logger.info("Descarga cancelada: \(songID)")
     }
 
     /// Cancela todas las descargas en progreso
     func cancelAllDownloads() {
-        for (songID, task) in activeTasksManager.tasks {
+        for (songID, task) in activeTasks {
             task.cancel()
             downloadProgress.removeValue(forKey: songID)
         }
 
-        activeTasksManager.tasks.removeAll()
+        activeTasks.removeAll()
         downloadProgress.removeAll()
         downloadError = nil
         isDownloading = false
@@ -347,7 +347,7 @@ final class DownloadViewModel: EventBusObservable {
 
     /// Deja el estado limpio cuando no hay descargas activas (evita retenciones residuales).
     private func cleanupWhenIdle() {
-        guard activeTasksManager.tasks.isEmpty else { return }
+        guard activeTasks.isEmpty else { return }
         isDownloading = false
         // downloadProgress ya está vacío por cada .completed/.failed; por si acaso no quedar claves huérfanas
         downloadProgress.removeAll()
@@ -356,10 +356,10 @@ final class DownloadViewModel: EventBusObservable {
     /// Cancela todas las tareas de descarga y vacía el progreso (libera memoria).
     /// Se usa cuando se alcanza el límite de Mega para que no quede nada ocupando memoria.
     private func clearAllTasksAndProgress() {
-        for (_, task) in activeTasksManager.tasks {
+        for (_, task) in activeTasks {
             task.cancel()
         }
-        activeTasksManager.tasks.removeAll()
+        activeTasks.removeAll()
         downloadProgress.removeAll()
         isDownloading = false
     }
@@ -413,7 +413,7 @@ final class DownloadViewModel: EventBusObservable {
     /// - Parameter songID: ID de la canción
     /// - Returns: true si está en progreso
     func isDownloading(songID: UUID) -> Bool {
-        return activeTasksManager.tasks[songID] != nil
+        return activeTasks[songID] != nil
     }
 
     /// Obtiene el progreso de una canción específica

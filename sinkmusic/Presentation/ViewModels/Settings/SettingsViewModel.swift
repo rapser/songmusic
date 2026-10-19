@@ -11,7 +11,7 @@ import SwiftUI
 import os
 
 /// ViewModel responsable de la UI de configuración
-/// Delega lógica de negocio a SettingsUseCases y DownloadUseCases
+/// Delega la lógica de negocio a los casos de uso; no tiene ninguna propia.
 @MainActor
 @Observable
 final class SettingsViewModel {
@@ -48,16 +48,22 @@ final class SettingsViewModel {
 
     // MARK: - Dependencies
 
-    private let settingsUseCases: SettingsUseCases
+    private let credentials: CloudCredentialsUseCases
+    private let appData: AppDataUseCases
+    private let appInfoUseCases: AppInfoUseCases
     private let downloadUseCases: DownloadUseCases
 
     // MARK: - Initialization
 
     init(
-        settingsUseCases: SettingsUseCases,
+        credentials: CloudCredentialsUseCases,
+        appData: AppDataUseCases,
+        appInfoUseCases: AppInfoUseCases,
         downloadUseCases: DownloadUseCases
     ) {
-        self.settingsUseCases = settingsUseCases
+        self.credentials = credentials
+        self.appData = appData
+        self.appInfoUseCases = appInfoUseCases
         self.downloadUseCases = downloadUseCases
         loadCredentials()
         Task {
@@ -70,22 +76,22 @@ final class SettingsViewModel {
     /// Carga todas las credenciales
     func loadCredentials() {
         // Google Drive
-        let credentials = settingsUseCases.loadGoogleDriveCredentials()
-        apiKey = credentials.apiKey
-        folderId = credentials.folderId
-        hasCredentials = credentials.hasCredentials
+        let googleDrive = credentials.loadGoogleDriveCredentials()
+        apiKey = googleDrive.apiKey
+        folderId = googleDrive.folderId
+        hasCredentials = googleDrive.hasCredentials
 
         // Mega
-        megaFolderURL = settingsUseCases.loadMegaFolderURL()
-        hasMegaCredentials = settingsUseCases.hasMegaCredentials()
+        megaFolderURL = credentials.loadMegaFolderURL()
+        hasMegaCredentials = credentials.hasMegaCredentials()
 
         // Provider selection
-        selectedProvider = settingsUseCases.getSelectedCloudProvider()
+        selectedProvider = credentials.getSelectedCloudProvider()
     }
 
     /// Guarda las credenciales
     func saveCredentials() -> Bool {
-        let success = settingsUseCases.saveGoogleDriveCredentials(
+        let success = credentials.saveGoogleDriveCredentials(
             apiKey: apiKey,
             folderId: folderId
         )
@@ -102,7 +108,7 @@ final class SettingsViewModel {
 
     /// Elimina las credenciales
     func deleteCredentials() {
-        settingsUseCases.deleteGoogleDriveCredentials()
+        credentials.deleteGoogleDriveCredentials()
         apiKey = ""
         folderId = ""
         hasCredentials = false
@@ -115,7 +121,7 @@ final class SettingsViewModel {
         connectionTestResult = nil
 
         do {
-            let isValid = try await settingsUseCases.testCloudStorageConnection()
+            let isValid = try await credentials.testCloudStorageConnection()
             connectionTestResult = isValid ? .success : .failure("Credenciales inválidas")
             logger.info("Conexión exitosa con almacenamiento cloud")
         } catch {
@@ -131,7 +137,7 @@ final class SettingsViewModel {
     /// Carga información de almacenamiento
     func loadStorageInfo() async {
         do {
-            storageInfo = try await settingsUseCases.getStorageInfo()
+            storageInfo = try await appData.getStorageInfo()
         } catch {
             logger.error("Error al cargar info de almacenamiento: \(error)")
         }
@@ -148,7 +154,7 @@ final class SettingsViewModel {
 
     /// Carga información de la app
     func loadAppInfo() {
-        appInfo = settingsUseCases.getAppInfo()
+        appInfo = appInfoUseCases.getAppInfo()
     }
 
     /// Carga toda la información
@@ -161,7 +167,7 @@ final class SettingsViewModel {
     /// Limpia la caché
     func clearCache() async {
         do {
-            try await settingsUseCases.clearCache()
+            try await appData.clearCache()
             await loadAllInfo()
             logger.info("Caché limpiada correctamente")
         } catch {
@@ -172,7 +178,7 @@ final class SettingsViewModel {
     /// Elimina todas las canciones
     func deleteAllSongs() async {
         do {
-            try await settingsUseCases.deleteAllSongs()
+            try await appData.deleteAllSongs()
             await loadAllInfo()
             logger.info("Todas las canciones eliminadas")
         } catch {
@@ -195,12 +201,12 @@ final class SettingsViewModel {
 
     /// Valida la API Key
     func validateAPIKey() -> Bool {
-        return settingsUseCases.validateAPIKey(apiKey)
+        return credentials.validateAPIKey(apiKey)
     }
 
     /// Valida el Folder ID
     func validateFolderID() -> Bool {
-        return settingsUseCases.validateFolderID(folderId)
+        return credentials.validateFolderID(folderId)
     }
 
     /// Valida ambas credenciales
@@ -231,7 +237,7 @@ final class SettingsViewModel {
 
     /// Guarda la URL de la carpeta de Mega
     func saveMegaFolderURL() -> Bool {
-        let success = settingsUseCases.saveMegaFolderURL(megaFolderURL)
+        let success = credentials.saveMegaFolderURL(megaFolderURL)
 
         if success {
             hasMegaCredentials = true
@@ -245,7 +251,7 @@ final class SettingsViewModel {
 
     /// Elimina las credenciales de Mega
     func deleteMegaCredentials() {
-        settingsUseCases.deleteMegaCredentials()
+        credentials.deleteMegaCredentials()
         megaFolderURL = ""
         hasMegaCredentials = false
         logger.info("Credenciales de Mega eliminadas")
@@ -253,7 +259,7 @@ final class SettingsViewModel {
 
     /// Valida la URL de Mega
     func validateMegaFolderURL() -> Bool {
-        return settingsUseCases.validateMegaFolderURL(megaFolderURL)
+        return credentials.validateMegaFolderURL(megaFolderURL)
     }
 
     // MARK: - Provider Selection
@@ -261,7 +267,7 @@ final class SettingsViewModel {
     /// Cambia el proveedor de almacenamiento
     func setSelectedProvider(_ provider: CloudStorageProvider) {
         selectedProvider = provider
-        settingsUseCases.setSelectedCloudProvider(provider)
+        credentials.setSelectedCloudProvider(provider)
         logger.info("Proveedor seleccionado: \(provider.rawValue)")
     }
 

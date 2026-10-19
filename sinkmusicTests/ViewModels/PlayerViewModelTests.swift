@@ -15,10 +15,15 @@ final class PlayerViewModelTests: XCTestCase {
     private var mockEventBus: MockEventBus!
     private var mockLiveActivity: MockLiveActivityService!
     private var mockPlaybackState: MockPlaybackStateRepository!
+
+    /// Directorio propio de cada ejecución: nada de estos tests toca la carpeta real.
+    private var tempBase: URL!
     private var playerUseCases: PlayerUseCases!
 
     override func setUp() {
         super.setUp()
+        tempBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sinkmusic-tests-\(UUID().uuidString)")
         mockAudioPlayer = MockAudioPlayerService()
         mockSongRepo = MockSongRepository()
         mockEventBus = MockEventBus()
@@ -28,7 +33,7 @@ final class PlayerViewModelTests: XCTestCase {
             audioPlayer: mockAudioPlayer,
             songRepository: mockSongRepo,
             playbackStateRepository: mockPlaybackState,
-            fileStore: DownloadFileStore()
+            fileStore: DownloadFileStore(baseDirectory: tempBase)
         )
         sut = PlayerViewModel(
             playerUseCases: playerUseCases,
@@ -38,6 +43,8 @@ final class PlayerViewModelTests: XCTestCase {
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(at: tempBase)
+        tempBase = nil
         sut = nil
         playerUseCases = nil
         mockAudioPlayer = nil
@@ -61,8 +68,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_play_withDownloadedSong_setsCurrentlyPlayingID() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
 
@@ -94,8 +100,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_pause_persistsCurrentPlaybackTime() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
@@ -129,8 +134,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_stop_clearsCurrentlyPlayingID() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
@@ -142,8 +146,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_stop_closesFullPlayerAndClearsPlayingState() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
@@ -206,7 +209,7 @@ final class PlayerViewModelTests: XCTestCase {
     }
 
     func test_eventBus_timeUpdated_updatesSongDuration() async {
-        mockEventBus.emit(.timeUpdated(current: 10, duration: 180))
+        mockEventBus.emit(.timeUpdated(PlaybackProgress(elapsed: 10, duration: 180)))
         try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(sut.songDuration, 180)
@@ -227,8 +230,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_remoteCommand_play_whenPaused_resumes() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
@@ -243,8 +245,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_remoteCommand_playPause_whenPlaying_pausesOnce() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
@@ -268,8 +269,7 @@ final class PlayerViewModelTests: XCTestCase {
     /// o el widget nativo se queda creyendo que sigue sonando.
     func test_songFinished_lastTrackRepeatOff_pausesThroughUseCases() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         await sut.play(songID: songID, queue: [SongMapper.toUI(song)])
@@ -284,8 +284,7 @@ final class PlayerViewModelTests: XCTestCase {
 
     func test_play_withDownloadedSong_startsLiveActivity() async throws {
         let songID = UUID()
-        let musicDir = try createTempAudioFile(songID: songID)
-        defer { try? FileManager.default.removeItem(at: musicDir) }
+        _ = try createTempAudioFile(songID: songID)
         let song = Song.make(id: songID, isDownloaded: true)
         mockSongRepo.songs = [song]
         mockEventBus.emit(.stateChanged(isPlaying: true, songID: songID))
@@ -298,9 +297,12 @@ final class PlayerViewModelTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// Crea el archivo de audio de prueba dentro de `tempBase`, no en la carpeta de música
+    /// real de la app. Antes escribía en `Documents/Music` y cada test borraba ese
+    /// directorio entero al terminar: ejecutar la suite se llevaba las descargas del
+    /// usuario. Ahora `tearDown` borra solo `tempBase`.
     private func createTempAudioFile(songID: UUID) throws -> URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let musicDir = docs.appendingPathComponent("Music")
+        let musicDir = tempBase.appendingPathComponent("Music")
         try FileManager.default.createDirectory(at: musicDir, withIntermediateDirectories: true)
         let file = musicDir.appendingPathComponent("\(songID.uuidString).m4a")
         FileManager.default.createFile(atPath: file.path, contents: Data())

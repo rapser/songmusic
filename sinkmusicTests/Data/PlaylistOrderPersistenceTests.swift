@@ -18,18 +18,20 @@ final class PlaylistOrderPersistenceTests: XCTestCase {
     private var sut: PlaylistLocalDataSource!
     private var songSource: SongLocalDataSource!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    // `setUp() async throws` en lugar de `setUpWithError()`: el override del segundo es
+    // nonisolated y no puede tocar `context`, que es @MainActor.
+    override func setUp() async throws {
+        try await super.setUp()
         container = try ReadStoreTestSupport.makeInMemoryContainer()
         sut = PlaylistLocalDataSource(modelContext: context)
         songSource = SongLocalDataSource(modelContext: context)
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         container = nil
         sut = nil
         songSource = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func makeSongs(_ count: Int) throws -> [SongDTO] {

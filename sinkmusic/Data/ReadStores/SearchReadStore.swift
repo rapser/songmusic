@@ -13,10 +13,16 @@ import SwiftData
 final class SearchReadStore: SearchReadStoreProtocol {
 
     private let searchUseCases: SearchUseCases
+    private let aggregationUseCases: LibraryAggregationUseCases
     private let observer: ModelContextChangeObserver
 
-    init(searchUseCases: SearchUseCases, modelContext: ModelContext) {
+    init(
+        searchUseCases: SearchUseCases,
+        aggregationUseCases: LibraryAggregationUseCases,
+        modelContext: ModelContext
+    ) {
         self.searchUseCases = searchUseCases
+        self.aggregationUseCases = aggregationUseCases
         self.observer = ModelContextChangeObserver(
             modelContext: modelContext,
             relevantEntityNames: ["SongDTO"]
@@ -40,11 +46,11 @@ final class SearchReadStore: SearchReadStoreProtocol {
     }
 
     func allArtists() async throws -> [String] {
-        try await searchUseCases.getAllArtists()
+        try await aggregationUseCases.getAllArtists()
     }
 
     func allAlbums() async throws -> [String] {
-        try await searchUseCases.getAllAlbums()
+        try await aggregationUseCases.getAllAlbums()
     }
 
     func mostPlayedSongs(limit: Int) async throws -> [Song] {
