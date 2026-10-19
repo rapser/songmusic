@@ -363,6 +363,9 @@ final class DIContainer {
         EqualizerViewModel(equalizerUseCases: equalizerUseCases)
     }
 
+    /// Caché de carátulas nítidas para las celdas grandes (tarjetas de Inicio).
+    private(set) lazy var artworkImageCache = ArtworkImageCache(libraryUseCases: libraryUseCases)
+
     /// Factory para HomeViewModel
     func makeHomeViewModel() -> HomeViewModel {
         HomeViewModel(readStore: homeReadStore)

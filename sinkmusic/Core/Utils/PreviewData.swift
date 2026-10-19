@@ -167,6 +167,11 @@ struct PreviewViewModels {
         setupDI()
         return DIContainer.shared.makeAuthViewModel()
     }
+
+    static func artworkImageCache() -> ArtworkImageCache {
+        setupDI()
+        return DIContainer.shared.artworkImageCache
+    }
 }
 
 // MARK: - Extension para acceso directo
@@ -182,6 +187,7 @@ extension PreviewData {
     static func metadataVM() -> MetadataCacheViewModel { PreviewViewModels.metadataVM() }
     static func playerCoordinatorVM() -> PlayerCoordinator { PreviewViewModels.playerCoordinatorVM() }
     static func authVM() -> AuthViewModel { PreviewViewModels.authVM() }
+    static func artworkImageCache() -> ArtworkImageCache { PreviewViewModels.artworkImageCache() }
 }
 
 // MARK: - Wrapper genérico
@@ -236,6 +242,7 @@ struct PreviewWrapper<Content: View>: View {
             .environment(settingsVM ?? PreviewViewModels.settingsVM())
             .environment(metadataVM ?? PreviewViewModels.metadataVM())
             .environment(playerCoordinatorVM ?? PreviewViewModels.playerCoordinatorVM())
+            .environment(PreviewViewModels.artworkImageCache())
             .ifLet(modelContainer) { view, container in
                 view.modelContainer(container)
             }

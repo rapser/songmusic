@@ -125,6 +125,7 @@ struct sinkmusicApp: App {
                                 .environment(equalizerVM)
                                 .environment(downloadVM)
                                 .environment(metadataViewModel)
+                                .environment(DIContainer.shared.artworkImageCache)
                                 .environment(authVM)
                                 .environment(coordinator)
                         } else {
