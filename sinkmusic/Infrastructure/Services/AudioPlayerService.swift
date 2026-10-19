@@ -26,7 +26,8 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
     private let audioEngine: AVAudioEngine
     private let playerNode: AVAudioPlayerNode
     private var audioFile: AVAudioFile?
-    private let eq: AVAudioUnitEQ
+    /// Ecualizador de 6 bandas. Neutro (en bypass) mientras el usuario no lo toque.
+    private let equalizer: AudioEqualizer
     private let mixerNode: AVAudioMixerNode
 
     // State flags con sincronización
@@ -67,7 +68,7 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
         self.eventBus = eventBus
         self.audioEngine = AVAudioEngine()
         self.playerNode = AVAudioPlayerNode()
-        self.eq = AVAudioUnitEQ(numberOfBands: 6)
+        self.equalizer = AudioEqualizer()
         self.mixerNode = AVAudioMixerNode()
         self.nowPlaying = NowPlayingCenter(eventBus: eventBus)
         self.interruptions = AudioInterruptionObserver(eventBus: eventBus)
@@ -115,19 +116,12 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
     private func setupAudioEngine() {
         audioEngine.attach(playerNode)
-        audioEngine.attach(eq)
+        audioEngine.attach(equalizer.node)
         audioEngine.attach(mixerNode)
 
         // Mixer neutro: pan centrado, volumen máximo, sin colorear el sonido.
         mixerNode.pan = 0.0
         mixerNode.outputVolume = 1.0
-
-        // EQ completamente en bypass: señal sin tocar, fidelidad máxima.
-        // El usuario puede activar bandas desde el ecualizador de la app si lo desea.
-        // Tidal Hi-Fi no aplica ningún procesamiento de señal por defecto.
-        for index in 0..<eq.bands.count {
-            eq.bands[index].bypass = true
-        }
     }
 
     // MARK: - Configuration Change
@@ -215,8 +209,8 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
         let fileFormat = audioFile.processingFormat
         let outFormat = AVAudioFormat(standardFormatWithSampleRate: fileFormat.sampleRate, channels: 2) ?? fileFormat
-        audioEngine.connect(playerNode, to: eq, format: fileFormat)
-        audioEngine.connect(eq, to: mixerNode, format: fileFormat)
+        audioEngine.connect(playerNode, to: equalizer.node, format: fileFormat)
+        audioEngine.connect(equalizer.node, to: mixerNode, format: fileFormat)
         audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
         audioEngine.prepare()
 
@@ -316,8 +310,8 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
             if isFirstConnection {
                 // La cadena se arma una sola vez; luego solo cambiamos la pista programada.
-                audioEngine.connect(playerNode, to: eq, format: fileFormat)
-                audioEngine.connect(eq, to: mixerNode, format: fileFormat)
+                audioEngine.connect(playerNode, to: equalizer.node, format: fileFormat)
+                audioEngine.connect(equalizer.node, to: mixerNode, format: fileFormat)
                 audioEngine.connect(mixerNode, to: audioEngine.mainMixerNode, format: outFormat)
                 isFirstConnection = false
             } else {
@@ -604,27 +598,9 @@ final class AudioPlayerService: NSObject, AudioPlayerServiceProtocol, AudioPlaye
 
     // MARK: - Equalizer
 
-    private static let eqFrequencies: [Float] = [60, 150, 400, 1000, 2400, 15000]
-
+    /// Ganancias en dB por banda. La configuración del nodo vive en `AudioEqualizer`.
     func updateEqualizer(bands: [Float]) {
-        for (index, gain) in bands.enumerated() where index < eq.bands.count {
-            eq.bands[index].filterType = .parametric
-            eq.bands[index].frequency = index < Self.eqFrequencies.count ? Self.eqFrequencies[index] : 1000
-            eq.bands[index].bandwidth = 1.0
-            eq.bands[index].gain = gain
-            // Bypass si la banda está a 0 dB — señal sin tocar, fidelidad máxima
-            eq.bands[index].bypass = (gain == 0)
-        }
-    }
-
-    func applyEqualizerSettings(_ bands: [EqualizerBand]) {
-        for (index, band) in bands.enumerated() where index < eq.bands.count {
-            eq.bands[index].filterType = .parametric
-            eq.bands[index].frequency = index < Self.eqFrequencies.count ? Self.eqFrequencies[index] : 1000
-            eq.bands[index].bandwidth = 1.0
-            eq.bands[index].gain = Float(band.gain)
-            eq.bands[index].bypass = (band.gain == 0)
-        }
+        equalizer.apply(gains: bands)
     }
 
     // MARK: - Interruption Handling
