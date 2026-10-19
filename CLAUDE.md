@@ -125,3 +125,24 @@ persistido; la carátula del reproductor se decodifica a 1024 px fuera del main 
 target es iOS 18, así que no es una alternativa; además observa *estado* y fusiona cambios
 de la misma transacción, por lo que no sirve para eventos discretos como `songFinished`.
 El `EventBus` sobre `AsyncStream` es la herramienta correcta aquí.
+
+**`NonisolatedNonsendingByDefault` — medido y descartado por ahora.** El flag de Swift 6.2
+hace que una función `nonisolated async` herede el actor de quien la llama. Suena gratis y
+no lo es: el proyecto tiene **tres** funciones así, y las tres quieren precisamente salir
+del main actor — `ArtworkDecoder.decode`, `MetadataService.parse` y
+`CloudStorageRepositoryImpl.getDuration`. Activarlo las devolvería al main actor **sin un
+solo error de compilación**: el trabajo pesado se muda en silencio y se nota como tirones.
+
+Coste real medido: 14 errores en `CloudStorageRepositoryImpl` más `@concurrent` en esas
+tres funciones, a cambio de ningún beneficio aquí (los dos `@unchecked Sendable` que quedan
+son por `UserDefaults`, que este flag no arregla). Es el comportamiento por defecto en
+Swift 7, así que la migración llegará; cuando se haga, revisar **cada** función
+`nonisolated async` y decidir explícitamente si hereda o lleva `@concurrent`, y comprobar
+con Instruments que la decodificación de carátulas sigue fuera del main actor.
+
+**Lo que queda del plan, abierto por decisión y no por olvido**: unificar los cuatro
+`ModelContextChangeObserver` en uno con señal tipada (cosmético desde que el camino caliente
+se resolvió) y SwiftData History (obliga a gestionar y purgar transacciones a cambio de
+poco). Las carátulas de las filas de lista de 56 pt siguen ampliando el thumbnail de 64 px
+unas 2,6 veces: arreglarlo pide un thumbnail persistido mayor —entidad aditiva + backfill—,
+y se decidió que no lo vale.
