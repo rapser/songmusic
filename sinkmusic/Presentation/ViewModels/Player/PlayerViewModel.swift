@@ -37,8 +37,15 @@ final class PlayerViewModel: EventBusObservable {
     var songDuration: TimeInterval { progress.duration }
 
     var showPlayerView: Bool = false
-    var isShuffleEnabled = false
-    var repeatMode: RepeatMode = .off
+
+    /// La cola de reproducción. El algoritmo —orden, aleatorio, repetición, final de cola—
+    /// vive en `PlaybackQueue`, en Domain; aquí solo se consulta y se refleja.
+    private var queue = PlaybackQueue()
+
+    /// Espejos de solo lectura para las vistas. Se mueven con `toggleShuffle()` y
+    /// `toggleRepeat()`; nadie más puede escribirlos.
+    var isShuffleEnabled: Bool { queue.isShuffleEnabled }
+    var repeatMode: RepeatMode { queue.repeatMode }
 
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Player")
 
@@ -50,7 +57,6 @@ final class PlayerViewModel: EventBusObservable {
 
     // MARK: - Private State
 
-    private var queueSongIDs: [UUID] = []
     private var currentSong: SongUI?
     private var lastProgressPersistTime: TimeInterval = 0
 
@@ -94,9 +100,7 @@ final class PlayerViewModel: EventBusObservable {
     func play(songID: UUID, queue: [SongUI]) async {
         do {
             // Establecer la cola (solo canciones descargadas)
-            self.queueSongIDs = queue
-                .filter { $0.isDownloaded }
-                .map { $0.id }
+            self.queue.replace(with: queue.filter(\.isDownloaded).map(\.id))
 
             // Obtener la canción via UseCase y convertir a UIModel
             guard let songEntity = try await playerUseCases.getSongByID(songID),
@@ -187,18 +191,11 @@ final class PlayerViewModel: EventBusObservable {
     // MARK: - Queue Management
 
     func toggleShuffle() {
-        isShuffleEnabled.toggle()
+        queue.isShuffleEnabled.toggle()
     }
 
     func toggleRepeat() {
-        switch repeatMode {
-        case .off:
-            repeatMode = .repeatAll
-        case .repeatAll:
-            repeatMode = .repeatOne
-        case .repeatOne:
-            repeatMode = .off
-        }
+        queue.repeatMode = queue.repeatMode.next()
     }
 
     func playNext() async {
@@ -212,71 +209,32 @@ final class PlayerViewModel: EventBusObservable {
     }
 
     private func playNextSong(afterSongID: UUID) async {
-        guard !queueSongIDs.isEmpty else { return }
-
-        var nextSongID: UUID?
-
-        if isShuffleEnabled {
-            let otherSongIDs = queueSongIDs.filter { $0 != afterSongID }
-            nextSongID = otherSongIDs.randomElement() ?? queueSongIDs.first
-        } else {
-            guard let idx = queueSongIDs.firstIndex(where: { $0 == afterSongID }) else { return }
-            let nextIdx = (idx + 1) % queueSongIDs.count
-            nextSongID = queueSongIDs[nextIdx]
-        }
-
-        if let songID = nextSongID {
-            let queueUIModels = await getQueueUIModels()
-            await play(songID: songID, queue: queueUIModels)
-        }
+        guard let songID = queue.next(after: afterSongID) else { return }
+        await playFromQueue(songID)
     }
 
     private func playPreviousSong(beforeSongID: UUID) async {
-        guard !queueSongIDs.isEmpty else { return }
-
-        var prevSongID: UUID?
-
-        if isShuffleEnabled {
-            let otherSongIDs = queueSongIDs.filter { $0 != beforeSongID }
-            prevSongID = otherSongIDs.randomElement() ?? queueSongIDs.first
-        } else {
-            guard let idx = queueSongIDs.firstIndex(where: { $0 == beforeSongID }) else { return }
-            let prevIdx = (idx - 1 + queueSongIDs.count) % queueSongIDs.count
-            prevSongID = queueSongIDs[prevIdx]
-        }
-
-        if let songID = prevSongID {
-            let queueUIModels = await getQueueUIModels()
-            await play(songID: songID, queue: queueUIModels)
-        }
+        guard let songID = queue.previous(before: beforeSongID) else { return }
+        await playFromQueue(songID)
     }
 
     private func playNextAutomatically(finishedSongID: UUID) async {
-        guard !queueSongIDs.isEmpty else { return }
+        switch queue.advance(after: finishedSongID) {
+        case .play(let songID):
+            await playFromQueue(songID)
 
-        switch repeatMode {
-        case .repeatOne:
-            let queueUIModels = await getQueueUIModels()
-            await play(songID: finishedSongID, queue: queueUIModels)
+        case .stop:
+            // Fin de la cola: pasar por el UseCase para que el motor de audio y el
+            // reproductor nativo se enteren, en vez de tocar solo el flag local.
+            await playerUseCases.pause()
 
-        case .repeatAll:
-            await playNextSong(afterSongID: finishedSongID)
-
-        case .off:
-            guard let idx = queueSongIDs.firstIndex(where: { $0 == finishedSongID }) else { return }
-
-            if isShuffleEnabled {
-                await playNextSong(afterSongID: finishedSongID)
-            } else {
-                if idx < queueSongIDs.count - 1 {
-                    await playNextSong(afterSongID: finishedSongID)
-                } else {
-                    // Fin de la cola: pasar por el UseCase para que el motor de audio y el
-                    // reproductor nativo se enteren, en vez de tocar solo el flag local.
-                    await playerUseCases.pause()
-                }
-            }
+        case .idle:
+            break
         }
+    }
+
+    private func playFromQueue(_ songID: UUID) async {
+        await play(songID: songID, queue: await getQueueUIModels())
     }
 
     // MARK: - Event Observation (EventBus + AsyncStream)
@@ -383,7 +341,7 @@ final class PlayerViewModel: EventBusObservable {
 
     private func getQueueUIModels() async -> [SongUI] {
         do {
-            let entities = try await playerUseCases.getSongsByIDs(queueSongIDs)
+            let entities = try await playerUseCases.getSongsByIDs(queue.songIDs)
             return entities.map { SongMapper.toUI($0) }
         } catch {
             logger.warning("Error al obtener canciones de la cola: \(error)")
