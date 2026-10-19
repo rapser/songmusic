@@ -60,10 +60,10 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     /// Top canciones del ranking de Inicio.
     ///
-    /// Con actividad reciente manda el contador de ventana (7 días) y no el `playCount`
-    /// histórico: así el listado se mantiene fresco y ninguna canción se queda fija
-    /// eternamente en el puesto 1. Las ventanas caducadas ya fueron descartadas por
-    /// `activeCounts()`.
+    /// Con actividad reciente manda el contador de ventana y no el `playCount` histórico:
+    /// así el listado refleja lo que se está escuchando ahora. La ventana es deslizante
+    /// (7 días desde la última reproducción), de modo que una canción en rotación se
+    /// mantiene en el ranking. Las caducadas ya fueron descartadas por `activeCounts()`.
     ///
     /// Cuando no queda ninguna ventana viva —una semana sin escuchar nada— se cae al
     /// `playCount` histórico en lugar de devolver una lista vacía, que es lo que dejaba
