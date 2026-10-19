@@ -167,6 +167,19 @@ struct sinkmusicApp: App {
         // Configurar DIContainer
         container.configure(with: modelContext)
 
+        // El disco manda sobre la bandera `isDownloaded`. Antes de que nada lea la
+        // biblioteca: si una canción marcada como descargada perdió su archivo, queda muerta
+        // —`play` falla y la descarga se niega por "ya descargada"—, así que se devuelve a
+        // pendiente para que se pueda bajar otra vez.
+        do {
+            let reconciled = try await container.makeReconcileDownloadsUseCase().execute()
+            if !reconciled.isEmpty {
+                logger.warning("Descargas reconciliadas: \(reconciled.count) canciones sin archivo en disco")
+            }
+        } catch {
+            logger.error("Error al reconciliar descargas: \(error)")
+        }
+
         // Crear ViewModels usando DIContainer
         // AuthViewModel primero para que pueda recibir eventos de autenticación
         authViewModel = container.makeAuthViewModel()

@@ -269,6 +269,14 @@ final class DIContainer {
         )
     }
 
+    /// No es `private`: lo invoca el arranque de la app, antes de crear los ViewModels.
+    func makeReconcileDownloadsUseCase() -> ReconcileDownloadsUseCase {
+        ReconcileDownloadsUseCase(
+            songRepository: songRepository,
+            fileStore: downloadFileStore
+        )
+    }
+
     private func makeSettingsUseCases() -> SettingsUseCases {
         SettingsUseCases(
             credentialsRepository: credentialsRepository,
