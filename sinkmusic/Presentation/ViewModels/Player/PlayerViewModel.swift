@@ -65,8 +65,13 @@ final class PlayerViewModel: EventBusObservable {
     /// `removeObserver(self)` **no** elimina los registrados con
     /// `addObserver(forName:object:queue:using:)` — hay que guardar el token que devuelven y
     /// quitarlos uno a uno. Sin esto seguían disparando después de destruir el ViewModel.
+    ///
+    /// `nonisolated(unsafe)` porque `[any NSObjectProtocol]` no es Sendable y `deinit` es
+    /// nonisolated. Es seguro: se escribe una sola vez en `init` y se lee una sola vez en
+    /// `deinit`, que por definición no concurre con nada, y `removeObserver` es thread-safe.
+    /// Mismo tratamiento que los tokens de `AudioPlayerService`.
     @ObservationIgnored
-    private var liveActivityTokens: [NSObjectProtocol] = []
+    private nonisolated(unsafe) var liveActivityTokens: [NSObjectProtocol] = []
 
     // MARK: - Initialization
 
