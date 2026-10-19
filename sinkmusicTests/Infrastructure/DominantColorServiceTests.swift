@@ -87,8 +87,9 @@ final class DominantColorServiceTests: XCTestCase {
     // MARK: - Fuera del main actor
 
     /// Se llama desde `Task.detached` y desde la ingesta: debe funcionar sin el main actor.
+    @MainActor
     func test_extract_runsOffTheMainActor() async throws {
-        let data = await MainActor.run { imageData(red: 0.2, green: 0.5, blue: 0.9) }
+        let data = imageData(red: 0.2, green: 0.5, blue: 0.9)
 
         let color = await Task.detached { DominantColorService.extract(from: data) }.value
 
