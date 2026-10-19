@@ -27,11 +27,11 @@ final class PlaylistOrderPersistenceTests: XCTestCase {
         songSource = SongLocalDataSource(modelContext: context)
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         container = nil
         sut = nil
         songSource = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func makeSongs(_ count: Int) throws -> [SongDTO] {

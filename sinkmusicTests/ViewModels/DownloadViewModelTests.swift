@@ -16,6 +16,7 @@ final class DownloadViewModelTests: XCTestCase {
     private var mockCredentials: MockCredentialsRepository!
     private var mockEventBus: MockEventBus!
     private var downloadUseCases: DownloadUseCases!
+    private var queueManager: DownloadQueueManager!
 
     override func setUp() {
         super.setUp()
@@ -31,15 +32,18 @@ final class DownloadViewModelTests: XCTestCase {
             credentialsRepository: mockCredentials,
             eventBus: mockEventBus
         )
+        queueManager = DownloadQueueManager()
         sut = DownloadViewModel(
             downloadUseCases: downloadUseCases,
             eventBus: mockEventBus,
-            bulkReloadGate: ReactiveReloadGate([])
+            bulkReloadGate: ReactiveReloadGate([]),
+            queueManager: queueManager
         )
     }
 
     override func tearDown() {
         sut = nil
+        queueManager = nil
         downloadUseCases = nil
         mockSongRepo = nil
         mockCloudStorage = nil
@@ -144,6 +148,26 @@ final class DownloadViewModelTests: XCTestCase {
     }
 
     // MARK: - dismissQuotaAlert()
+
+    /// La cola se inyecta, así que el backoff por cuota vive fuera del ViewModel: una
+    /// pantalla nueva sigue sabiendo que el proveedor está limitado y no reintenta.
+    /// Cuando la cola se creaba dentro del ViewModel, recrearlo borraba ese estado.
+    func test_quotaBackoff_survivesANewViewModel() async {
+        await queueManager.markQuotaExceeded(provider: .googleDrive, retryAfter: 3600)
+
+        let recreated = DownloadViewModel(
+            downloadUseCases: downloadUseCases,
+            eventBus: mockEventBus,
+            bulkReloadGate: ReactiveReloadGate([]),
+            queueManager: queueManager
+        )
+
+        await recreated.download(songID: UUID())
+
+        XCTAssertTrue(recreated.showQuotaAlert)
+        XCTAssertEqual(recreated.quotaExceededProvider, .googleDrive)
+        XCTAssertFalse(recreated.isDownloading, "No debe intentar la descarga con la cuota excedida")
+    }
 
     func test_dismissQuotaAlert_hidesAlert() async {
         let resetDate = Date(timeIntervalSinceNow: 3600)

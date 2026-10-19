@@ -168,6 +168,11 @@ final class DIContainer {
         homeReadStore, libraryReadStore, playlistReadStore, searchReadStore
     ])
 
+    /// Cola de descargas: límites de concurrencia por proveedor y backoff por cuota
+    /// excedida. Compartida a propósito —el estado de cuota es de la app, no de una
+    /// pantalla—, y antes la creaba `DownloadViewModel` dentro de sí mismo.
+    private(set) lazy var downloadQueueManager = DownloadQueueManager()
+
     // MARK: - Shared DataSources
 
     /// Instancia única de SongLocalDataSource compartida entre todos los repositorios
@@ -340,7 +345,8 @@ final class DIContainer {
         DownloadViewModel(
             downloadUseCases: downloadUseCases,
             eventBus: eventBus,
-            bulkReloadGate: bulkReloadGate
+            bulkReloadGate: bulkReloadGate,
+            queueManager: downloadQueueManager
         )
     }
 

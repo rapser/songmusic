@@ -46,12 +46,14 @@ final class DownloadViewModel: EventBusObservable {
     /// Pausa la reactividad de las listas durante "Descargar todo".
     private let bulkReloadGate: BulkReloadGate
 
+    /// Cola de descargas con límites por proveedor y estado de cuota.
+    ///
+    /// Se inyecta en vez de construirse aquí: es un servicio de dominio, y el
+    /// `DIContainer` es el único sitio donde se arma el grafo. Al ser compartido, el
+    /// backoff por cuota excedida sobrevive a que este ViewModel se recree.
+    private let queueManager: DownloadQueueManager
+
     private let logger = Logger(subsystem: "com.rapser.musicaapp", category: "Download")
-
-    // MARK: - Queue Manager
-
-    /// Gestor de cola de descargas con límites por proveedor
-    private let queueManager = DownloadQueueManager()
 
     // MARK: - Private State
 
@@ -74,10 +76,14 @@ final class DownloadViewModel: EventBusObservable {
 
     // MARK: - Initialization
 
-    init(downloadUseCases: DownloadUseCases, eventBus: EventBusProtocol, bulkReloadGate: BulkReloadGate) {
+    init(downloadUseCases: DownloadUseCases,
+         eventBus: EventBusProtocol,
+         bulkReloadGate: BulkReloadGate,
+         queueManager: DownloadQueueManager) {
         self.downloadUseCases = downloadUseCases
         self.eventBus = eventBus
         self.bulkReloadGate = bulkReloadGate
+        self.queueManager = queueManager
         downloadEventTask = makeEventTask(stream: { $0.downloadEvents() },
                                           handler: { [weak self] in await self?.handleDownloadEvent($0) })
     }
