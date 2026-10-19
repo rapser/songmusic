@@ -21,7 +21,10 @@ final class HomeReadStore: HomeReadStoreProtocol {
         self.playlistUseCases = playlistUseCases
         self.observer = ModelContextChangeObserver(
             modelContext: modelContext,
-            relevantEntityNames: ["SongDTO", "PlaylistDTO"]
+            // `SongPlayStatsDTO` porque Inicio es la única pantalla que muestra algo
+            // derivado de las reproducciones ("lo que más escuchas", "recientes"). Antes
+            // ese aviso llegaba por `SongDTO`, y de paso despertaba a las otras tres.
+            relevantEntityNames: ["SongDTO", "PlaylistDTO", "SongPlayStatsDTO"]
         )
     }
 

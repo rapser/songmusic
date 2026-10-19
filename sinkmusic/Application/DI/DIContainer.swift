@@ -192,12 +192,19 @@ final class DIContainer {
         SongLocalDataSource(modelContext: requireModelContext())
     }()
 
+    /// Reproducciones históricas, en su propia entidad (`SongPlayStatsDTO`). Compartida:
+    /// hace el backfill desde los campos viejos de `SongDTO` una sola vez por ejecución.
+    private lazy var songPlayStatsDataSource: SongPlayStatsLocalDataSource = {
+        SongPlayStatsLocalDataSource(modelContext: requireModelContext())
+    }()
+
     // MARK: - Repository Factories
 
     private func makeSongRepository() -> SongRepositoryProtocol {
         SongRepositoryImpl(
             localDataSource: songLocalDataSource,
-            rankingWindowRepository: rankingWindowRepository
+            rankingWindowRepository: rankingWindowRepository,
+            playStatsDataSource: songPlayStatsDataSource
         )
     }
 
@@ -206,7 +213,8 @@ final class DIContainer {
         return PlaylistRepositoryImpl(
             localDataSource: playlistLocalDataSource,
             songRepository: songRepository,
-            songLocalDataSource: songLocalDataSource
+            songLocalDataSource: songLocalDataSource,
+            playStatsDataSource: songPlayStatsDataSource
         )
     }
 

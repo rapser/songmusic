@@ -21,41 +21,47 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
     /// del `playCount` histórico de la canción.
     private let rankingWindowRepository: RankingWindowRepositoryProtocol
 
+    /// Reproducciones históricas (`playCount`, `lastPlayedAt`), en su propia entidad y no en
+    /// la fila de la canción: ver `SongPlayStatsDTO`.
+    private let playStatsDataSource: SongPlayStatsLocalDataSource
+
     // MARK: - Lifecycle
 
     init(
         localDataSource: SongLocalDataSource,
-        rankingWindowRepository: RankingWindowRepositoryProtocol
+        rankingWindowRepository: RankingWindowRepositoryProtocol,
+        playStatsDataSource: SongPlayStatsLocalDataSource
     ) {
         self.localDataSource = localDataSource
         self.rankingWindowRepository = rankingWindowRepository
+        self.playStatsDataSource = playStatsDataSource
     }
 
     // MARK: - Query Operations
 
     func getAll() async throws -> [Song] {
         let dtos = try localDataSource.getAll()
-        return SongMapper.toDomain(dtos)
+        return SongMapper.toDomain(dtos, stats: try playStatsDataSource.allStats())
     }
 
     func getByID(_ id: UUID) async throws -> Song? {
         guard let dto = try localDataSource.getByID(id) else { return nil }
-        return SongMapper.toDomain(dto)
+        return SongMapper.toDomain(dto, stats: try playStatsDataSource.stats(for: id))
     }
 
     func getByFileID(_ fileID: String) async throws -> Song? {
         guard let dto = try localDataSource.getByFileID(fileID) else { return nil }
-        return SongMapper.toDomain(dto)
+        return SongMapper.toDomain(dto, stats: try playStatsDataSource.stats(for: dto.id))
     }
 
     func getDownloaded() async throws -> [Song] {
         let dtos = try localDataSource.getDownloaded()
-        return SongMapper.toDomain(dtos)
+        return SongMapper.toDomain(dtos, stats: try playStatsDataSource.allStats())
     }
 
     func getPending() async throws -> [Song] {
         let dtos = try localDataSource.getPending()
-        return SongMapper.toDomain(dtos)
+        return SongMapper.toDomain(dtos, stats: try playStatsDataSource.allStats())
     }
 
     /// Top canciones del ranking de Inicio.
@@ -71,6 +77,7 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
     /// reproduzca algo la ventana vuelve a mandar.
     func getTopSongs(limit: Int = 10) async throws -> [Song] {
         let counts = await rankingWindowRepository.activeCounts()
+        let stats = try playStatsDataSource.allStats()
 
         // `getDownloaded()` excluye canciones sin descargar: al quitar una descarga sale
         // del ranking aunque conserve su ventana (se limpia sola al caducar).
@@ -84,13 +91,15 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         // Una ventana viva puede pertenecer solo a canciones cuya descarga se quitó —su
         // entrada sobrevive hasta caducar, y `updateDownloadStatus` no la toca—, y entonces
         // `counts` viene lleno pero no hay nada que mostrar.
-        guard windowed.isEmpty else { return SongMapper.toDomain(windowed) }
+        guard windowed.isEmpty else { return SongMapper.toDomain(windowed, stats: stats) }
 
         // Las de `playCount == 0` quedan fuera: en una biblioteca recién descargada la
         // sección sí debe salir vacía, no listar todo por orden alfabético bajo "lo que
         // más escuchas".
-        let historic = rank(downloaded.filter { $0.playCount > 0 }, limit: limit) { $0.playCount }
-        return SongMapper.toDomain(historic)
+        let historic = rank(downloaded.filter { (stats[$0.id]?.playCount ?? 0) > 0 }, limit: limit) {
+            stats[$0.id]?.playCount ?? 0
+        }
+        return SongMapper.toDomain(historic, stats: stats)
     }
 
     /// Ordena de mayor a menor por el contador dado, desempatando por título para que el
@@ -109,19 +118,31 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         return Array(sorted.prefix(limit))
     }
 
+    /// "Recientes" de Inicio.
+    ///
+    /// El orden lo da `SongPlayStatsDTO` (una fila por canción escuchada, no por canción de
+    /// la biblioteca). El filtro de descargadas va **después** del orden y no en la propia
+    /// consulta: así quitar una descarga la saca de Recientes, y recortar a `limit` antes
+    /// de filtrar dejaría huecos en la lista.
     func getRecentlyPlayed(limit: Int = 10) async throws -> [Song] {
-        let dtos = try localDataSource.getRecentlyPlayed(limit: limit)
-        return SongMapper.toDomain(dtos)
+        let orderedIDs = try playStatsDataSource.recentlyPlayedIDs()
+        guard !orderedIDs.isEmpty else { return [] }
+
+        let downloaded = try localDataSource.getDownloaded(ids: orderedIDs)
+        let byID = Dictionary(uniqueKeysWithValues: downloaded.map { ($0.id, $0) })
+        let dtos = Array(orderedIDs.compactMap { byID[$0] }.prefix(limit))
+
+        return SongMapper.toDomain(dtos, stats: try playStatsDataSource.allStats())
     }
 
     func search(query: String) async throws -> [Song] {
         let dtos = try localDataSource.search(query: query)
-        return SongMapper.toDomain(dtos)
+        return SongMapper.toDomain(dtos, stats: try playStatsDataSource.allStats())
     }
 
     func searchByAlbum(query: String) async throws -> [Song] {
         let dtos = try localDataSource.searchByAlbum(query: query)
-        return SongMapper.toDomain(dtos)
+        return SongMapper.toDomain(dtos, stats: try playStatsDataSource.allStats())
     }
 
     // MARK: - Mutation Operations
@@ -143,18 +164,22 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
 
     func delete(_ id: UUID) async throws {
         try localDataSource.delete(id)
+        try playStatsDataSource.delete(songID: id)
         await rankingWindowRepository.remove(songID: id)
     }
 
     func deleteAll() async throws {
         try localDataSource.deleteAll()
+        try playStatsDataSource.deleteAll()
         await rankingWindowRepository.clear()
     }
 
     // MARK: - Specific Operations
 
+    /// Dar al play. Escribe en `SongPlayStatsDTO` y en la ventana del ranking, **nunca** en
+    /// `SongDTO`: es lo que evita que una reproducción invalide las cuatro listas.
     func incrementPlayCount(for id: UUID) async throws {
-        try localDataSource.incrementPlayCount(for: id)
+        try playStatsDataSource.increment(songID: id)
         // Abre o incrementa la ventana de 7 días de esta canción en el ranking de Inicio.
         await rankingWindowRepository.registerPlay(songID: id)
     }

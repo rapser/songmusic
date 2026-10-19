@@ -9,8 +9,10 @@
 //  `incrementPlayCount` — o sea, **dar al play** —, que despierta a Inicio, Biblioteca,
 //  Playlists y Búsqueda enteras aunque ninguna muestre el contador de reproducciones.
 //
-//  Estos tests no juzgan: fijan el número actual para poder compararlo después. Sacar
-//  `playCount` de `SongDTO` a su propia entidad debería llevar el primero de 4 a 0.
+//  La medición original (4 señales por reproducción) justificó sacar `playCount` de
+//  `SongDTO` a `SongPlayStatsDTO`. Estos tests fijan el resultado: ahora dar al play
+//  despierta **solo a Inicio**, que es la única pantalla que muestra algo derivado del
+//  contador.
 //
 
 import XCTest
@@ -85,10 +87,13 @@ final class ReadStoreFanOutTests: XCTestCase {
 
     // MARK: - El camino caliente: dar al play
 
-    /// Reproducir una canción incrementa `playCount` en `SongDTO`, y eso invalida las cuatro
-    /// pantallas. Ninguna de ellas muestra el contador: Inicio solo lo usa para ordenar el
-    /// ranking, y Biblioteca, Playlists y Búsqueda ni eso.
-    func test_incrementPlayCount_wakesUpEveryReadStore() async throws {
+    /// Reproducir una canción escribe en `SongPlayStatsDTO` y en la ventana del ranking,
+    /// nunca en `SongDTO`. Solo Inicio muestra algo derivado del contador, así que es la
+    /// única que se recarga.
+    ///
+    /// Cuando el contador vivía en `SongDTO` eran **4 señales**: las cuatro tiendas lo
+    /// vigilan, y Biblioteca, Playlists y Búsqueda recargaban enteras sin usar el dato.
+    func test_incrementPlayCount_wakesUpOnlyHome() async throws {
         let container = try ReadStoreTestSupport.makeInMemoryContainer()
         let context = container.mainContext
         let song = try ReadStoreTestSupport.insertSong(context, isDownloaded: true)
@@ -99,18 +104,18 @@ final class ReadStoreFanOutTests: XCTestCase {
             try await repository.incrementPlayCount(for: song.id)
         }
 
-        XCTAssertEqual(counts["home"], 1, "Inicio recarga sus 5 secciones")
-        XCTAssertEqual(counts["library"], 1, "Biblioteca recarga canciones + stats")
-        XCTAssertEqual(counts["search"], 1, "Búsqueda recarga búsqueda + agregaciones + recomendaciones")
-        XCTAssertEqual(counts.values.reduce(0, +), 4,
-                       "Una sola reproducción despierta a las cuatro tiendas")
+        XCTAssertEqual(counts["home"], 1, "Inicio sí: muestra 'lo que más escuchas' y 'recientes'")
+        XCTAssertNil(counts["library"], "Biblioteca no muestra el contador")
+        XCTAssertNil(counts["search"], "Búsqueda tampoco")
+        XCTAssertNil(counts["playlist"], "Playlists tampoco")
+        XCTAssertEqual(counts.values.reduce(0, +), 1, "Antes eran 4 señales por reproducción")
     }
 
     // MARK: - Coalescing
 
     /// El debounce de 120 ms sí hace su trabajo: una ráfaga de escrituras seguidas produce
-    /// una sola señal por tienda, no una por escritura.
-    func test_burstOfWrites_isCoalescedIntoOneSignalPerStore() async throws {
+    /// una sola señal, no una por escritura.
+    func test_burstOfWrites_isCoalescedIntoOneSignal() async throws {
         let container = try ReadStoreTestSupport.makeInMemoryContainer()
         let context = container.mainContext
         let song = try ReadStoreTestSupport.insertSong(context, isDownloaded: true)
@@ -123,8 +128,25 @@ final class ReadStoreFanOutTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(counts.values.reduce(0, +), 4,
-                       "10 escrituras seguidas siguen siendo 4 señales, no 40")
+        XCTAssertEqual(counts.values.reduce(0, +), 1,
+                       "10 reproducciones seguidas siguen siendo 1 señal, no 10")
+    }
+
+    /// Lo que sí sigue despertando a las cuatro: cambiar la canción de verdad (su estado de
+    /// descarga, su metadata). Eso es correcto —todas muestran canciones— y es la razón de
+    /// que mereciera la pena mover solo el contador.
+    func test_songWrite_stillWakesUpEveryReadStore() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        let song = try ReadStoreTestSupport.insertSong(context, isDownloaded: true)
+        let repository = ReadStoreTestSupport.makeSongRepository(context)
+
+        let stores = makeStores(context)
+        let counts = try await countSignals(from: stores) {
+            try await repository.updateDownloadStatus(for: song.id, isDownloaded: false)
+        }
+
+        XCTAssertEqual(counts.values.reduce(0, +), 4)
     }
 
     // MARK: - Alcance por entidad

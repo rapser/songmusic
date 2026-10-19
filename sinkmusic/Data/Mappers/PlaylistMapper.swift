@@ -30,14 +30,10 @@ enum PlaylistMapper {
     ///
     /// El orden manual del usuario lo resuelve `PlaylistLocalDataSource.orderedSongs(for:)`
     /// vía `PlaylistItemDTO` **antes** de llamar al mapper (ver `PlaylistRepositoryImpl`).
-    /// Este helper directo se usa en previews/tests donde el orden exacto da igual.
-    static func toDomainWithSongs(_ dto: PlaylistDTO) -> Playlist {
-        toDomain(dto, songs: dto.songs.map(SongMapper.toDomain))
-    }
-
-    /// Convierte array de DTOs a Domain (orden de relación; ver `toDomainWithSongs`).
-    static func toDomain(_ dtos: [PlaylistDTO]) -> [Playlist] {
-        dtos.map { toDomainWithSongs($0) }
+    /// Este helper directo se usa en previews/tests donde el orden exacto da igual, y por
+    /// eso acepta las reproducciones vacías.
+    static func toDomainWithSongs(_ dto: PlaylistDTO, stats: [UUID: SongPlayStats]) -> Playlist {
+        toDomain(dto, songs: SongMapper.toDomain(dto.songs, stats: stats))
     }
 
     // MARK: - Layer 2: Domain → DTO (Domain → Data)
