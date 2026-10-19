@@ -27,20 +27,6 @@ import Foundation
 @MainActor
 protocol EventBusProtocol: AnyObject, Sendable {
 
-    // MARK: - Observable State (read-only)
-
-    /// ID del usuario autenticado (nil si no hay sesión)
-    var authUserID: String? { get }
-
-    /// Indica si hay un usuario autenticado
-    var isAuthenticated: Bool { get }
-
-    /// Estado actual de reproducción
-    var playbackState: PlaybackState { get }
-
-    /// Posición de reproducción vigente
-    var playbackProgress: PlaybackProgress { get }
-
     // MARK: - Emit Events
 
     /// Emitir evento de autenticación

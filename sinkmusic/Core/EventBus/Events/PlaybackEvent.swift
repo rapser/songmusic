@@ -45,15 +45,3 @@ enum RemoteCommand: Sendable, Equatable {
     case seek(TimeInterval)
 }
 
-/// Estado actual de reproducción (observable)
-enum PlaybackState: Sendable, Equatable {
-    /// Sin reproducción activa
-    case idle
-
-    /// Reproduciendo canción
-    case playing(songID: UUID)
-
-    /// Pausado en canción
-    case paused(songID: UUID)
-}
-

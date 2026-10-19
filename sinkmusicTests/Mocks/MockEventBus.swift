@@ -9,13 +9,6 @@ import Foundation
 @MainActor
 final class MockEventBus: EventBusProtocol {
 
-    // MARK: - Observable State
-
-    var authUserID: String?
-    var isAuthenticated: Bool = false
-    var playbackState: PlaybackState = .idle
-    var playbackProgress: PlaybackProgress = .zero
-
     // MARK: - Emit tracking
 
     private(set) var emittedPlaybackEvents: [PlaybackEvent] = []

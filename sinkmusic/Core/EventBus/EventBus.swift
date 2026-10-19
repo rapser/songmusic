@@ -15,8 +15,12 @@ import Foundation
 /// `ReadStoreProtocol` de cada dominio (`Domain/ReadStores/`), que reaccionan directamente a
 /// `ModelContext.didSave` de SwiftData. Ver `ModelContextChangeObserver`.
 ///
-/// Usa @Observable para estado observable + AsyncStream para eventos
-/// Reactividad moderna iOS 18+ / Swift 6
+/// Es **solo un bus de eventos efímeros**: no guarda estado. Cada consumidor mantiene el
+/// suyo (p. ej. `PlayerViewModel.progress`). Antes duplicaba aquí el estado de reproducción
+/// y de sesión en propiedades `@Observable` que no leía nadie — una tercera copia de la
+/// verdad que solo podía desincronizarse.
+///
+/// AsyncStream para eventos. Reactividad moderna iOS 18+ / Swift 6
 ///
 /// ## Principios
 /// - **Type-safe:** Todos los eventos son enums/structs tipados
@@ -43,22 +47,7 @@ import Foundation
 /// SOLID: Conforma a EventBusProtocol para Dependency Inversion
 /// NO usa singleton - Obtener instancia de DIContainer.shared.eventBus
 @MainActor
-@Observable
 final class EventBus: EventBusProtocol {
-
-    // MARK: - Observable State
-
-    /// ID del usuario autenticado (nil si no hay sesión)
-    private(set) var authUserID: String?
-
-    /// Indica si hay un usuario autenticado
-    var isAuthenticated: Bool { authUserID != nil }
-
-    /// Estado actual de reproducción
-    private(set) var playbackState: PlaybackState = .idle
-
-    /// Posición de reproducción vigente
-    private(set) var playbackProgress: PlaybackProgress = .zero
 
     // MARK: - Stream Continuations
 
@@ -70,23 +59,8 @@ final class EventBus: EventBusProtocol {
 
     /// Emitir evento de autenticación
     func emit(_ event: AuthEvent) {
-        updateAuthState(from: event)
         for (_, continuation) in authEventContinuations {
             continuation.yield(event)
-        }
-    }
-
-    private func updateAuthState(from event: AuthEvent) {
-        switch event {
-        case .signedIn(let userID, _, _):
-            authUserID = userID
-        case .signedOut:
-            authUserID = nil
-        case .checkCompleted(let isAuthenticated):
-            if !isAuthenticated {
-                authUserID = nil
-            }
-            // Si isAuthenticated es true, mantener el userID actual
         }
     }
 
@@ -94,27 +68,8 @@ final class EventBus: EventBusProtocol {
 
     /// Emitir evento de reproducción
     func emit(_ event: PlaybackEvent) {
-        updatePlaybackState(from: event)
         for (_, continuation) in playbackEventContinuations {
             continuation.yield(event)
-        }
-    }
-
-    private func updatePlaybackState(from event: PlaybackEvent) {
-        switch event {
-        case .stateChanged(let isPlaying, let songID):
-            if let songID = songID {
-                playbackState = isPlaying ? .playing(songID: songID) : .paused(songID: songID)
-            } else {
-                playbackState = .idle
-            }
-        case .timeUpdated(let progress):
-            playbackProgress = progress
-        case .songFinished:
-            playbackState = .idle
-        case .remoteCommand:
-            // Remote commands don't change state directly
-            break
         }
     }
 
@@ -192,10 +147,6 @@ final class EventBus: EventBusProtocol {
     #if DEBUG
     /// Reset all state (for testing only)
     func reset() {
-        authUserID = nil
-        playbackState = .idle
-        playbackProgress = .zero
-
         // Finish all streams
         for (_, continuation) in authEventContinuations {
             continuation.finish()
