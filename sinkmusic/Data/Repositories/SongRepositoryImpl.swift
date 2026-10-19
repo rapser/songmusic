@@ -65,7 +65,7 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
     /// (7 días desde la última reproducción), de modo que una canción en rotación se
     /// mantiene en el ranking. Las caducadas ya fueron descartadas por `activeCounts()`.
     ///
-    /// Cuando no queda ninguna ventana viva —una semana sin escuchar nada— se cae al
+    /// Cuando no queda ranking de ventana —una semana sin escuchar nada— se cae al
     /// `playCount` histórico en lugar de devolver una lista vacía, que es lo que dejaba
     /// la sección de Inicio en blanco. Sigue siendo un ranking de verdad, y en cuanto se
     /// reproduzca algo la ventana vuelve a mandar.
@@ -76,13 +76,21 @@ final class SongRepositoryImpl: SongRepositoryProtocol {
         // del ranking aunque conserve su ventana (se limpia sola al caducar).
         let downloaded = try localDataSource.getDownloaded()
 
-        let ranked: [SongDTO] = counts.isEmpty
-            // Nunca se reprodujo nada: la sección sí debe salir vacía, no listar la
-            // biblioteca entera por orden alfabético bajo "lo que más escuchas".
-            ? rank(downloaded.filter { $0.playCount > 0 }, limit: limit) { $0.playCount }
-            : rank(downloaded.filter { counts[$0.id] != nil }, limit: limit) { counts[$0.id] ?? 0 }
+        let windowed = rank(downloaded.filter { counts[$0.id] != nil }, limit: limit) {
+            counts[$0.id] ?? 0
+        }
 
-        return SongMapper.toDomain(ranked)
+        // El respaldo se decide sobre el **resultado**, no sobre si `counts` está vacío.
+        // Una ventana viva puede pertenecer solo a canciones cuya descarga se quitó —su
+        // entrada sobrevive hasta caducar, y `updateDownloadStatus` no la toca—, y entonces
+        // `counts` viene lleno pero no hay nada que mostrar.
+        guard windowed.isEmpty else { return SongMapper.toDomain(windowed) }
+
+        // Las de `playCount == 0` quedan fuera: en una biblioteca recién descargada la
+        // sección sí debe salir vacía, no listar todo por orden alfabético bajo "lo que
+        // más escuchas".
+        let historic = rank(downloaded.filter { $0.playCount > 0 }, limit: limit) { $0.playCount }
+        return SongMapper.toDomain(historic)
     }
 
     /// Ordena de mayor a menor por el contador dado, desempatando por título para que el

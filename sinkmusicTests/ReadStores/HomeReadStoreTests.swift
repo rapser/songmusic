@@ -131,6 +131,27 @@ final class HomeReadStoreTests: XCTestCase {
         XCTAssertTrue(songs.isEmpty)
     }
 
+    /// Las entradas de la ventana sobreviven a que se quite la descarga (`updateDownloadStatus`
+    /// no las toca), así que `activeCounts()` puede venir lleno y aun así no haber nada que
+    /// mostrar. El respaldo se decide sobre el resultado, no sobre si `counts` está vacío.
+    func test_mostPlayedSongs_windowOnlyHasUndownloadedSongs_fallsBackToHistoric() async throws {
+        let container = try ReadStoreTestSupport.makeInMemoryContainer()
+        let context = container.mainContext
+        let ranking = ReadStoreTestSupport.makeRankingWindowRepository(context)
+
+        // Se escuchó y después se le quitó la descarga: su ventana sigue viva.
+        let removed = try ReadStoreTestSupport.insertSong(context, title: "SinDescarga", isDownloaded: false, playCount: 9)
+        await ranking.registerPlay(songID: removed.id)
+
+        // Esta sí está en disco y tiene histórico, pero ninguna ventana.
+        try ReadStoreTestSupport.insertSong(context, title: "Descargada", isDownloaded: true, playCount: 4)
+
+        let sut = makeSUT(context, ranking: ranking)
+        let songs = try await sut.mostPlayedSongs(limit: 10)
+
+        XCTAssertEqual(songs.map(\.title), ["Descargada"])
+    }
+
     func test_mostPlayedSongs_historicFallback_excludesRemovedDownloads() async throws {
         let container = try ReadStoreTestSupport.makeInMemoryContainer()
         let context = container.mainContext
