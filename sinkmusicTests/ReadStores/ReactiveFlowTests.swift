@@ -21,7 +21,11 @@ final class ReactiveFlowTests: XCTestCase {
 
         let libraryUseCases = ReadStoreTestSupport.makeLibraryUseCases(context)
         let readStore = LibraryReadStore(libraryUseCases: libraryUseCases, modelContext: context)
-        let viewModel = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: readStore)
+        let viewModel = LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: readStore,
+            bulkReloadGate: ReactiveReloadGate([])
+        )
 
         await viewModel.loadSongs()
         XCTAssertEqual(viewModel.songs.first?.isDownloaded, false)
@@ -41,7 +45,11 @@ final class ReactiveFlowTests: XCTestCase {
 
         let libraryUseCases = ReadStoreTestSupport.makeLibraryUseCases(context)
         let readStore = LibraryReadStore(libraryUseCases: libraryUseCases, modelContext: context)
-        let viewModel = LibraryViewModel(libraryUseCases: libraryUseCases, readStore: readStore)
+        let viewModel = LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: readStore,
+            bulkReloadGate: ReactiveReloadGate([])
+        )
 
         await viewModel.loadSongs()
         XCTAssertEqual(viewModel.songs.count, 1)

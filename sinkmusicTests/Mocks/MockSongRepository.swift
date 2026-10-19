@@ -25,8 +25,12 @@ final class MockSongRepository: SongRepositoryProtocol {
     var shouldThrowOnCreate = false
     var shouldThrowOnUpdate = false
     var shouldThrowOnDelete = false
+    var shouldThrowOnGetAll = false
 
-    func getAll() async throws -> [Song] { songs }
+    func getAll() async throws -> [Song] {
+        if shouldThrowOnGetAll { throw SongError.fileNotFound }
+        return songs
+    }
 
     func getByID(_ id: UUID) async throws -> Song? {
         getByIDCallCount += 1

@@ -306,7 +306,11 @@ final class DIContainer {
 
     /// Factory para LibraryViewModel
     func makeLibraryViewModel() -> LibraryViewModel {
-        LibraryViewModel(libraryUseCases: libraryUseCases, readStore: libraryReadStore)
+        LibraryViewModel(
+            libraryUseCases: libraryUseCases,
+            readStore: libraryReadStore,
+            bulkReloadGate: bulkReloadGate
+        )
     }
 
     /// Factory para PlaylistViewModel

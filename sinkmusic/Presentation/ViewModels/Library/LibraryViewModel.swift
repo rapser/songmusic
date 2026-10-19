@@ -32,6 +32,10 @@ final class LibraryViewModel {
     private let libraryUseCases: LibraryUseCases
     private let readStore: LibraryReadStoreProtocol
 
+    /// Pausa la reactividad de las cuatro listas durante un borrado masivo: una recarga al
+    /// final en vez de una por canción.
+    private let bulkReloadGate: BulkReloadGate
+
     // MARK: - Tasks
 
     /// Task para observar cambios reactivos del ReadStore
@@ -40,9 +44,14 @@ final class LibraryViewModel {
 
     // MARK: - Initialization
 
-    init(libraryUseCases: LibraryUseCases, readStore: LibraryReadStoreProtocol) {
+    init(
+        libraryUseCases: LibraryUseCases,
+        readStore: LibraryReadStoreProtocol,
+        bulkReloadGate: BulkReloadGate
+    ) {
         self.libraryUseCases = libraryUseCases
         self.readStore = readStore
+        self.bulkReloadGate = bulkReloadGate
         changesTask = ReactiveReload.loop(readStore.changes()) { [weak self] in
             await self?.reloadLibrary()
         }
@@ -138,8 +147,16 @@ final class LibraryViewModel {
         }
     }
 
-    /// Limpia toda la biblioteca
+    /// Limpia toda la biblioteca.
+    ///
+    /// Borra canción por canción, y cada borrado hace su propio `save()`. Sin la puerta,
+    /// cada uno despertaba a las cuatro tiendas del read-side: vaciar 500 canciones eran
+    /// 500 cascadas de recargas, todas describiendo un estado intermedio que nadie va a
+    /// ver. Con la puerta se colapsan en una sola señal al terminar.
     func clearLibrary() async {
+        bulkReloadGate.suspend()
+        defer { bulkReloadGate.resume() }
+
         do {
             let allSongs = try await libraryUseCases.getAllSongs()
 
@@ -173,7 +190,11 @@ final class LibraryViewModel {
     }
 
     /// Elimina múltiples canciones en modo best-effort — continúa aunque alguna falle.
+    /// Igual que `clearLibrary()`: una recarga al final, no una por canción.
     func deleteSongs(_ songIDs: [UUID]) async {
+        bulkReloadGate.suspend()
+        defer { bulkReloadGate.resume() }
+
         let result = await libraryUseCases.deleteSongs(songIDs)
         await loadSongs()
         await loadStats()
